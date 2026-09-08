@@ -1,11 +1,11 @@
 # BlendProof Project State
 
-Phase: 0 of 4（研究基线）
-Plan: 00-01
-Status: Complete
-Last activity: 2026-09-08 - 固化三组相机样例和浏览器失败基线
+Phase: 1 of 4（Viewer 内核）
+Plan: 01-01
+Status: In progress
+Last activity: 2026-09-08 - 完成同源模型加载与文件相机投影修复，待浏览器复验
 
-Progress: █░░░░ 20%
+Progress: ██░░░ 40%
 
 ## Decisions
 
@@ -15,11 +15,11 @@ Progress: █░░░░ 20%
 
 ## Current Risks
 
-- 当前 React Three Fiber Viewer 对已验证的 GLB 在浏览器画布中不呈现；文件相机控制因此未出现。
-- 相机切换、框选与局部视图仍未具备真实浏览器通过证据。
+- 多相机 GLB 已在浏览器画布呈现，文件相机按钮已出现；透视文件相机切换已有浏览器截图。
+- 顶部正交相机的最终投影复验被本地服务进程中断阻塞；选择、框选与局部视图仍未具备真实浏览器通过证据。
 
 ## Session Continuity
 
 Last session: 2026-09-08
-Stopped at: Phase 0 complete
-Resume file: `docs/VIEWER_BASELINE.md`
+Stopped at: Phase 1 browser verification
+Resume file: `.planning/phases/01-viewer-core/01-01-PLAN.md`
