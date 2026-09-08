@@ -3,6 +3,8 @@ dist
 .DS_Store
 storage/projects
 tsconfig.tsbuildinfo
+.playwright-cli/
+output/playwright/
 temp/*
 !temp/3D-Review-Research/
 !temp/3D-Review-Research/README.md

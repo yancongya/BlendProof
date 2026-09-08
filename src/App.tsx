@@ -26,6 +26,7 @@ import {
 } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import {
+  Box3,
   MOUSE,
   Vector3,
   type Camera as ThreeCamera,
@@ -429,6 +430,7 @@ function BlenderWorkspace({
                 <BlenderViewControls
                   preset={cameraPreset}
                   fileCameras={fileCameras}
+                  scene={sceneRoot}
                 />
                 <BoxSelectionController
                   scene={sceneRoot}
@@ -673,6 +675,7 @@ function BoxSelectionController({
 }) {
   const { camera, gl, size } = useThree();
   const start = useRef<{ x: number; y: number } | null>(null);
+  const dragged = useRef(false);
   useEffect(() => {
     const element = gl.domElement;
     const point = (event: PointerEvent) => {
@@ -682,12 +685,18 @@ function BoxSelectionController({
     const onDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
       start.current = point(event);
+      dragged.current = false;
     };
     const onMove = (event: PointerEvent) => {
       if (!start.current) return;
       const end = point(event);
       const left = Math.min(start.current.x, end.x);
       const top = Math.min(start.current.y, end.y);
+      if (
+        Math.abs(end.x - start.current.x) >= 8 ||
+        Math.abs(end.y - start.current.y) >= 8
+      )
+        dragged.current = true;
       onBoxChange({
         left,
         top,
@@ -711,21 +720,46 @@ function BoxSelectionController({
       scene.traverse((node) => {
         const name = selectableAncestorName(node, selectableNames);
         if (!name || !(node as { isMesh?: boolean }).isMesh) return;
-        const position = new Vector3()
-          .setFromMatrixPosition(node.matrixWorld)
-          .project(camera);
-        const x = ((position.x + 1) / 2) * size.width;
-        const y = ((1 - position.y) / 2) * size.height;
-        if (x >= left && x <= right && y >= top && y <= bottom)
+        const bounds = new Box3().setFromObject(node);
+        if (bounds.isEmpty()) return;
+        let objectLeft = Number.POSITIVE_INFINITY;
+        let objectRight = Number.NEGATIVE_INFINITY;
+        let objectTop = Number.POSITIVE_INFINITY;
+        let objectBottom = Number.NEGATIVE_INFINITY;
+        for (const x of [bounds.min.x, bounds.max.x])
+          for (const y of [bounds.min.y, bounds.max.y])
+            for (const z of [bounds.min.z, bounds.max.z]) {
+              const projected = new Vector3(x, y, z).project(camera);
+              const screenX = ((projected.x + 1) / 2) * size.width;
+              const screenY = ((1 - projected.y) / 2) * size.height;
+              objectLeft = Math.min(objectLeft, screenX);
+              objectRight = Math.max(objectRight, screenX);
+              objectTop = Math.min(objectTop, screenY);
+              objectBottom = Math.max(objectBottom, screenY);
+            }
+        if (
+          objectRight >= left &&
+          objectLeft <= right &&
+          objectBottom >= top &&
+          objectTop <= bottom
+        )
           selected.add(name);
       });
       onSelectMany([...selected]);
     };
+    const onClickCapture = (event: MouseEvent) => {
+      if (!dragged.current) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      dragged.current = false;
+    };
     element.addEventListener("pointerdown", onDown);
+    element.addEventListener("click", onClickCapture, true);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     return () => {
       element.removeEventListener("pointerdown", onDown);
+      element.removeEventListener("click", onClickCapture, true);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
@@ -754,11 +788,13 @@ function belongsToAnySelected(node: Object3D, selected: Set<string>) {
 function BlenderViewControls({
   preset,
   fileCameras,
+  scene,
 }: {
   preset: CameraPreset;
   fileCameras: ThreeCamera[];
+  scene: Object3D | null;
 }) {
-  const { camera, set, size } = useThree();
+  const { camera, gl, set, size } = useThree();
   const controls = useRef<any>(null);
   const navigationCamera = useRef<ThreeCamera | null>(null);
   if (!navigationCamera.current) navigationCamera.current = camera;
@@ -787,21 +823,54 @@ function BlenderViewControls({
       const activeCamera = navigationCamera.current!;
       set({ camera: activeCamera as any });
       if (controls.current) controls.current.object = activeCamera;
+      const bounds = scene ? new Box3().setFromObject(scene) : null;
+      const center =
+        bounds && !bounds.isEmpty()
+          ? bounds.getCenter(new Vector3())
+          : new Vector3();
+      const radius =
+        bounds && !bounds.isEmpty()
+          ? Math.max(bounds.getSize(new Vector3()).length() / 2, 1)
+          : 4;
+      const distance = radius * 2.4;
       const position: [number, number, number] =
         preset === "front"
-          ? [0, -8, 0]
+          ? [center.x, center.y - distance, center.z]
           : preset === "right"
-            ? [8, 0, 0]
+            ? [center.x + distance, center.y, center.z]
             : preset === "top"
-            ? [0, 0, 8]
-              : [5, -5, 4];
+              ? [center.x, center.y, center.z + distance]
+              : [
+                  center.x + distance * 0.62,
+                  center.y - distance * 0.62,
+                  center.z + distance * 0.5,
+                ];
       activeCamera.position.set(...position);
-      controls.current?.target.set(0, 0, 0);
-      activeCamera.lookAt(0, 0, 0);
+      controls.current?.target.copy(center);
+      activeCamera.lookAt(center);
       (activeCamera as any).updateProjectionMatrix();
     }
     controls.current?.update();
-  }, [fileCameras, preset, set, size.height, size.width]);
+  }, [fileCameras, preset, scene, set, size.height, size.width]);
+  useEffect(() => {
+    const element = gl.domElement;
+    const chooseMiddleAction = (event: PointerEvent) => {
+      if (!controls.current || event.button !== 1) return;
+      controls.current.mouseButtons.MIDDLE = event.shiftKey
+        ? MOUSE.PAN
+        : MOUSE.ROTATE;
+    };
+    const restoreMiddleAction = () => {
+      if (controls.current)
+        controls.current.mouseButtons.MIDDLE = MOUSE.ROTATE;
+    };
+    element.addEventListener("pointerdown", chooseMiddleAction, true);
+    window.addEventListener("pointerup", restoreMiddleAction);
+    return () => {
+      element.removeEventListener("pointerdown", chooseMiddleAction, true);
+      window.removeEventListener("pointerup", restoreMiddleAction);
+    };
+  }, [gl]);
   return (
     <OrbitControls
       ref={controls}
