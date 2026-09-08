@@ -1,11 +1,11 @@
 # BlendProof Project State
 
-Phase: 1 of 4（Viewer 内核）
-Plan: 01-01
-Status: In progress
-Last activity: 2026-09-08 - 完成同源模型加载与文件相机投影修复，待浏览器复验
+Phase: 2 of 4（审稿能力）
+Plan: 待创建
+Status: Ready
+Last activity: 2026-09-08 - Viewer 内核通过三组样例的真实浏览器验收
 
-Progress: ██░░░ 40%
+Progress: ███░░ 55%
 
 ## Decisions
 
@@ -15,11 +15,11 @@ Progress: ██░░░ 40%
 
 ## Current Risks
 
-- 多相机 GLB 已在浏览器画布呈现，文件相机按钮已出现；透视文件相机切换已有浏览器截图。
-- 顶部正交相机的最终投影复验被本地服务进程中断阻塞；选择、框选与局部视图仍未具备真实浏览器通过证据。
+- 阶段 2 尚未固定评论锚点、相机状态和截图的数据合同。
+- 当前本地分享仍是文件 manifest 合同；SQLite、密码、有效期与用户边界属于阶段 3。
 
 ## Session Continuity
 
 Last session: 2026-09-08
-Stopped at: Phase 1 browser verification
-Resume file: `.planning/phases/01-viewer-core/01-01-PLAN.md`
+Stopped at: Phase 2 planning boundary
+Resume file: `docs/LONG_TERM_PLAN.md`
