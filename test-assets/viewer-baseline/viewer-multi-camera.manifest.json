@@ -1,0 +1,57 @@
+{
+  "fixture": "viewer-multi-camera",
+  "scene": "viewer-multi-camera",
+  "activeCamera": "低角度透视相机",
+  "cameras": [
+    {
+      "name": "低角度透视相机",
+      "projection": "PERSP",
+      "location": [
+        -8.5,
+        -7.5,
+        1.2000000476837158
+      ]
+    },
+    {
+      "name": "顶部正交相机",
+      "projection": "ORTHO",
+      "location": [
+        0.0,
+        0.0,
+        11.0
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "name": "产品主体",
+      "type": "MESH"
+    },
+    {
+      "name": "可替换部件",
+      "type": "MESH"
+    },
+    {
+      "name": "方向标记",
+      "type": "MESH"
+    },
+    {
+      "name": "展示底板",
+      "type": "MESH"
+    },
+    {
+      "name": "主灯",
+      "type": "LIGHT"
+    },
+    {
+      "name": "低角度透视相机",
+      "type": "CAMERA"
+    },
+    {
+      "name": "顶部正交相机",
+      "type": "CAMERA"
+    }
+  ],
+  "sourceBytes": 117392,
+  "glbBytes": 82196
+}

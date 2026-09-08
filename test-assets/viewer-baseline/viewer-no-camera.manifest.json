@@ -1,0 +1,30 @@
+{
+  "fixture": "viewer-no-camera",
+  "scene": "viewer-no-camera",
+  "activeCamera": null,
+  "cameras": [],
+  "objects": [
+    {
+      "name": "产品主体",
+      "type": "MESH"
+    },
+    {
+      "name": "可替换部件",
+      "type": "MESH"
+    },
+    {
+      "name": "方向标记",
+      "type": "MESH"
+    },
+    {
+      "name": "展示底板",
+      "type": "MESH"
+    },
+    {
+      "name": "主灯",
+      "type": "LIGHT"
+    }
+  ],
+  "sourceBytes": 116871,
+  "glbBytes": 81512
+}

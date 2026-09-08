@@ -1,0 +1,44 @@
+{
+  "fixture": "viewer-single-camera",
+  "scene": "viewer-single-camera",
+  "activeCamera": "正面审稿相机",
+  "cameras": [
+    {
+      "name": "正面审稿相机",
+      "projection": "PERSP",
+      "location": [
+        0.0,
+        -10.0,
+        1.7999999523162842
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "name": "产品主体",
+      "type": "MESH"
+    },
+    {
+      "name": "可替换部件",
+      "type": "MESH"
+    },
+    {
+      "name": "方向标记",
+      "type": "MESH"
+    },
+    {
+      "name": "展示底板",
+      "type": "MESH"
+    },
+    {
+      "name": "主灯",
+      "type": "LIGHT"
+    },
+    {
+      "name": "正面审稿相机",
+      "type": "CAMERA"
+    }
+  ],
+  "sourceBytes": 117327,
+  "glbBytes": 81868
+}

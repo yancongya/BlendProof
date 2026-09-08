@@ -10,6 +10,7 @@
     "build": "tsc -b && vite build",
     "start": "tsx server/index.ts",
     "create:test-blend": "BLENDER_BIN=\"/Users/tanyancong/Library/Application Support/Steam/steamapps/common/Blender/Blender.app/Contents/MacOS/Blender\" tsx server/create-test-blend.ts",
+    "create:viewer-fixtures": "BLENDER_BIN=\"/Users/tanyancong/Library/Application Support/Steam/steamapps/common/Blender/Blender.app/Contents/MacOS/Blender\" tsx server/create-viewer-fixtures.ts",
     "check": "tsc -b --pretty false"
   },
   "dependencies": {
