@@ -2,10 +2,10 @@
 
 Phase: 0 of 4（研究基线）
 Plan: 00-01
-Status: In progress
-Last activity: 2026-09-08 - 开始执行研究基线
+Status: Complete
+Last activity: 2026-09-08 - 固化三组相机样例和浏览器失败基线
 
-Progress: ░░░░░ 0%
+Progress: █░░░░ 20%
 
 ## Decisions
 
@@ -15,11 +15,11 @@ Progress: ░░░░░ 0%
 
 ## Current Risks
 
-- 当前 React Three Fiber 相机控制在切换文件相机后闪回。
-- 当前框选与局部视图属于自写实现，尚未经过独立 Viewer 基线验证。
+- 当前 React Three Fiber Viewer 对已验证的 GLB 在浏览器画布中不呈现；文件相机控制因此未出现。
+- 相机切换、框选与局部视图仍未具备真实浏览器通过证据。
 
 ## Session Continuity
 
 Last session: 2026-09-08
-Stopped at: Phase 0 execution started
-Resume file: `.planning/phases/00-research-baseline/00-01-PLAN.md`
+Stopped at: Phase 0 complete
+Resume file: `docs/VIEWER_BASELINE.md`
