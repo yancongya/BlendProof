@@ -90,7 +90,7 @@ export function App() {
     const body = new FormData();
     body.append("blend", file);
     try {
-      const response = await fetch("http://localhost:8787/api/projects", {
+      const response = await fetch("/api/projects", {
         method: "POST",
         body,
       });
@@ -110,7 +110,7 @@ export function App() {
   async function createShare() {
     if (!project) return;
     const response = await fetch(
-      `http://localhost:8787/api/projects/${project.id}/shares`,
+      `/api/projects/${project.id}/shares`,
       { method: "POST" },
     );
     const body = (await response.json()) as {
@@ -195,7 +195,7 @@ export function SharePage() {
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
   useEffect(() => {
     if (!token) return setError("缺少分享标识。");
-    fetch(`http://localhost:8787/api/shares/${token}`)
+    fetch(`/api/shares/${token}`)
       .then(async (response) => {
         const body = (await response.json()) as {
           name: string;

@@ -53,8 +53,8 @@ app.post('/api/projects', upload.single('blend'), async (request, response) => {
     response.status(201).json({
       id: projectId,
       name: request.file.originalname,
-      modelUrl: `http://localhost:8787/files/${projectId}/model.glb`,
-      manifestUrl: `http://localhost:8787/files/${projectId}/manifest.json`,
+      modelUrl: `/files/${projectId}/model.glb`,
+      manifestUrl: `/files/${projectId}/manifest.json`,
     })
   } catch (error) {
     await rm(projectDir, { recursive: true, force: true })
@@ -70,7 +70,7 @@ app.post('/api/projects/:projectId/shares', async (request, response) => {
   }
   const token = randomUUID().replaceAll('-', '')
   await writeFile(path.join(projectDir, 'share.json'), JSON.stringify({ token, createdAt: new Date().toISOString() }, null, 2))
-  response.status(201).json({ token, shareUrl: `http://127.0.0.1:5173/s/${token}` })
+  response.status(201).json({ token, shareUrl: `/s/${token}` })
 })
 
 app.get('/api/shares/:token', async (request, response) => {
@@ -82,7 +82,7 @@ app.get('/api/shares/:token', async (request, response) => {
       const share = JSON.parse(await readFile(path.join(projectDir, 'share.json'), 'utf8')) as { token: string }
       if (share.token === request.params.token) {
         const manifest = JSON.parse(await readFile(path.join(projectDir, 'manifest.json'), 'utf8'))
-        response.json({ name: entry.name, modelUrl: `http://localhost:8787/files/${entry.name}/model.glb`, manifest })
+        response.json({ name: entry.name, modelUrl: `/files/${entry.name}/model.glb`, manifest })
         return
       }
     } catch { /* Projects without a share record are intentionally skipped. */ }
