@@ -1,0 +1,115 @@
+.blender-menubar {
+  grid-template-columns: auto minmax(130px, 1fr) auto;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.blender-main {
+  grid-template-columns: minmax(0, 1fr) 282px;
+}
+.viewport-hints {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  background: #252525;
+  border-top: 1px solid #111;
+  color: #999;
+  font-size: 10px;
+}
+.viewport-hints span {
+  color: #e87d0d;
+}
+.view-controls {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-left: auto;
+}
+.icon-group {
+  display: flex;
+  align-items: center;
+  border: 1px solid #414141;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.icon-group button {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid #414141;
+  background: #252525;
+  color: #aaa;
+}
+.icon-group button:last-child {
+  border-right: 0;
+}
+.icon-group button:hover {
+  background: #3a3a3a;
+  color: #fff;
+}
+.icon-group button.active {
+  background: #4a4a4a;
+  color: #e87d0d;
+  box-shadow: inset 0 0 0 1px #e87d0d;
+}
+.icon-group svg {
+  width: 13px;
+  height: 13px;
+}
+.camera-group button {
+  font-size: 11px;
+  font-weight: 700;
+}
+.file-camera {
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid #414141;
+  border-radius: 3px;
+  background: #252525;
+  color: #aaa;
+  font-size: 10px;
+}
+.file-camera:hover {
+  background: #3a3a3a;
+  color: #fff;
+}
+.file-camera.active {
+  border-color: #e87d0d;
+  background: #4a4a4a;
+  color: #e87d0d;
+}
+.selection-box {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  border: 1px solid #e87d0d;
+  background: rgb(232 125 13 / 15%);
+}
+.conversion-summary {
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  color: #a9a9a9;
+  font-size: 11px;
+}
+.conversion-summary span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.conversion-summary b {
+  color: #d8d8d8;
+  font-weight: 500;
+}
+@media (max-width: 850px) {
+  .blender-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

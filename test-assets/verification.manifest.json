@@ -1,0 +1,72 @@
+{
+  "scene": "Scene",
+  "camera": null,
+  "objects": [
+    {
+      "name": "甩杆",
+      "type": "MESH",
+      "collections": [
+        "Scene Collection"
+      ]
+    },
+    {
+      "name": "蝉体",
+      "type": "MESH",
+      "collections": [
+        "Scene Collection"
+      ]
+    },
+    {
+      "name": "装配",
+      "type": "MESH",
+      "collections": [
+        "Scene Collection"
+      ]
+    },
+    {
+      "name": "杆端绳结",
+      "type": "EMPTY",
+      "collections": [
+        "Scene Collection"
+      ]
+    },
+    {
+      "name": "蝉端绳结",
+      "type": "EMPTY",
+      "collections": [
+        "Scene Collection"
+      ]
+    },
+    {
+      "name": "蝉体控制器",
+      "type": "EMPTY",
+      "collections": [
+        "Scene Collection"
+      ]
+    },
+    {
+      "name": "连接线",
+      "type": "CURVE",
+      "collections": [
+        "Scene Collection"
+      ]
+    },
+    {
+      "name": "物理竹知了",
+      "type": "MESH",
+      "collections": [
+        "Scene Collection"
+      ]
+    },
+    {
+      "name": "Phase0_Offset_Demo",
+      "type": "MESH",
+      "collections": [
+        "Collection"
+      ]
+    }
+  ],
+  "collections": [
+    "Collection"
+  ]
+}

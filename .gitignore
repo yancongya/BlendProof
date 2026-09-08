@@ -1,0 +1,12 @@
+node_modules
+dist
+.DS_Store
+storage/projects
+tsconfig.tsbuildinfo
+temp/*
+!temp/3D-Review-Research/
+!temp/3D-Review-Research/README.md
+temp/3D-Review-Research/01-viewer/
+temp/3D-Review-Research/02-blender/
+temp/3D-Review-Research/03-review/
+temp/3D-Review-Research/04-our-project/
