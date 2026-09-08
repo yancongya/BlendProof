@@ -758,36 +758,50 @@ function BlenderViewControls({
   preset: CameraPreset;
   fileCameras: ThreeCamera[];
 }) {
-  const { camera } = useThree();
+  const { camera, set, size } = useThree();
   const controls = useRef<any>(null);
+  const navigationCamera = useRef<ThreeCamera | null>(null);
+  if (!navigationCamera.current) navigationCamera.current = camera;
   useEffect(() => {
     const source = preset.startsWith("file:")
       ? fileCameras.find((item) => item.uuid === preset.slice(5))
       : undefined;
     if (source) {
       source.updateWorldMatrix(true, false);
-      source.getWorldPosition(camera.position);
-      source.getWorldQuaternion(camera.quaternion);
-      const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      const fileCamera = source.clone() as ThreeCamera;
+      source.getWorldPosition(fileCamera.position);
+      source.getWorldQuaternion(fileCamera.quaternion);
+      if (fileCamera.type === "PerspectiveCamera") {
+        (fileCamera as any).aspect = size.width / size.height;
+      }
+      (fileCamera as any).updateProjectionMatrix();
+      set({ camera: fileCamera as any });
+      if (controls.current) controls.current.object = fileCamera;
+      const forward = new Vector3(0, 0, -1).applyQuaternion(
+        fileCamera.quaternion,
+      );
       controls.current?.target
-        .copy(camera.position)
+        .copy(fileCamera.position)
         .add(forward.multiplyScalar(10));
     } else {
+      const activeCamera = navigationCamera.current!;
+      set({ camera: activeCamera as any });
+      if (controls.current) controls.current.object = activeCamera;
       const position: [number, number, number] =
         preset === "front"
           ? [0, -8, 0]
           : preset === "right"
             ? [8, 0, 0]
             : preset === "top"
-              ? [0, 0, 8]
+            ? [0, 0, 8]
               : [5, -5, 4];
-      camera.position.set(...position);
+      activeCamera.position.set(...position);
       controls.current?.target.set(0, 0, 0);
-      camera.lookAt(0, 0, 0);
+      activeCamera.lookAt(0, 0, 0);
+      (activeCamera as any).updateProjectionMatrix();
     }
     controls.current?.update();
-    camera.updateProjectionMatrix();
-  }, [camera, fileCameras, preset]);
+  }, [fileCameras, preset, set, size.height, size.width]);
   return (
     <OrbitControls
       ref={controls}
