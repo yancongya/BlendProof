@@ -1,10 +1,4 @@
-import {
-  Bounds,
-  Center,
-  Environment,
-  OrbitControls,
-  useGLTF,
-} from "@react-three/drei";
+import { Environment, OrbitControls, useGLTF } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import {
   Box,
@@ -408,33 +402,28 @@ function BlenderWorkspace({
           <div className="viewport">
             {modelUrl ? (
               <Canvas
-                camera={{ position: [5, 4, 6], fov: 45 }}
+                camera={{ position: [7, -7, 5], fov: 45 }}
                 dpr={[1, 2]}
                 onPointerMissed={() => onSelect(null)}
+                onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
               >
                 <color attach="background" args={["#1e1e1e"]} />
                 <ambientLight intensity={1.35} />
                 <directionalLight position={[5, 8, 4]} intensity={2.5} />
                 <Suspense fallback={null}>
-                  <Bounds fit clip observe margin={1.18}>
-                    <Center>
-                      <Model
-                        url={modelUrl}
-                        hidden={hidden}
-                        displayMode={displayMode}
-                        selected={selected}
-                        isolated={isolated}
-                        selectableNames={
-                          new Set(
-                            manifest?.objects.map((object) => object.name),
-                          )
-                        }
-                        onObjectClick={onSelect}
-                        onCameras={collectCameras}
-                        onSceneReady={setSceneRoot}
-                      />
-                    </Center>
-                  </Bounds>
+                  <Model
+                    url={modelUrl}
+                    hidden={hidden}
+                    displayMode={displayMode}
+                    selected={selected}
+                    isolated={isolated}
+                    selectableNames={
+                      new Set(manifest?.objects.map((object) => object.name))
+                    }
+                    onObjectClick={onSelect}
+                    onCameras={collectCameras}
+                    onSceneReady={setSceneRoot}
+                  />
                   <Environment preset="city" />
                 </Suspense>
                 <BlenderViewControls
