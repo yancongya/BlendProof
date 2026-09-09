@@ -2,6 +2,7 @@ import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { existsSync } from 'node:fs'
 import { mkdir, rename, rm, readFile, writeFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
+import { Readable } from 'node:stream'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
@@ -9,6 +10,8 @@ import express from 'express'
 import multer from 'multer'
 import { BlendProofRepository, hashPassword, openDatabase, type ReviewCommentDraft, type ShareRecord } from './db.js'
 import { migrateLegacy } from './migrate-legacy.js'
+import { isPublicProjectAsset, LocalProjectStorage } from './local-storage.js'
+import type { StoredAsset } from './contracts.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const storageRoot = process.env.BLENDPROOF_STORAGE_ROOT ?? path.join(root, 'storage', 'projects')
@@ -26,6 +29,7 @@ await mkdir(incomingRoot, { recursive: true })
 const database = await openDatabase()
 const repository = new BlendProofRepository(database)
 await migrateLegacy(storageRoot, repository)
+const projectStorage = new LocalProjectStorage(storageRoot)
 const accessSecret = process.env.BLENDPROOF_ACCESS_SECRET ?? await loadAccessSecret(path.join(path.dirname(storageRoot), '.access-secret'))
 
 const app = express()
@@ -33,13 +37,17 @@ const upload = multer({ dest: incomingRoot, limits: { fileSize: 1024 * 1024 * 10
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }))
 app.use(express.json({ limit: '1mb' }))
-app.get('/files/:projectId/:fileName', (request, response) => {
-  const projectDir = resolveProjectDir(request.params.projectId)
-  if (!projectDir || !['model.glb', 'manifest.json'].includes(request.params.fileName)) {
+app.get('/files/:projectId/:fileName', async (request, response) => {
+  if (!isProjectId(request.params.projectId) || !isPublicProjectAsset(request.params.fileName) || request.params.fileName === 'thumbnail.webp') {
     response.status(404).end()
     return
   }
-  response.sendFile(path.join(projectDir, request.params.fileName))
+  const asset = await projectStorage.get(request.params.projectId, request.params.fileName)
+  if (!asset) {
+    response.status(404).end()
+    return
+  }
+  sendStoredAsset(response, asset)
 })
 
 app.get('/api/health', (_request, response) => {
@@ -58,7 +66,7 @@ app.post('/api/projects', upload.single('blend'), async (request, response) => {
   }
 
   const projectId = randomUUID().replaceAll('-', '')
-  const projectDir = path.join(storageRoot, projectId)
+  const projectDir = projectStorage.projectPath(projectId)
   const sourcePath = path.join(projectDir, 'source.blend')
   const glbPath = path.join(projectDir, 'model.glb')
   const manifestPath = path.join(projectDir, 'manifest.json')
@@ -71,18 +79,17 @@ app.post('/api/projects', upload.single('blend'), async (request, response) => {
     const project = repository.registerProject({ id: projectId, name: request.file.originalname })
     response.status(201).json(project)
   } catch (error) {
-    await rm(projectDir, { recursive: true, force: true })
+    await projectStorage.deleteProject(projectId)
     response.status(422).json({ error: error instanceof Error ? error.message : 'Blender 导出失败。' })
   }
 })
 
 app.post('/api/projects/:projectId/shares', async (request, response) => {
-  const projectDir = resolveProjectDir(request.params.projectId)
-  if (!projectDir) {
+  if (!isProjectId(request.params.projectId)) {
     response.status(400).json({ error: '项目标识无效。' })
     return
   }
-  if (!existsSync(path.join(projectDir, 'model.glb'))) {
+  if (!await projectStorage.has(request.params.projectId, 'model.glb')) {
     response.status(404).json({ error: '找不到可分享的本地项目。' })
     return
   }
@@ -127,8 +134,7 @@ app.delete('/api/projects/:projectId/shares/:shareId', (request, response) => {
 })
 
 app.get('/api/projects/:projectId/comments', async (request, response) => {
-  const projectDir = resolveProjectDir(request.params.projectId)
-  if (!projectDir || !existsSync(path.join(projectDir, 'model.glb'))) {
+  if (!isProjectId(request.params.projectId) || !await projectStorage.has(request.params.projectId, 'model.glb')) {
     response.status(404).json({ error: '找不到本地项目。' })
     return
   }
@@ -141,8 +147,7 @@ app.get('/api/projects/:projectId/comments', async (request, response) => {
 })
 
 app.post('/api/projects/:projectId/comments', async (request, response) => {
-  const projectDir = resolveProjectDir(request.params.projectId)
-  if (!projectDir || !existsSync(path.join(projectDir, 'model.glb'))) {
+  if (!isProjectId(request.params.projectId) || !await projectStorage.has(request.params.projectId, 'model.glb')) {
     response.status(404).json({ error: '找不到本地项目。' })
     return
   }
@@ -160,8 +165,7 @@ app.post('/api/projects/:projectId/comments', async (request, response) => {
 })
 
 app.patch('/api/projects/:projectId/comments/:commentId', async (request, response) => {
-  const projectDir = resolveProjectDir(request.params.projectId)
-  if (!projectDir || !existsSync(path.join(projectDir, 'model.glb'))) {
+  if (!isProjectId(request.params.projectId) || !await projectStorage.has(request.params.projectId, 'model.glb')) {
     response.status(404).json({ error: '找不到本地项目。' })
     return
   }
@@ -228,8 +232,12 @@ app.get('/api/shares/:token', async (request, response) => {
     response.status(404).json({ error: '分享链接不存在或已失效。' })
     return
   }
-  const projectDir = resolveProjectDir(share.projectId)!
-  const manifest = JSON.parse(await readFile(path.join(projectDir, 'manifest.json'), 'utf8'))
+  const manifestAsset = await projectStorage.get(share.projectId, 'manifest.json')
+  if (!manifestAsset) {
+    response.status(404).json({ error: '分享模型不存在。' })
+    return
+  }
+  const manifest = JSON.parse(await new Response(manifestAsset.body).text())
   response.json({
     name: manifest.scene,
     modelUrl: `/api/shares/${request.params.token}/model.glb`,
@@ -242,7 +250,12 @@ app.get('/api/shares/:token', async (request, response) => {
 app.get('/api/shares/:token/model.glb', async (request, response) => {
   const share = resolveShare(request.params.token, response, true, request.headers.cookie)
   if (!share) return
-  response.sendFile(path.join(resolveProjectDir(share.projectId)!, 'model.glb'))
+  const asset = await projectStorage.get(share.projectId, 'model.glb')
+  if (!asset) {
+    response.status(404).end()
+    return
+  }
+  sendStoredAsset(response, asset)
 })
 
 app.post('/api/shares/:token/comments', async (request, response) => {
@@ -329,9 +342,15 @@ function resolveShare(token: string, response: express.Response, requirePassword
   return share
 }
 
-function resolveProjectDir(projectId: string) {
-  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(projectId)) return null
-  return path.join(storageRoot, projectId)
+function isProjectId(projectId: string) {
+  return /^[a-zA-Z0-9_-]{1,64}$/.test(projectId)
+}
+
+function sendStoredAsset(response: express.Response, asset: StoredAsset) {
+  response.setHeader('Content-Type', asset.contentType)
+  response.setHeader('Content-Length', String(asset.size))
+  if (asset.etag) response.setHeader('ETag', asset.etag)
+  Readable.fromWeb(asset.body as import('node:stream/web').ReadableStream<Uint8Array>).pipe(response)
 }
 
 function isVec3(value: unknown): value is [number, number, number] {
