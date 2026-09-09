@@ -39,13 +39,56 @@ button {
 .blender-menubar {
   min-width: 0;
   display: grid;
-  grid-template-columns: auto auto minmax(130px, 1fr) auto;
+  grid-template-columns: auto minmax(100px, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 0 8px;
   background: #2a2a2a;
   border-bottom: 1px solid #111;
   user-select: none;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+.share-setting {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding-left: 7px;
+  border-left: 1px solid #414141;
+  color: #8f8f8f;
+  font-size: 10px;
+}
+.share-setting input,
+.share-setting select,
+.notice input {
+  border: 1px solid #4a4a4a;
+  border-radius: 3px;
+  background: #202020;
+  color: #ddd;
+}
+.share-setting input {
+  width: 72px;
+  padding: 2px 5px;
+}
+.share-setting select {
+  width: 58px;
+  padding: 1px 2px;
+}
+.notice input {
+  width: 220px;
+  padding: 8px 10px;
+}
+.notice .primary {
+  border: 1px solid #e87d0d;
+  border-radius: 3px;
+  background: #e87d0d;
+  padding: 7px 18px;
+  color: #fff;
 }
 .brand-mark {
   display: flex;

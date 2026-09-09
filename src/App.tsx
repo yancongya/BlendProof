@@ -51,6 +51,7 @@ type Project = {
   name: string;
   modelUrl: string;
   manifestUrl: string;
+  ownerCapability: string;
 };
 type SceneObject = { name: string; type: string; collections: string[] };
 type Manifest = {
@@ -88,10 +89,14 @@ export function App() {
   );
   const [processing, setProcessing] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareId, setShareId] = useState<string | null>(null);
+  const [sharePassword, setSharePassword] = useState("");
+  const [shareDays, setShareDays] = useState("7");
+  const [sharePermission, setSharePermission] = useState<"read_only" | "comment">("read_only");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
   const input = useRef<HTMLInputElement>(null);
-  const reviews = useReviewComments(project?.id ?? null);
+  const reviews = useReviewComments(project?.id ?? null, project?.ownerCapability ?? null);
   useEffect(() => {
     if (project)
       fetch(project.manifestUrl)
@@ -130,14 +135,38 @@ export function App() {
     if (!project) return;
     const response = await fetch(
       `/api/projects/${project.id}/shares`,
-      { method: "POST" },
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-blendproof-owner": project.ownerCapability },
+        body: JSON.stringify({
+          password: sharePassword || null,
+          expiresAt: shareDays === "never" ? null : new Date(Date.now() + Number(shareDays) * 86_400_000).toISOString(),
+          commentsPermission: sharePermission,
+        }),
+      },
     );
     const body = (await response.json()) as {
       shareUrl?: string;
+      id?: string;
       error?: string;
     };
     setShareUrl(body.shareUrl ?? null);
-    setMessage(body.error ?? "已建立本地只读分享链接。");
+    setShareId(body.id ?? null);
+    setMessage(body.error ?? (sharePermission === "comment" ? "已建立可评论分享链接。" : "已建立本地只读分享链接。"));
+  }
+  async function revokeShare() {
+    if (!project || !shareId) return;
+    const response = await fetch(`/api/projects/${project.id}/shares/${shareId}`, {
+      method: "DELETE", headers: { "x-blendproof-owner": project.ownerCapability },
+    });
+    if (!response.ok) {
+      const body = await response.json() as { error?: string };
+      setMessage(body.error ?? "无法撤销分享。");
+      return;
+    }
+    setShareUrl(null);
+    setShareId(null);
+    setMessage("分享已撤销。");
   }
   function pick(event: ChangeEvent<HTMLInputElement>) {
     setFile(event.target.files?.[0] ?? null);
@@ -191,6 +220,22 @@ export function App() {
       <button className="menu-item" disabled={!project} onClick={createShare}>
         <Share2 size={13} /> 创建分享
       </button>
+      <label className="share-setting">
+        密码
+        <input aria-label="分享密码" type="password" value={sharePassword} placeholder="可选" onChange={(event) => setSharePassword(event.target.value)} />
+      </label>
+      <label className="share-setting">
+        有效期
+        <select aria-label="分享有效期" value={shareDays} onChange={(event) => setShareDays(event.target.value)}>
+          <option value="1">1 天</option><option value="7">7 天</option><option value="30">30 天</option><option value="never">不限</option>
+        </select>
+      </label>
+      <label className="share-setting">
+        权限
+        <select aria-label="分享评论权限" value={sharePermission} onChange={(event) => setSharePermission(event.target.value as "read_only" | "comment")}>
+          <option value="read_only">只读</option><option value="comment">可评论</option>
+        </select>
+      </label>
       {shareUrl && (
         <a
           className="share-chip"
@@ -198,9 +243,10 @@ export function App() {
           target="_blank"
           rel="noreferrer"
         >
-          打开只读分享
+          {sharePermission === "comment" ? "打开可评论分享" : "打开只读分享"}
         </a>
       )}
+      {shareId && <button className="menu-item" onClick={revokeShare}>撤销分享</button>}
     </BlenderWorkspace>
   );
 }
@@ -212,13 +258,17 @@ export function SharePage() {
     modelUrl: string;
     manifest: Manifest;
     comments: ReviewComment[];
+    commentsPermission: "read_only" | "comment";
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [password, setPassword] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
-  useEffect(() => {
+  const loadShare = useCallback(() => {
     if (!token) return setError("缺少分享标识。");
+    setError(null);
     fetch(`/api/shares/${token}`)
       .then(async (response) => {
         const body = (await response.json()) as {
@@ -226,15 +276,50 @@ export function SharePage() {
           modelUrl: string;
           manifest: Manifest;
           comments: ReviewComment[];
+          commentsPermission: "read_only" | "comment";
+          passwordRequired?: boolean;
           error?: string;
         };
         if (!response.ok) throw new Error(body.error);
+        setPasswordRequired(false);
         setShare(body);
       })
       .catch((reason) =>
         setError(reason instanceof Error ? reason.message : "无法读取分享。"),
       );
   }, [token]);
+  useEffect(() => {
+    if (!token) return setError("缺少分享标识。");
+    fetch(`/api/shares/${token}/status`)
+      .then(async (response) => {
+        const body = await response.json() as { passwordRequired?: boolean; error?: string };
+        if (!response.ok) throw new Error(body.error);
+        if (body.passwordRequired) setPasswordRequired(true);
+        else loadShare();
+      })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : "无法读取分享。"));
+  }, [loadShare, token]);
+  async function unlockShare() {
+    const response = await fetch(`/api/shares/${token}/access`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password }),
+    });
+    if (!response.ok) {
+      const body = await response.json() as { error?: string };
+      setError(body.error ?? "密码验证失败。");
+      return;
+    }
+    loadShare();
+  }
+  async function createGuestComment(draft: ReviewCommentDraft) {
+    const response = await fetch(`/api/shares/${token}/comments`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(draft),
+    });
+    const body = await response.json() as { comment?: ReviewComment; error?: string };
+    if (!response.ok || !body.comment) throw new Error(body.error ?? "无法添加评论。");
+    setShare((current) => current ? { ...current, comments: [...current.comments, body.comment!] } : current);
+    return body.comment;
+  }
+  if (passwordRequired) return <PasswordNotice password={password} error={error} onPassword={setPassword} onSubmit={unlockShare} />;
   if (error) return <Notice text={error} />;
   if (!share) return <Notice text="正在打开审稿文件。" />;
   return (
@@ -246,17 +331,26 @@ export function SharePage() {
       onSelect={(name) => setSelected(name ? new Set([name]) : new Set())}
       onSelectMany={(names) => setSelected(new Set(names))}
       onToggle={() => {}}
-      message="只读分享。文件由本机 BlendProof 提供。"
+      message={share.commentsPermission === "comment" ? "访客可在模型表面添加批注。" : "只读分享。文件由本机 BlendProof 提供。"}
       modelUrl={share.modelUrl}
       readOnly
+      canComment={share.commentsPermission === "comment"}
+      commentAuthorName="访客"
       displayMode={displayMode}
       onDisplayMode={setDisplayMode}
       cameraPreset={cameraPreset}
       onCameraPreset={setCameraPreset}
       comments={share.comments}
       reviewError={null}
-    />
+      onCreateComment={share.commentsPermission === "comment" ? createGuestComment : undefined}
+    >
+      <span>{share.commentsPermission === "comment" ? "可评论审稿" : "只读审稿"}</span>
+    </BlenderWorkspace>
   );
+}
+
+function PasswordNotice({ password, error, onPassword, onSubmit }: { password: string; error: string | null; onPassword: (value: string) => void; onSubmit: () => void }) {
+  return <div className="notice"><BlenderLogo /><h1>受保护的审稿链接</h1><p>{error ?? "请输入分享密码后继续。"}</p><input aria-label="访问密码" type="password" value={password} autoFocus onChange={(event) => onPassword(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") onSubmit(); }} /><button className="primary" onClick={onSubmit}>打开审稿</button></div>;
 }
 
 function Notice({ text }: { text: string }) {
@@ -279,6 +373,8 @@ function BlenderWorkspace({
   message,
   modelUrl,
   readOnly,
+  canComment = !readOnly,
+  commentAuthorName = "本地创建者",
   displayMode,
   onDisplayMode,
   cameraPreset,
@@ -299,6 +395,8 @@ function BlenderWorkspace({
   message: string;
   modelUrl?: string;
   readOnly: boolean;
+  canComment?: boolean;
+  commentAuthorName?: string;
   displayMode: DisplayMode;
   onDisplayMode: (mode: DisplayMode) => void;
   cameraPreset: CameraPreset;
@@ -386,7 +484,7 @@ function BlenderWorkspace({
       const comment = await onCreateComment({
         ...pendingReview,
         body: commentBody.trim(),
-        authorName: "本地创建者",
+        authorName: commentAuthorName,
       });
       setSelectedCommentId(comment.id);
       setPendingReview(null);
@@ -448,7 +546,7 @@ function BlenderWorkspace({
             <div className="editor-type">
               <Box size={14} /> 3D 视图 <ChevronDown size={12} />
             </div>
-            {!readOnly && modelUrl && (
+            {canComment && modelUrl && (
               <button
                 className={`annotation-tool ${annotationMode ? "active" : ""}`}
                 data-testid="annotation-toggle"
@@ -694,6 +792,7 @@ function BlenderWorkspace({
               pending={pendingReview}
               body={commentBody}
               readOnly={readOnly}
+              canComment={canComment}
               message={reviewMessage ?? reviewError}
               onBody={setCommentBody}
               onSelect={selectReviewComment}
@@ -1130,6 +1229,7 @@ function ReviewPanel({
   pending,
   body,
   readOnly,
+  canComment,
   message,
   busy,
   onBody,
@@ -1144,6 +1244,7 @@ function ReviewPanel({
   pending: PendingReview | null;
   body: string;
   readOnly: boolean;
+  canComment: boolean;
   message: string | null;
   busy: boolean;
   onBody: (body: string) => void;
@@ -1164,7 +1265,7 @@ function ReviewPanel({
         <span>审稿批注</span>
         <b data-testid="review-count">{comments.length}</b>
       </div>
-      {pending && !readOnly && (
+      {pending && canComment && (
         <div className="review-compose" data-testid="review-draft">
           <span>落点：{pending.objectName ?? "模型表面"}</span>
           <textarea

@@ -5,7 +5,7 @@ import {
   type ReviewCommentDraft,
 } from "../reviewRepository";
 
-export function useReviewComments(projectId: string | null) {
+export function useReviewComments(projectId: string | null, ownerCapability: string | null) {
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -15,7 +15,7 @@ export function useReviewComments(projectId: string | null) {
 
   const reload = useCallback(async () => {
     const generation = ++requestGeneration.current;
-    if (!projectId) {
+    if (!projectId || !ownerCapability) {
       setComments([]);
       setError(null);
       setLoading(false);
@@ -24,7 +24,7 @@ export function useReviewComments(projectId: string | null) {
     setLoading(true);
     setError(null);
     try {
-      const next = await reviewRepository.list(projectId);
+      const next = await reviewRepository.list(projectId, ownerCapability);
       if (requestGeneration.current === generation) setComments(next);
     } catch (reason) {
       if (requestGeneration.current === generation)
@@ -32,7 +32,7 @@ export function useReviewComments(projectId: string | null) {
     } finally {
       if (requestGeneration.current === generation) setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, ownerCapability]);
 
   useEffect(() => {
     void reload();
@@ -40,9 +40,9 @@ export function useReviewComments(projectId: string | null) {
 
   const create = useCallback(
     async (draft: ReviewCommentDraft) => {
-      if (!projectId) throw new Error("请先导入审稿项目。");
+      if (!projectId || !ownerCapability) throw new Error("请重新导入项目以取得所有者凭据。");
       const generation = ++requestGeneration.current;
-      const comment = await reviewRepository.create(projectId, draft);
+      const comment = await reviewRepository.create(projectId, ownerCapability, draft);
       if (
         requestGeneration.current === generation &&
         activeProjectId.current === projectId
@@ -50,7 +50,7 @@ export function useReviewComments(projectId: string | null) {
         setComments((current) => [...current, comment]);
       return comment;
     },
-    [projectId],
+    [projectId, ownerCapability],
   );
 
   const update = useCallback(
@@ -58,9 +58,9 @@ export function useReviewComments(projectId: string | null) {
       commentId: string,
       patch: Pick<Partial<ReviewComment>, "body" | "status">,
     ) => {
-      if (!projectId) throw new Error("缺少审稿项目。");
+      if (!projectId || !ownerCapability) throw new Error("缺少项目所有者凭据。");
       const generation = ++requestGeneration.current;
-      const comment = await reviewRepository.update(projectId, commentId, patch);
+      const comment = await reviewRepository.update(projectId, ownerCapability, commentId, patch);
       if (
         requestGeneration.current === generation &&
         activeProjectId.current === projectId
@@ -70,7 +70,7 @@ export function useReviewComments(projectId: string | null) {
         );
       return comment;
     },
-    [projectId],
+    [projectId, ownerCapability],
   );
 
   return { comments, error, loading, create, update, reload };

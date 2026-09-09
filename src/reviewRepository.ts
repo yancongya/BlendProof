@@ -37,19 +37,20 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const reviewRepository = {
-  async list(projectId: string) {
+  async list(projectId: string, ownerCapability: string) {
     const body = await request<{ comments: ReviewComment[] }>(
       `/api/projects/${projectId}/comments`,
+      { headers: { "x-blendproof-owner": ownerCapability } },
     );
     return body.comments;
   },
 
-  async create(projectId: string, draft: ReviewCommentDraft) {
+  async create(projectId: string, ownerCapability: string, draft: ReviewCommentDraft) {
     const body = await request<{ comment: ReviewComment }>(
       `/api/projects/${projectId}/comments`,
       {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
         body: JSON.stringify(draft),
       },
     );
@@ -58,6 +59,7 @@ export const reviewRepository = {
 
   async update(
     projectId: string,
+    ownerCapability: string,
     commentId: string,
     patch: Pick<Partial<ReviewComment>, "body" | "status">,
   ) {
@@ -65,7 +67,7 @@ export const reviewRepository = {
       `/api/projects/${projectId}/comments/${commentId}`,
       {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
         body: JSON.stringify(patch),
       },
     );
