@@ -52,13 +52,15 @@ BlendProof 是同一个 Web 应用中的本地导入、转换、审稿和只读�
 
 ### 阶段 3：本地分享后端
 
-状态：部分完成。
+状态：已完成。
 
 1. 继续使用本地 Express、文件存储和 manifest 作为开发合同。
 2. 增加项目、分享令牌、密码、过期时间、评论的 SQLite 数据层。
 3. 先以 `owner_id` 字段预留用户边界，不在 Viewer 基线稳定前接入完整账户系统。
 
 完成条件：同一 Web 里完成 `.blend → GLB → 创建分享 → 另一浏览器打开 → 评论`。
+
+完成情况：SQLite、旧 JSON 幂等迁移、owner capability、scrypt 分享密码、有效期、撤销与只读/可评论权限均已接入；隔离浏览器已完成密码解锁、模型表面访客批注及上传者回读验收。
 
 ### 阶段 4：云端替换
 
@@ -72,4 +74,4 @@ BlendProof 是同一个 Web 应用中的本地导入、转换、审稿和只读�
 
 ## 当前下一步
 
-进入阶段 3：以现有评论 repository 和 token 资源边界为合同，引入 SQLite、owner capability、密码、有效期和评论权限，并保持同一 Viewer 不变。
+进入阶段 4：先固定 Storage/Database/Share Access 适配器合同，再建立 Workers + D1 + R2 的本地可验证替换路径，不改变 Viewer 与审稿流程。
