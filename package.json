@@ -16,7 +16,12 @@
     "create:viewer-fixtures": "BLENDER_BIN=\"/Users/tanyancong/Library/Application Support/Steam/steamapps/common/Blender/Blender.app/Contents/MacOS/Blender\" tsx server/create-viewer-fixtures.ts",
     "check": "tsc -b --pretty false",
     "test:review-api": "tsx --test tests/review-api.test.ts",
-    "test:backend": "tsx --test tests/db.test.ts tests/legacy-migration.test.ts tests/local-storage.test.ts tests/review-api.test.ts"
+    "test:backend": "tsx --test tests/db.test.ts tests/legacy-migration.test.ts tests/local-storage.test.ts tests/review-api.test.ts",
+    "check:worker": "tsc -p tsconfig.worker.json --pretty false",
+    "test:worker": "vitest run --config vitest.config.mts",
+    "worker:types": "wrangler types",
+    "worker:dev": "wrangler dev --local",
+    "worker:dry-run": "wrangler deploy --dry-run --outdir dist-worker"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",
@@ -30,6 +35,7 @@
     "three": "^0.180.0"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.1.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/multer": "^2.0.0",
@@ -41,6 +47,8 @@
     "concurrently": "^9.2.1",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
-    "vite": "^7.1.4"
+    "vite": "^7.1.4",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.130.0"
   }
 }

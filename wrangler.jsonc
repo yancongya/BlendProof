@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "blendproof-api-local",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-09-09",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "blendproof-local",
+      "database_id": "local",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ASSETS",
+      "bucket_name": "blendproof-local"
+    }
+  ],
+  "vars": {
+    "APP_ORIGIN": "http://127.0.0.1:5173"
+  }
+}

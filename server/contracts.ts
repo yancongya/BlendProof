@@ -21,14 +21,16 @@ export type StoredAsset = {
 
 /** Storage contract shared by the filesystem adapter and the future R2 adapter. */
 export interface ProjectStorage {
-  has(projectId: string, asset: PublicProjectAsset): Promise<boolean>
-  get(projectId: string, asset: PublicProjectAsset): Promise<StoredAsset | null>
+  has(projectId: string, asset: PublicProjectAsset, version?: number): Promise<boolean>
+  get(projectId: string, asset: PublicProjectAsset, version?: number): Promise<StoredAsset | null>
   put(
     projectId: string,
     asset: PublicProjectAsset,
-    body: ReadableStream<Uint8Array> | Uint8Array | string,
+    body: Uint8Array | string,
     contentType: string,
+    version?: number,
   ): Promise<void>
+  deleteVersion?(projectId: string, version: number): Promise<void>
   deleteProject(projectId: string): Promise<void>
 }
 

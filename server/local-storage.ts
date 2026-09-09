@@ -1,25 +1,21 @@
-import { createReadStream, createWriteStream, existsSync } from 'node:fs'
+import { createReadStream, existsSync } from 'node:fs'
 import { mkdir, open, rename, rm, writeFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { ProjectStorage, PublicProjectAsset, StoredAsset } from './contracts.js'
-
-const contentTypes: Record<PublicProjectAsset, string> = {
-  'model.glb': 'model/gltf-binary',
-  'manifest.json': 'application/json; charset=utf-8',
-  'thumbnail.webp': 'image/webp',
-}
+import { assertPublicAssetContent, assertPublicProjectAsset, publicAssetContentTypes } from './asset-policy.js'
 
 export class LocalProjectStorage implements ProjectStorage {
   constructor(readonly root: string) {}
 
   async has(projectId: string, asset: PublicProjectAsset): Promise<boolean> {
+    assertPublicProjectAsset(asset)
     return existsSync(this.assetPath(projectId, asset))
   }
 
   async get(projectId: string, asset: PublicProjectAsset): Promise<StoredAsset | null> {
+    assertPublicProjectAsset(asset)
     const target = this.assetPath(projectId, asset)
     try {
       const handle = await open(target, 'r')
@@ -27,7 +23,7 @@ export class LocalProjectStorage implements ProjectStorage {
       await handle.close()
       return {
         body: Readable.toWeb(createReadStream(target)) as ReadableStream<Uint8Array>,
-        contentType: contentTypes[asset],
+        contentType: publicAssetContentTypes[asset],
         size: stat.size,
       }
     } catch (error) {
@@ -39,21 +35,15 @@ export class LocalProjectStorage implements ProjectStorage {
   async put(
     projectId: string,
     asset: PublicProjectAsset,
-    body: ReadableStream<Uint8Array> | Uint8Array | string,
+    body: Uint8Array | string,
     contentType: string,
   ): Promise<void> {
-    if (contentType !== contentTypes[asset] && !(asset === 'manifest.json' && contentType === 'application/json')) {
-      throw new TypeError(`资源 ${asset} 的 Content-Type 无效。`)
-    }
+    assertPublicAssetContent(asset, body, contentType)
     const directory = this.projectPath(projectId)
     await mkdir(directory, { recursive: true })
     const target = this.assetPath(projectId, asset)
     const temporary = path.join(directory, `.${asset}-${randomUUID()}.tmp`)
-    if (typeof body === 'string' || body instanceof Uint8Array) await writeFile(temporary, body)
-    else await pipeline(
-      Readable.fromWeb(body as import('node:stream/web').ReadableStream<Uint8Array>),
-      createWriteStream(temporary, { flags: 'wx' }),
-    )
+    await writeFile(temporary, body)
     await rename(temporary, target)
   }
 
@@ -67,6 +57,7 @@ export class LocalProjectStorage implements ProjectStorage {
   }
 
   assetPath(projectId: string, asset: PublicProjectAsset): string {
+    assertPublicProjectAsset(asset)
     return path.join(this.projectPath(projectId), asset)
   }
 }
