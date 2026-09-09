@@ -21,6 +21,10 @@ describe('LocalProjectStorage', () => {
     assert.equal(await new Response(manifest?.body).text(), JSON.stringify({ scene: 'Test' }))
     assert.deepEqual([...await readFile(storage.assetPath('project-a', 'model.glb'))], [1, 2, 3])
     assert.throws(() => storage.projectPath('../escape'), /项目标识无效/)
+    await assert.rejects(
+      storage.put('project-a', 'model.glb', new Uint8Array([4]), 'application/octet-stream'),
+      /Content-Type 无效/,
+    )
     await storage.deleteProject('project-a')
     assert.equal(await storage.has('project-a', 'model.glb'), false)
   })

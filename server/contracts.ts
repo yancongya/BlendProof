@@ -34,18 +34,17 @@ export interface ProjectStorage {
 
 /** Metadata contract implemented locally by SQLite and in the cloud by D1. */
 export interface ReviewDatabase {
-  registerProject(input: RegisterProjectInput): ProjectRegistration | Promise<ProjectRegistration>
-  getProject(projectId: string): ProjectRecord | null | Promise<ProjectRecord | null>
-  verifyOwnerCapability(projectId: string, capability: string): boolean | Promise<boolean>
-  listComments(projectId: string): ReviewComment[] | Promise<ReviewComment[]>
-  createComment(projectId: string, draft: ReviewCommentDraft): ReviewComment | Promise<ReviewComment>
-  updateComment(projectId: string, commentId: string, patch: CommentPatch): ReviewComment | null | Promise<ReviewComment | null>
-  createShare(projectId: string, input?: CreateShareInput): CreatedShare | Promise<CreatedShare>
-  findShare(token: string): ShareRecord | null | Promise<ShareRecord | null>
-  findShareById(shareId: string): ShareRecord | null | Promise<ShareRecord | null>
+  registerProject(input: RegisterProjectInput): Promise<ProjectRegistration>
+  getProject(projectId: string): Promise<ProjectRecord | null>
+  verifyOwnerCapability(projectId: string, capability: string): Promise<boolean>
+  listComments(projectId: string): Promise<ReviewComment[]>
+  createComment(projectId: string, draft: ReviewCommentDraft): Promise<ReviewComment>
+  updateComment(projectId: string, commentId: string, patch: CommentPatch): Promise<ReviewComment | null>
+  createShare(projectId: string, input?: CreateShareInput): Promise<CreatedShare>
+  findShare(token: string): Promise<ShareRecord | null>
+  findShareById(shareId: string): Promise<ShareRecord | null>
   verifySharePassword(token: string, password: string): Promise<boolean>
-  revokeShare(projectId: string, shareId: string): ShareRecord | null | Promise<ShareRecord | null>
-  isShareExpired(share: ShareRecord, now?: Date): boolean
+  revokeShare(projectId: string, shareId: string): Promise<ShareRecord | null>
 }
 
 export type ShareAccessDecision =
