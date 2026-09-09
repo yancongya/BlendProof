@@ -9,6 +9,7 @@ import {
   FolderOpen,
   Layers,
   Lightbulb,
+  MessageSquarePlus,
   Palette,
   Settings2,
   Share2,
@@ -27,12 +28,23 @@ import {
 import type { ChangeEvent, ReactNode } from "react";
 import {
   Box3,
+  Matrix3,
   MOUSE,
+  OrthographicCamera,
+  PerspectiveCamera,
   Vector3,
   type Camera as ThreeCamera,
   type Object3D,
 } from "three";
 import { BlenderLogo } from "./components/BlenderLogo";
+import { ReviewAnnotations } from "./review/ReviewAnnotations";
+import { useReviewComments } from "./review/useReviewComments";
+import type {
+  ReviewCameraState,
+  ReviewComment,
+  ReviewCommentDraft,
+  Vec3,
+} from "./reviewRepository";
 
 type Project = {
   id: string;
@@ -57,10 +69,17 @@ type SelectionBox = {
   width: number;
   height: number;
 } | null;
+type PendingReview = Omit<ReviewCommentDraft, "body" | "authorName">;
 
 export function App() {
   const [file, setFile] = useState<File | null>(null);
-  const [project, setProject] = useState<Project | null>(null);
+  const [project, setProject] = useState<Project | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("blendproof:last-project") ?? "null");
+    } catch {
+      return null;
+    }
+  });
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -72,11 +91,16 @@ export function App() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
   const input = useRef<HTMLInputElement>(null);
+  const reviews = useReviewComments(project?.id ?? null);
   useEffect(() => {
     if (project)
       fetch(project.manifestUrl)
         .then((res) => res.json())
         .then(setManifest);
+  }, [project]);
+  useEffect(() => {
+    if (project)
+      localStorage.setItem("blendproof:last-project", JSON.stringify(project));
   }, [project]);
   async function convert() {
     if (!file) return;
@@ -142,6 +166,10 @@ export function App() {
       onDisplayMode={setDisplayMode}
       cameraPreset={cameraPreset}
       onCameraPreset={setCameraPreset}
+      comments={reviews.comments}
+      reviewError={reviews.error}
+      onCreateComment={reviews.create}
+      onUpdateComment={reviews.update}
     >
       <input
         ref={input}
@@ -183,6 +211,7 @@ export function SharePage() {
     name: string;
     modelUrl: string;
     manifest: Manifest;
+    comments: ReviewComment[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -196,6 +225,7 @@ export function SharePage() {
           name: string;
           modelUrl: string;
           manifest: Manifest;
+          comments: ReviewComment[];
           error?: string;
         };
         if (!response.ok) throw new Error(body.error);
@@ -223,6 +253,8 @@ export function SharePage() {
       onDisplayMode={setDisplayMode}
       cameraPreset={cameraPreset}
       onCameraPreset={setCameraPreset}
+      comments={share.comments}
+      reviewError={null}
     />
   );
 }
@@ -251,6 +283,10 @@ function BlenderWorkspace({
   onDisplayMode,
   cameraPreset,
   onCameraPreset,
+  comments,
+  reviewError,
+  onCreateComment,
+  onUpdateComment,
   children,
 }: {
   title: string;
@@ -267,6 +303,13 @@ function BlenderWorkspace({
   onDisplayMode: (mode: DisplayMode) => void;
   cameraPreset: CameraPreset;
   onCameraPreset: (preset: CameraPreset) => void;
+  comments: ReviewComment[];
+  reviewError: string | null;
+  onCreateComment?: (draft: ReviewCommentDraft) => Promise<ReviewComment>;
+  onUpdateComment?: (
+    commentId: string,
+    patch: Pick<Partial<ReviewComment>, "body" | "status">,
+  ) => Promise<ReviewComment>;
   children?: ReactNode;
 }) {
   const active =
@@ -277,6 +320,17 @@ function BlenderWorkspace({
   const [isolated, setIsolated] = useState(false);
   const [sceneRoot, setSceneRoot] = useState<Object3D | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox>(null);
+  const [annotationMode, setAnnotationMode] = useState(false);
+  const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
+  const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
+  const [commentBody, setCommentBody] = useState("");
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [navigationTarget, setNavigationTarget] = useState<Vec3>([0, 0, 0]);
+  const [reviewCameraRequest, setReviewCameraRequest] = useState<{
+    camera: ReviewCameraState;
+    nonce: number;
+  } | null>(null);
   const collectCameras = useCallback(
     (cameras: ThreeCamera[]) => setFileCameras(cameras),
     [],
@@ -284,6 +338,15 @@ function BlenderWorkspace({
   useEffect(() => {
     if (selected.size === 0) setIsolated(false);
   }, [selected]);
+  useEffect(() => {
+    setAnnotationMode(false);
+    setPendingReview(null);
+    setSelectedCommentId(null);
+    setCommentBody("");
+    setReviewMessage(null);
+    setNavigationTarget([0, 0, 0]);
+    setReviewCameraRequest(null);
+  }, [modelUrl]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -315,8 +378,60 @@ function BlenderWorkspace({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onCameraPreset, selected]);
+  async function savePendingReview() {
+    if (!pendingReview || !onCreateComment || !commentBody.trim()) return;
+    if (reviewBusy) return;
+    setReviewBusy(true);
+    try {
+      const comment = await onCreateComment({
+        ...pendingReview,
+        body: commentBody.trim(),
+        authorName: "本地创建者",
+      });
+      setSelectedCommentId(comment.id);
+      setPendingReview(null);
+      setCommentBody("");
+      setReviewMessage("批注已保存。");
+    } catch (reason) {
+      setReviewMessage(reason instanceof Error ? reason.message : "批注保存失败。");
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+  async function toggleReviewStatus(comment: ReviewComment) {
+    if (!onUpdateComment || reviewBusy) return;
+    setReviewBusy(true);
+    try {
+      await onUpdateComment(comment.id, {
+        status: comment.status === "open" ? "resolved" : "open",
+      });
+      setReviewMessage(comment.status === "open" ? "批注已解决。" : "批注已重新打开。");
+    } catch (reason) {
+      setReviewMessage(reason instanceof Error ? reason.message : "批注更新失败。");
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+  async function editReviewComment(comment: ReviewComment, body: string) {
+    if (!onUpdateComment || reviewBusy || !body.trim()) return;
+    setReviewBusy(true);
+    try {
+      await onUpdateComment(comment.id, { body: body.trim() });
+      setReviewMessage("批注内容已更新。");
+    } catch (reason) {
+      setReviewMessage(reason instanceof Error ? reason.message : "批注更新失败。");
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+  function selectReviewComment(commentId: string) {
+    setSelectedCommentId(commentId);
+    const comment = comments.find((item) => item.id === commentId);
+    if (comment)
+      setReviewCameraRequest({ camera: comment.camera, nonce: Date.now() });
+  }
   return (
-    <main className="blender-shell">
+    <main className="blender-shell" data-testid="blendproof-app" data-readonly={readOnly}>
       <header className="blender-menubar">
         <div className="brand-mark">
           <BlenderLogo />
@@ -333,6 +448,20 @@ function BlenderWorkspace({
             <div className="editor-type">
               <Box size={14} /> 3D 视图 <ChevronDown size={12} />
             </div>
+            {!readOnly && modelUrl && (
+              <button
+                className={`annotation-tool ${annotationMode ? "active" : ""}`}
+                data-testid="annotation-toggle"
+                aria-pressed={annotationMode}
+                onClick={() => {
+                  setAnnotationMode((current) => !current);
+                  setPendingReview(null);
+                }}
+              >
+                <MessageSquarePlus size={13} />
+                {annotationMode ? "点击模型放置批注" : "添加批注"}
+              </button>
+            )}
             <div className="view-controls" aria-label="视图控制">
               <div className="icon-group" aria-label="显示模式">
                 <button
@@ -400,7 +529,7 @@ function BlenderWorkspace({
             </div>
             <div className="editor-mode">对象模式</div>
           </div>
-          <div className="viewport">
+          <div className="viewport" data-testid="viewer-viewport" aria-label="3D 模型视图">
             {modelUrl ? (
               <Canvas
                 camera={{ position: [7, -7, 5], fov: 45 }}
@@ -424,6 +553,19 @@ function BlenderWorkspace({
                     onObjectClick={onSelect}
                     onCameras={collectCameras}
                     onSceneReady={setSceneRoot}
+                    annotationMode={annotationMode}
+                    navigationTarget={navigationTarget}
+                    onAnnotation={(draft) => {
+                      setPendingReview(draft);
+                      setCommentBody("");
+                      setAnnotationMode(false);
+                      setReviewMessage("已定位批注，请填写内容。");
+                    }}
+                  />
+                  <ReviewAnnotations
+                    comments={comments}
+                    selectedId={selectedCommentId}
+                    onSelect={selectReviewComment}
                   />
                   <Environment preset="city" />
                 </Suspense>
@@ -431,15 +573,19 @@ function BlenderWorkspace({
                   preset={cameraPreset}
                   fileCameras={fileCameras}
                   scene={sceneRoot}
+                  onTargetChange={setNavigationTarget}
+                  reviewCameraRequest={reviewCameraRequest}
                 />
-                <BoxSelectionController
-                  scene={sceneRoot}
-                  selectableNames={
-                    new Set(manifest?.objects.map((object) => object.name))
-                  }
-                  onSelectMany={onSelectMany}
-                  onBoxChange={setSelectionBox}
-                />
+                {!annotationMode && (
+                  <BoxSelectionController
+                    scene={sceneRoot}
+                    selectableNames={
+                      new Set(manifest?.objects.map((object) => object.name))
+                    }
+                    onSelectMany={onSelectMany}
+                    onBoxChange={setSelectionBox}
+                  />
+                )}
               </Canvas>
             ) : (
               <div className="empty-viewport">
@@ -542,6 +688,24 @@ function BlenderWorkspace({
             ) : (
               <ConversionSummary manifest={manifest} />
             )}
+            <ReviewPanel
+              comments={comments}
+              selectedId={selectedCommentId}
+              pending={pendingReview}
+              body={commentBody}
+              readOnly={readOnly}
+              message={reviewMessage ?? reviewError}
+              onBody={setCommentBody}
+              onSelect={selectReviewComment}
+              onSave={() => void savePendingReview()}
+              busy={reviewBusy}
+              onCancel={() => {
+                setPendingReview(null);
+                setCommentBody("");
+              }}
+              onToggleStatus={(comment) => void toggleReviewStatus(comment)}
+              onEdit={(comment, body) => void editReviewComment(comment, body)}
+            />
           </section>
         </aside>
       </div>
@@ -565,6 +729,9 @@ function Model({
   onObjectClick,
   onCameras,
   onSceneReady,
+  annotationMode,
+  navigationTarget,
+  onAnnotation,
 }: {
   url: string;
   hidden: Set<string>;
@@ -575,7 +742,11 @@ function Model({
   onObjectClick: (name: string | null) => void;
   onCameras: (cameras: ThreeCamera[]) => void;
   onSceneReady: (scene: Object3D) => void;
+  annotationMode: boolean;
+  navigationTarget: Vec3;
+  onAnnotation: (draft: PendingReview) => void;
 }) {
+  const { camera } = useThree();
   const gltf = useGLTF(url);
   const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
   useEffect(() => {
@@ -656,6 +827,37 @@ function Model({
         event.stopPropagation();
         let node: Object3D | null = event.object;
         while (node && !selectableNames.has(node.name)) node = node.parent;
+        if (annotationMode && event.face) {
+          const normal = event.face.normal
+            .clone()
+            .applyMatrix3(new Matrix3().getNormalMatrix(event.object.matrixWorld))
+            .normalize();
+          const towardCamera = new Vector3()
+            .copy(camera.position)
+            .sub(event.point)
+            .normalize();
+          if (normal.dot(towardCamera) < 0) normal.negate();
+          const perspective = (camera as any).isPerspectiveCamera;
+          onAnnotation({
+            objectName: node?.name ?? null,
+            position: event.point.toArray() as Vec3,
+            normal: normal.toArray() as Vec3,
+            camera: {
+              projection: perspective ? "perspective" : "orthographic",
+              position: camera.position.toArray() as Vec3,
+              quaternion: camera.quaternion.toArray() as [number, number, number, number],
+              target: navigationTarget,
+              ...(perspective
+                ? { fov: (camera as any).fov }
+                : {
+                    zoom: (camera as any).zoom,
+                    orthographicHeight:
+                      (camera as any).top - (camera as any).bottom,
+                  }),
+            },
+          });
+          return;
+        }
         onObjectClick(node?.name ?? null);
       }}
     />
@@ -789,10 +991,14 @@ function BlenderViewControls({
   preset,
   fileCameras,
   scene,
+  onTargetChange,
+  reviewCameraRequest,
 }: {
   preset: CameraPreset;
   fileCameras: ThreeCamera[];
   scene: Object3D | null;
+  onTargetChange: (target: Vec3) => void;
+  reviewCameraRequest: { camera: ReviewCameraState; nonce: number } | null;
 }) {
   const { camera, gl, set, size } = useThree();
   const controls = useRef<any>(null);
@@ -851,7 +1057,45 @@ function BlenderViewControls({
       (activeCamera as any).updateProjectionMatrix();
     }
     controls.current?.update();
-  }, [fileCameras, preset, scene, set, size.height, size.width]);
+    if (controls.current)
+      onTargetChange(controls.current.target.toArray() as Vec3);
+  }, [fileCameras, onTargetChange, preset, scene, set, size.height, size.width]);
+  useEffect(() => {
+    if (!reviewCameraRequest) return;
+    const saved = reviewCameraRequest.camera;
+    const aspect = size.width / size.height;
+    const replayCamera: ThreeCamera =
+      saved.projection === "orthographic"
+        ? new OrthographicCamera(
+            -(saved.orthographicHeight ?? 10) * aspect * 0.5,
+            (saved.orthographicHeight ?? 10) * aspect * 0.5,
+            (saved.orthographicHeight ?? 10) * 0.5,
+            -(saved.orthographicHeight ?? 10) * 0.5,
+            0.01,
+            10000,
+          )
+        : new PerspectiveCamera(saved.fov ?? 45, aspect, 0.01, 10000);
+    replayCamera.position.fromArray(saved.position);
+    replayCamera.quaternion.fromArray(saved.quaternion);
+    if ((replayCamera as OrthographicCamera).isOrthographicCamera)
+      (replayCamera as OrthographicCamera).zoom = saved.zoom ?? 1;
+    (replayCamera as PerspectiveCamera | OrthographicCamera).updateProjectionMatrix();
+    set({ camera: replayCamera as any });
+    if (controls.current) {
+      controls.current.object = replayCamera;
+      controls.current.target.fromArray(saved.target);
+      controls.current.update();
+    }
+    onTargetChange(saved.target);
+  }, [onTargetChange, reviewCameraRequest, set, size.height, size.width]);
+  useEffect(() => {
+    const current = controls.current;
+    if (!current) return;
+    const onChange = () =>
+      onTargetChange(current.target.toArray() as Vec3);
+    current.addEventListener("change", onChange);
+    return () => current.removeEventListener("change", onChange);
+  }, [onTargetChange]);
   useEffect(() => {
     const element = gl.domElement;
     const chooseMiddleAction = (event: PointerEvent) => {
@@ -877,6 +1121,119 @@ function BlenderViewControls({
       makeDefault
       mouseButtons={{ LEFT: undefined, MIDDLE: MOUSE.ROTATE, RIGHT: MOUSE.PAN }}
     />
+  );
+}
+
+function ReviewPanel({
+  comments,
+  selectedId,
+  pending,
+  body,
+  readOnly,
+  message,
+  busy,
+  onBody,
+  onSelect,
+  onSave,
+  onCancel,
+  onToggleStatus,
+  onEdit,
+}: {
+  comments: ReviewComment[];
+  selectedId: string | null;
+  pending: PendingReview | null;
+  body: string;
+  readOnly: boolean;
+  message: string | null;
+  busy: boolean;
+  onBody: (body: string) => void;
+  onSelect: (id: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onToggleStatus: (comment: ReviewComment) => void;
+  onEdit: (comment: ReviewComment, body: string) => void;
+}) {
+  const selectedComment = comments.find((comment) => comment.id === selectedId);
+  const [editBody, setEditBody] = useState("");
+  useEffect(() => {
+    setEditBody(selectedComment?.body ?? "");
+  }, [selectedComment]);
+  return (
+    <div className="review-panel" data-testid="review-panel" aria-label="审稿批注" aria-readonly={readOnly}>
+      <div className="review-panel-title">
+        <span>审稿批注</span>
+        <b data-testid="review-count">{comments.length}</b>
+      </div>
+      {pending && !readOnly && (
+        <div className="review-compose" data-testid="review-draft">
+          <span>落点：{pending.objectName ?? "模型表面"}</span>
+          <textarea
+            aria-label="批注内容"
+            data-testid="review-body"
+            autoFocus
+            value={body}
+            placeholder="输入需要修改或确认的内容"
+            onChange={(event) => onBody(event.target.value)}
+          />
+          <div>
+            <button onClick={onCancel}>取消</button>
+            <button data-testid="review-save" className="primary" disabled={!body.trim() || busy} onClick={onSave}>
+              保存批注
+            </button>
+          </div>
+        </div>
+      )}
+      {message && <p className="review-message">{message}</p>}
+      {selectedComment && !pending && !readOnly && (
+        <div className="review-compose review-edit">
+          <span>编辑批注 #{comments.indexOf(selectedComment) + 1}</span>
+          <textarea
+            aria-label="编辑批注内容"
+            value={editBody}
+            onChange={(event) => setEditBody(event.target.value)}
+          />
+          <div>
+            <button
+              className="primary"
+              disabled={busy || !editBody.trim() || editBody.trim() === selectedComment.body}
+              onClick={() => onEdit(selectedComment, editBody)}
+            >
+              保存修改
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="review-list">
+        {comments.map((comment, index) => (
+          <div
+            key={comment.id}
+            data-testid="review-item"
+            data-comment-id={comment.id}
+            className={`review-item ${selectedId === comment.id ? "selected" : ""}`}
+          >
+            <i>{index + 1}</i>
+            <button className="review-item-main" onClick={() => onSelect(comment.id)}>
+              <strong>{comment.body}</strong>
+              <small>
+                {comment.objectName ?? "模型表面"} · {comment.authorName}
+              </small>
+            </button>
+            {!readOnly && (
+              <button
+                className="review-status"
+                disabled={busy}
+                onClick={() => onToggleStatus(comment)}
+              >
+                {comment.status === "open" ? "解决" : "重开"}
+              </button>
+            )}
+          </div>
+        ))}
+        {!pending && comments.length === 0 && (
+          <p className="review-empty">暂无批注</p>
+        )}
+      </div>
+    </div>
   );
 }
 

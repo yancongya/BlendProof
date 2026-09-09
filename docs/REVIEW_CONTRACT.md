@@ -16,6 +16,7 @@ interface ReviewCameraState {
   target: Vec3
   fov?: number
   zoom?: number
+  orthographicHeight?: number
 }
 
 interface ReviewComment {

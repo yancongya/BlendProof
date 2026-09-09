@@ -7,6 +7,7 @@ export type ReviewCameraState = {
   target: Vec3;
   fov?: number;
   zoom?: number;
+  orthographicHeight?: number;
 };
 
 export type ReviewComment = {
