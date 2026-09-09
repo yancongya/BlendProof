@@ -1,15 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, rename, rm, writeFile, readFile } from 'node:fs/promises'
+import { mkdir, rename, rm, readFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import multer from 'multer'
+import { BlendProofRepository, openDatabase, type ReviewCommentDraft } from './db.js'
+import { migrateLegacy } from './migrate-legacy.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const storageRoot = path.join(root, 'storage', 'projects')
+const storageRoot = process.env.BLENDPROOF_STORAGE_ROOT ?? path.join(root, 'storage', 'projects')
+const incomingRoot = process.env.BLENDPROOF_INCOMING_ROOT ?? path.join(path.dirname(storageRoot), 'incoming')
 const exportScript = path.join(root, 'server', 'blender', 'export_glb.py')
 const blenderCandidates = [
   process.env.BLENDER_BIN,
@@ -18,8 +21,14 @@ const blenderCandidates = [
 ].filter((candidate): candidate is string => Boolean(candidate))
 const blenderBin = blenderCandidates.find(existsSync)
 
+await mkdir(storageRoot, { recursive: true })
+await mkdir(incomingRoot, { recursive: true })
+const database = await openDatabase()
+const repository = new BlendProofRepository(database)
+await migrateLegacy(storageRoot, repository)
+
 const app = express()
-const upload = multer({ dest: path.join(root, 'storage', 'incoming'), limits: { fileSize: 1024 * 1024 * 1024 } })
+const upload = multer({ dest: incomingRoot, limits: { fileSize: 1024 * 1024 * 1024 } })
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }))
 app.use(express.json({ limit: '1mb' }))
@@ -58,12 +67,8 @@ app.post('/api/projects', upload.single('blend'), async (request, response) => {
 
   try {
     await runBlender(blenderBin, sourcePath, glbPath, manifestPath)
-    response.status(201).json({
-      id: projectId,
-      name: request.file.originalname,
-      modelUrl: `/files/${projectId}/model.glb`,
-      manifestUrl: `/files/${projectId}/manifest.json`,
-    })
+    const project = repository.registerProject({ id: projectId, name: request.file.originalname })
+    response.status(201).json(project)
   } catch (error) {
     await rm(projectDir, { recursive: true, force: true })
     response.status(422).json({ error: error instanceof Error ? error.message : 'Blender 导出失败。' })
@@ -80,9 +85,12 @@ app.post('/api/projects/:projectId/shares', async (request, response) => {
     response.status(404).json({ error: '找不到可分享的本地项目。' })
     return
   }
-  const token = randomUUID().replaceAll('-', '')
-  await writeFile(path.join(projectDir, 'share.json'), JSON.stringify({ token, createdAt: new Date().toISOString() }, null, 2))
-  response.status(201).json({ token, shareUrl: `/s/${token}` })
+  if (!repository.getProject(request.params.projectId)) {
+    response.status(404).json({ error: '找不到可分享的本地项目。' })
+    return
+  }
+  const share = repository.createShare(request.params.projectId)
+  response.status(201).json({ token: share.token, shareUrl: share.shareUrl })
 })
 
 app.get('/api/projects/:projectId/comments', async (request, response) => {
@@ -91,7 +99,11 @@ app.get('/api/projects/:projectId/comments', async (request, response) => {
     response.status(404).json({ error: '找不到本地项目。' })
     return
   }
-  response.json({ comments: await readComments(projectDir) })
+  if (!repository.getProject(request.params.projectId)) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  response.json({ comments: repository.listComments(request.params.projectId) })
 })
 
 app.post('/api/projects/:projectId/comments', async (request, response) => {
@@ -104,20 +116,11 @@ app.post('/api/projects/:projectId/comments', async (request, response) => {
     response.status(400).json({ error: '评论内容或锚点无效。' })
     return
   }
-  const now = new Date().toISOString()
-  const comment = {
-    ...request.body,
-    id: randomUUID(),
-    projectId: request.params.projectId,
-    status: 'open',
-    createdAt: now,
-    updatedAt: now,
+  if (!repository.getProject(request.params.projectId)) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
   }
-  await serializeCommentWrite(async () => {
-    const comments = await readComments(projectDir)
-    comments.push(comment)
-    await writeComments(projectDir, comments)
-  })
+  const comment = repository.createComment(request.params.projectId, request.body as ReviewCommentDraft)
   response.status(201).json({ comment })
 })
 
@@ -142,19 +145,13 @@ app.patch('/api/projects/:projectId/comments/:commentId', async (request, respon
   }
   const nextBody = typeof patch.body === 'string' ? patch.body.trim() : undefined
   const nextStatus = patch.status === 'open' || patch.status === 'resolved' ? patch.status : undefined
-  let updated: StoredComment | null = null
-  await serializeCommentWrite(async () => {
-    const comments = await readComments(projectDir)
-    const index = comments.findIndex((comment) => comment.id === request.params.commentId)
-    if (index < 0) return
-    comments[index] = {
-      ...comments[index],
-      ...(nextBody !== undefined ? { body: nextBody } : {}),
-      ...(nextStatus !== undefined ? { status: nextStatus } : {}),
-      updatedAt: new Date().toISOString(),
-    }
-    updated = comments[index]
-    await writeComments(projectDir, comments)
+  if (!repository.getProject(request.params.projectId)) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  const updated = repository.updateComment(request.params.projectId, request.params.commentId, {
+    ...(nextBody !== undefined ? { body: nextBody } : {}),
+    ...(nextStatus !== undefined ? { status: nextStatus } : {}),
   })
   if (!updated) {
     response.status(404).json({ error: '找不到评论。' })
@@ -164,27 +161,33 @@ app.patch('/api/projects/:projectId/comments/:commentId', async (request, respon
 })
 
 app.get('/api/shares/:token', async (request, response) => {
-  const projectDir = await findShareProject(request.params.token)
-  if (!projectDir) {
+  const share = repository.findShare(request.params.token)
+  if (!share) {
     response.status(404).json({ error: '分享链接不存在或已失效。' })
     return
   }
+  const project = repository.getProject(share.projectId)
+  if (!project) {
+    response.status(404).json({ error: '分享链接不存在或已失效。' })
+    return
+  }
+  const projectDir = resolveProjectDir(share.projectId)!
   const manifest = JSON.parse(await readFile(path.join(projectDir, 'manifest.json'), 'utf8'))
   response.json({
     name: manifest.scene,
     modelUrl: `/api/shares/${request.params.token}/model.glb`,
     manifest,
-    comments: (await readComments(projectDir)).map(toSharedComment),
+    comments: repository.listComments(share.projectId).map(toSharedComment),
   })
 })
 
 app.get('/api/shares/:token/model.glb', async (request, response) => {
-  const projectDir = await findShareProject(request.params.token)
-  if (!projectDir) {
+  const share = repository.findShare(request.params.token)
+  if (!share) {
     response.status(404).end()
     return
   }
-  response.sendFile(path.join(projectDir, 'model.glb'))
+  response.sendFile(path.join(resolveProjectDir(share.projectId)!, 'model.glb'))
 })
 
 type StoredComment = Record<string, unknown> & { id: string }
@@ -230,47 +233,6 @@ function isCameraState(value: unknown) {
     (projection !== 'orthographic' || (typeof camera.zoom === 'number' && camera.zoom > 0))
 }
 
-async function findShareProject(token: string) {
-  if (!/^[a-f0-9]{32}$/.test(token)) return null
-  const entries = await import('node:fs/promises').then(({ readdir }) => readdir(storageRoot, { withFileTypes: true }))
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    const projectDir = path.join(storageRoot, entry.name)
-    try {
-      const share = JSON.parse(await readFile(path.join(projectDir, 'share.json'), 'utf8')) as { token?: string }
-      if (share.token === token) return projectDir
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
-    }
-  }
-  return null
-}
-
-async function readComments(projectDir: string): Promise<StoredComment[]> {
-  try {
-    const value = JSON.parse(await readFile(path.join(projectDir, 'comments.json'), 'utf8'))
-    return Array.isArray(value) ? value : []
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-    throw error
-  }
-}
-
-let commentWriteQueue = Promise.resolve()
-async function serializeCommentWrite(work: () => Promise<void>) {
-  const next = commentWriteQueue.then(work, work)
-  commentWriteQueue = next.catch(() => {})
-  await next
-}
-
-async function writeComments(projectDir: string, comments: StoredComment[]) {
-  const target = path.join(projectDir, 'comments.json')
-  const temporary = path.join(projectDir, `comments-${randomUUID()}.tmp`)
-  await writeFile(temporary, JSON.stringify(comments, null, 2))
-  await rename(temporary, target)
-}
-
 function runBlender(bin: string, sourcePath: string, glbPath: string, manifestPath: string) {
   return new Promise<void>((resolve, reject) => {
     const process = spawn(bin, ['--background', sourcePath, '--python', exportScript, '--', glbPath, manifestPath], {
@@ -288,6 +250,11 @@ function runBlender(bin: string, sourcePath: string, glbPath: string, manifestPa
   })
 }
 
-await mkdir(storageRoot, { recursive: true })
-await mkdir(path.join(root, 'storage', 'incoming'), { recursive: true })
-app.listen(8787, () => console.log('BlendProof local API running at http://localhost:8787'))
+const port = Number(process.env.PORT ?? 8787)
+const server = app.listen(port, () => console.log(`BlendProof local API running at http://localhost:${port}`))
+
+function close() {
+  server.close(() => database.close())
+}
+process.once('SIGTERM', close)
+process.once('SIGINT', close)

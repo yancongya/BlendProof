@@ -1,18 +1,20 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, describe, test } from "node:test";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const projectsRoot = path.join(repoRoot, "storage", "projects");
-const apiBase = process.env.BLENDPROOF_API_BASE ?? "http://127.0.0.1:8787";
 const projectId = `api-test-${randomUUID()}`;
-const projectDir = path.join(projectsRoot, projectId);
 
 let serverProcess: ChildProcess | undefined;
+let testRoot = "";
+let projectsRoot = "";
+let projectDir = "";
+let apiBase = "";
 
 type Json = Record<string, unknown>;
 
@@ -56,27 +58,37 @@ const validDraft = {
 };
 
 before(async () => {
-  // Reuse a development server when one is already running; otherwise start an
-  // isolated child process. The fixture below is the only storage this suite mutates.
-  if (!(await isApiAvailable())) {
-    serverProcess = spawn(
-      process.execPath,
-      [path.join(repoRoot, "node_modules", "tsx", "dist", "cli.mjs"), "server/index.ts"],
-      { cwd: repoRoot, stdio: "ignore" },
-    );
-    await waitForApi();
-  }
-
+  testRoot = await mkdtemp(path.join(tmpdir(), "blendproof-api-"));
+  projectsRoot = path.join(testRoot, "projects");
+  projectDir = path.join(projectsRoot, projectId);
   await mkdir(projectDir, { recursive: true });
   await writeFile(path.join(projectDir, "model.glb"), "test model");
   await writeFile(
     path.join(projectDir, "manifest.json"),
     JSON.stringify({ scene: "API test scene", objects: [], collections: [] }),
   );
+
+  const port = 18_000 + Math.floor(Math.random() * 10_000);
+  apiBase = `http://127.0.0.1:${port}`;
+  serverProcess = spawn(
+    process.execPath,
+    [path.join(repoRoot, "node_modules", "tsx", "dist", "cli.mjs"), "server/index.ts"],
+    {
+      cwd: repoRoot,
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        PORT: String(port),
+        BLENDPROOF_STORAGE_ROOT: projectsRoot,
+        BLENDPROOF_INCOMING_ROOT: path.join(testRoot, "incoming"),
+        BLENDPROOF_DB_PATH: path.join(testRoot, "blendproof.sqlite"),
+      },
+    },
+  );
+  await waitForApi();
 });
 
 after(async () => {
-  await rm(projectDir, { recursive: true, force: true });
   if (serverProcess) {
     serverProcess.kill();
     await new Promise<void>((resolve) => {
@@ -84,6 +96,7 @@ after(async () => {
       setTimeout(resolve, 1_000);
     });
   }
+  if (testRoot) await rm(testRoot, { recursive: true, force: true });
 });
 
 describe("阶段 2 评论 API", () => {
