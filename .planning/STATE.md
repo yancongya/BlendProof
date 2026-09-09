@@ -1,11 +1,11 @@
 # BlendProof Project State
 
-Phase: 2 of 4（审稿能力）
-Plan: 02-01
-Status: In progress
-Last activity: 2026-09-09 - 固定审稿锚点、相机重放与只读分享数据合同
+Phase: 3 of 4（本地分享后端）
+Plan: 待创建
+Status: Ready
+Last activity: 2026-09-09 - 表面批注、编辑、视角重放与只读分享通过浏览器验收
 
-Progress: ███░░ 55%
+Progress: ████░ 72%
 
 ## Decisions
 
@@ -15,11 +15,11 @@ Progress: ███░░ 55%
 
 ## Current Risks
 
-- 阶段 2 数据合同已固定，项目级持久化 API 与 Viewer 批注模式尚未实现。
-- 当前本地分享仍是文件 manifest 合同；SQLite、密码、有效期与用户边界属于阶段 3。
+- 项目评论目前仍落在 `comments.json`，需要迁移到 SQLite 并保留 repository 合同。
+- owner mutation 尚无服务端 capability；分享密码、有效期和访客评论权限尚未实现。
 
 ## Session Continuity
 
 Last session: 2026-09-09
-Stopped at: Phase 2 Wave 1 implementation boundary
-Resume file: `.planning/phases/02-review/02-01-PLAN.md`
+Stopped at: Phase 3 planning boundary
+Resume file: `docs/LONG_TERM_PLAN.md`
