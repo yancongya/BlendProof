@@ -155,7 +155,10 @@ export async function migrateLegacy(
       outcome = repository.transaction((transaction) => {
         const existingProject = transaction.findProject(records.project.id);
         if (existingProject) {
-          assertSameProject(existingProject, records.project, projectDir, projectId);
+          // A project created by the current API stores the uploaded filename,
+          // while a legacy manifest stores the Blender scene name. The database
+          // is authoritative once the project exists; still inspect legacy
+          // shares/comments below so interrupted migrations can resume.
           report.projectsSkipped += 1;
         } else {
           transaction.insertProject(records.project);
@@ -318,17 +321,6 @@ function normalizeComments(value: unknown, filePath: string, projectId: string):
     }
     return { ...item, projectId } as LegacyCommentRecord;
   });
-}
-
-function assertSameProject(
-  existing: LegacyProjectRecord,
-  incoming: LegacyProjectRecord,
-  projectDir: string,
-  projectId: string,
-) {
-  if ((existing.manifest !== undefined && !sameJson(existing.manifest, incoming.manifest)) || existing.name !== incoming.name) {
-    throw new LegacyMigrationError("数据库中已存在内容不同的项目记录", projectDir, projectId);
-  }
 }
 
 function assertSameShare(

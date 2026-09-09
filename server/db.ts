@@ -1,4 +1,5 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
+import { promisify } from 'node:util'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -104,6 +105,25 @@ export type CreateShareInput = {
   expiresAt?: string | null
   commentsPermission?: CommentsPermission
   shareUrl?: string
+}
+
+const scrypt = promisify(scryptCallback)
+
+export async function hashPassword(password: string): Promise<string> {
+  if (typeof password !== 'string' || password.length < 4 || password.length > 200) {
+    throw new TypeError('分享密码需要 4 到 200 个字符。')
+  }
+  const salt = randomBytes(16)
+  const derived = await scrypt(password, salt, 32) as Buffer
+  return `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`
+}
+
+export async function verifyPassword(password: string, encoded: string): Promise<boolean> {
+  const [algorithm, saltHex, hashHex] = encoded.split('$')
+  if (algorithm !== 'scrypt' || !/^[a-f0-9]{32}$/.test(saltHex) || !/^[a-f0-9]{64}$/.test(hashHex)) return false
+  const expected = Buffer.from(hashHex, 'hex')
+  const actual = await scrypt(password, Buffer.from(saltHex, 'hex'), expected.length) as Buffer
+  return timingSafeEqual(actual, expected)
 }
 
 type ProjectRow = {
@@ -471,6 +491,9 @@ export class BlendProofRepository {
     if (commentsPermission !== 'read_only' && commentsPermission !== 'comment') {
       throw new TypeError('评论权限无效。')
     }
+    if (input.expiresAt !== undefined && input.expiresAt !== null && !Number.isFinite(Date.parse(input.expiresAt))) {
+      throw new TypeError('分享有效期无效。')
+    }
     const id = input.id ?? randomUUID().replaceAll('-', '')
     const now = new Date().toISOString()
 
@@ -527,6 +550,27 @@ export class BlendProofRepository {
       'SELECT password_hash FROM shares WHERE token_hash = ?',
     ).get(hashSecret(token)) as { password_hash: string | null } | undefined
     return row?.password_hash === passwordHash
+  }
+
+  async verifySharePassword(token: string, password: string): Promise<boolean> {
+    const row = this.database.prepare(
+      'SELECT password_hash FROM shares WHERE token_hash = ?',
+    ).get(hashSecret(token)) as { password_hash: string | null } | undefined
+    return Boolean(row?.password_hash && await verifyPassword(password, row.password_hash))
+  }
+
+  revokeShare(projectId: string, shareId: string): ShareRecord | null {
+    const now = new Date().toISOString()
+    const result = this.database.prepare(`
+      UPDATE shares SET revoked_at = ?, updated_at = ?
+      WHERE id = ? AND project_id = ? AND revoked_at IS NULL
+    `).run(now, now, shareId, projectId)
+    if (result.changes === 0) return null
+    return this.findShareById(shareId)
+  }
+
+  isShareExpired(share: ShareRecord, now = new Date()): boolean {
+    return share.expiresAt !== null && Date.parse(share.expiresAt) <= now.getTime()
   }
 
   close(): void {

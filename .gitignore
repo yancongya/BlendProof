@@ -5,6 +5,7 @@ storage/projects
 storage/*.sqlite
 storage/*.sqlite-shm
 storage/*.sqlite-wal
+storage/.access-secret
 tsconfig.tsbuildinfo
 .playwright-cli/
 output/playwright/
