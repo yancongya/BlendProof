@@ -1,9 +1,9 @@
 # BlendProof Project State
 
 Phase: 2 of 4（审稿能力）
-Plan: 待创建
-Status: Ready
-Last activity: 2026-09-08 - Viewer 内核通过三组样例的真实浏览器验收
+Plan: 02-01
+Status: In progress
+Last activity: 2026-09-09 - 固定审稿锚点、相机重放与只读分享数据合同
 
 Progress: ███░░ 55%
 
@@ -15,11 +15,11 @@ Progress: ███░░ 55%
 
 ## Current Risks
 
-- 阶段 2 尚未固定评论锚点、相机状态和截图的数据合同。
+- 阶段 2 数据合同已固定，项目级持久化 API 与 Viewer 批注模式尚未实现。
 - 当前本地分享仍是文件 manifest 合同；SQLite、密码、有效期与用户边界属于阶段 3。
 
 ## Session Continuity
 
-Last session: 2026-09-08
-Stopped at: Phase 2 planning boundary
-Resume file: `docs/LONG_TERM_PLAN.md`
+Last session: 2026-09-09
+Stopped at: Phase 2 Wave 1 implementation boundary
+Resume file: `.planning/phases/02-review/02-01-PLAN.md`
