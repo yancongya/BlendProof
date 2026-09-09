@@ -23,7 +23,14 @@ const upload = multer({ dest: path.join(root, 'storage', 'incoming'), limits: { 
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }))
 app.use(express.json({ limit: '1mb' }))
-app.use('/files', express.static(storageRoot))
+app.get('/files/:projectId/:fileName', (request, response) => {
+  const projectDir = resolveProjectDir(request.params.projectId)
+  if (!projectDir || !['model.glb', 'manifest.json'].includes(request.params.fileName)) {
+    response.status(404).end()
+    return
+  }
+  response.sendFile(path.join(projectDir, request.params.fileName))
+})
 
 app.get('/api/health', (_request, response) => {
   response.json({ blenderReady: Boolean(blenderBin), blenderBin: blenderBin ?? null })
@@ -40,7 +47,7 @@ app.post('/api/projects', upload.single('blend'), async (request, response) => {
     return
   }
 
-  const projectId = randomUUID().slice(0, 8)
+  const projectId = randomUUID().replaceAll('-', '')
   const projectDir = path.join(storageRoot, projectId)
   const sourcePath = path.join(projectDir, 'source.blend')
   const glbPath = path.join(projectDir, 'model.glb')
@@ -106,9 +113,11 @@ app.post('/api/projects/:projectId/comments', async (request, response) => {
     createdAt: now,
     updatedAt: now,
   }
-  const comments = await readComments(projectDir)
-  comments.push(comment)
-  await writeComments(projectDir, comments)
+  await serializeCommentWrite(async () => {
+    const comments = await readComments(projectDir)
+    comments.push(comment)
+    await writeComments(projectDir, comments)
+  })
   response.status(201).json({ comment })
 })
 
@@ -118,14 +127,12 @@ app.patch('/api/projects/:projectId/comments/:commentId', async (request, respon
     response.status(404).json({ error: '找不到本地项目。' })
     return
   }
-  const comments = await readComments(projectDir)
-  const index = comments.findIndex((comment) => comment.id === request.params.commentId)
-  if (index < 0) {
-    response.status(404).json({ error: '找不到评论。' })
+  if (!request.body || typeof request.body !== 'object') {
+    response.status(400).json({ error: '评论更新内容无效。' })
     return
   }
   const patch = request.body as { body?: unknown; status?: unknown }
-  if (patch.body !== undefined && typeof patch.body !== 'string') {
+  if (patch.body !== undefined && (typeof patch.body !== 'string' || !patch.body.trim())) {
     response.status(400).json({ error: '评论正文无效。' })
     return
   }
@@ -133,34 +140,59 @@ app.patch('/api/projects/:projectId/comments/:commentId', async (request, respon
     response.status(400).json({ error: '评论状态无效。' })
     return
   }
-  comments[index] = {
-    ...comments[index],
-    ...(patch.body !== undefined ? { body: patch.body.trim() } : {}),
-    ...(patch.status !== undefined ? { status: patch.status } : {}),
-    updatedAt: new Date().toISOString(),
+  const nextBody = typeof patch.body === 'string' ? patch.body.trim() : undefined
+  const nextStatus = patch.status === 'open' || patch.status === 'resolved' ? patch.status : undefined
+  let updated: StoredComment | null = null
+  await serializeCommentWrite(async () => {
+    const comments = await readComments(projectDir)
+    const index = comments.findIndex((comment) => comment.id === request.params.commentId)
+    if (index < 0) return
+    comments[index] = {
+      ...comments[index],
+      ...(nextBody !== undefined ? { body: nextBody } : {}),
+      ...(nextStatus !== undefined ? { status: nextStatus } : {}),
+      updatedAt: new Date().toISOString(),
+    }
+    updated = comments[index]
+    await writeComments(projectDir, comments)
+  })
+  if (!updated) {
+    response.status(404).json({ error: '找不到评论。' })
+    return
   }
-  await writeComments(projectDir, comments)
-  response.json({ comment: comments[index] })
+  response.json({ comment: updated })
 })
 
 app.get('/api/shares/:token', async (request, response) => {
-  const entries = await import('node:fs/promises').then(({ readdir }) => readdir(storageRoot, { withFileTypes: true }))
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    const projectDir = path.join(storageRoot, entry.name)
-    try {
-      const share = JSON.parse(await readFile(path.join(projectDir, 'share.json'), 'utf8')) as { token: string }
-      if (share.token === request.params.token) {
-        const manifest = JSON.parse(await readFile(path.join(projectDir, 'manifest.json'), 'utf8'))
-        response.json({ projectId: entry.name, name: entry.name, modelUrl: `/files/${entry.name}/model.glb`, manifest })
-        return
-      }
-    } catch { /* Projects without a share record are intentionally skipped. */ }
+  const projectDir = await findShareProject(request.params.token)
+  if (!projectDir) {
+    response.status(404).json({ error: '分享链接不存在或已失效。' })
+    return
   }
-  response.status(404).json({ error: '分享链接不存在或已失效。' })
+  const manifest = JSON.parse(await readFile(path.join(projectDir, 'manifest.json'), 'utf8'))
+  response.json({
+    name: manifest.scene,
+    modelUrl: `/api/shares/${request.params.token}/model.glb`,
+    manifest,
+    comments: (await readComments(projectDir)).map(toSharedComment),
+  })
+})
+
+app.get('/api/shares/:token/model.glb', async (request, response) => {
+  const projectDir = await findShareProject(request.params.token)
+  if (!projectDir) {
+    response.status(404).end()
+    return
+  }
+  response.sendFile(path.join(projectDir, 'model.glb'))
 })
 
 type StoredComment = Record<string, unknown> & { id: string }
+
+function toSharedComment(comment: StoredComment) {
+  const { projectId: _privateProjectId, ...shared } = comment
+  return shared
+}
 
 function resolveProjectDir(projectId: string) {
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(projectId)) return null
@@ -177,17 +209,59 @@ function isCommentDraft(value: unknown): value is Record<string, unknown> {
   return typeof draft.body === 'string' && draft.body.trim().length > 0 &&
     typeof draft.authorName === 'string' && draft.authorName.trim().length > 0 &&
     (draft.objectName === null || typeof draft.objectName === 'string') &&
+    draft.body.trim().length <= 5000 && draft.authorName.trim().length <= 120 &&
     isVec3(draft.position) && isVec3(draft.normal) &&
-    Boolean(draft.camera && typeof draft.camera === 'object')
+    hasMagnitude(draft.normal) && isCameraState(draft.camera)
+}
+
+function hasMagnitude(value: unknown) {
+  return isVec3(value) && value.some((item) => Math.abs(item) > 1e-8)
+}
+
+function isCameraState(value: unknown) {
+  if (!value || typeof value !== 'object') return false
+  const camera = value as Record<string, unknown>
+  const projection = camera.projection
+  return (projection === 'perspective' || projection === 'orthographic') &&
+    isVec3(camera.position) && isVec3(camera.target) &&
+    Array.isArray(camera.quaternion) && camera.quaternion.length === 4 && camera.quaternion.every(Number.isFinite) &&
+    camera.quaternion.some((item) => Math.abs(item) > 1e-8) &&
+    (projection !== 'perspective' || (typeof camera.fov === 'number' && camera.fov > 0 && camera.fov < 180)) &&
+    (projection !== 'orthographic' || (typeof camera.zoom === 'number' && camera.zoom > 0))
+}
+
+async function findShareProject(token: string) {
+  if (!/^[a-f0-9]{32}$/.test(token)) return null
+  const entries = await import('node:fs/promises').then(({ readdir }) => readdir(storageRoot, { withFileTypes: true }))
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const projectDir = path.join(storageRoot, entry.name)
+    try {
+      const share = JSON.parse(await readFile(path.join(projectDir, 'share.json'), 'utf8')) as { token?: string }
+      if (share.token === token) return projectDir
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
+    }
+  }
+  return null
 }
 
 async function readComments(projectDir: string): Promise<StoredComment[]> {
   try {
     const value = JSON.parse(await readFile(path.join(projectDir, 'comments.json'), 'utf8'))
     return Array.isArray(value) ? value : []
-  } catch {
-    return []
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw error
   }
+}
+
+let commentWriteQueue = Promise.resolve()
+async function serializeCommentWrite(work: () => Promise<void>) {
+  const next = commentWriteQueue.then(work, work)
+  commentWriteQueue = next.catch(() => {})
+  await next
 }
 
 async function writeComments(projectDir: string, comments: StoredComment[]) {
