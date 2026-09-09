@@ -22,6 +22,7 @@ const app = express()
 const upload = multer({ dest: path.join(root, 'storage', 'incoming'), limits: { fileSize: 1024 * 1024 * 1024 } })
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }))
+app.use(express.json({ limit: '1mb' }))
 app.use('/files', express.static(storageRoot))
 
 app.get('/api/health', (_request, response) => {
@@ -63,7 +64,11 @@ app.post('/api/projects', upload.single('blend'), async (request, response) => {
 })
 
 app.post('/api/projects/:projectId/shares', async (request, response) => {
-  const projectDir = path.join(storageRoot, request.params.projectId)
+  const projectDir = resolveProjectDir(request.params.projectId)
+  if (!projectDir) {
+    response.status(400).json({ error: '项目标识无效。' })
+    return
+  }
   if (!existsSync(path.join(projectDir, 'model.glb'))) {
     response.status(404).json({ error: '找不到可分享的本地项目。' })
     return
@@ -71,6 +76,71 @@ app.post('/api/projects/:projectId/shares', async (request, response) => {
   const token = randomUUID().replaceAll('-', '')
   await writeFile(path.join(projectDir, 'share.json'), JSON.stringify({ token, createdAt: new Date().toISOString() }, null, 2))
   response.status(201).json({ token, shareUrl: `/s/${token}` })
+})
+
+app.get('/api/projects/:projectId/comments', async (request, response) => {
+  const projectDir = resolveProjectDir(request.params.projectId)
+  if (!projectDir || !existsSync(path.join(projectDir, 'model.glb'))) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  response.json({ comments: await readComments(projectDir) })
+})
+
+app.post('/api/projects/:projectId/comments', async (request, response) => {
+  const projectDir = resolveProjectDir(request.params.projectId)
+  if (!projectDir || !existsSync(path.join(projectDir, 'model.glb'))) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  if (!isCommentDraft(request.body)) {
+    response.status(400).json({ error: '评论内容或锚点无效。' })
+    return
+  }
+  const now = new Date().toISOString()
+  const comment = {
+    ...request.body,
+    id: randomUUID(),
+    projectId: request.params.projectId,
+    status: 'open',
+    createdAt: now,
+    updatedAt: now,
+  }
+  const comments = await readComments(projectDir)
+  comments.push(comment)
+  await writeComments(projectDir, comments)
+  response.status(201).json({ comment })
+})
+
+app.patch('/api/projects/:projectId/comments/:commentId', async (request, response) => {
+  const projectDir = resolveProjectDir(request.params.projectId)
+  if (!projectDir || !existsSync(path.join(projectDir, 'model.glb'))) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  const comments = await readComments(projectDir)
+  const index = comments.findIndex((comment) => comment.id === request.params.commentId)
+  if (index < 0) {
+    response.status(404).json({ error: '找不到评论。' })
+    return
+  }
+  const patch = request.body as { body?: unknown; status?: unknown }
+  if (patch.body !== undefined && typeof patch.body !== 'string') {
+    response.status(400).json({ error: '评论正文无效。' })
+    return
+  }
+  if (patch.status !== undefined && !['open', 'resolved'].includes(String(patch.status))) {
+    response.status(400).json({ error: '评论状态无效。' })
+    return
+  }
+  comments[index] = {
+    ...comments[index],
+    ...(patch.body !== undefined ? { body: patch.body.trim() } : {}),
+    ...(patch.status !== undefined ? { status: patch.status } : {}),
+    updatedAt: new Date().toISOString(),
+  }
+  await writeComments(projectDir, comments)
+  response.json({ comment: comments[index] })
 })
 
 app.get('/api/shares/:token', async (request, response) => {
@@ -82,13 +152,50 @@ app.get('/api/shares/:token', async (request, response) => {
       const share = JSON.parse(await readFile(path.join(projectDir, 'share.json'), 'utf8')) as { token: string }
       if (share.token === request.params.token) {
         const manifest = JSON.parse(await readFile(path.join(projectDir, 'manifest.json'), 'utf8'))
-        response.json({ name: entry.name, modelUrl: `/files/${entry.name}/model.glb`, manifest })
+        response.json({ projectId: entry.name, name: entry.name, modelUrl: `/files/${entry.name}/model.glb`, manifest })
         return
       }
     } catch { /* Projects without a share record are intentionally skipped. */ }
   }
   response.status(404).json({ error: '分享链接不存在或已失效。' })
 })
+
+type StoredComment = Record<string, unknown> & { id: string }
+
+function resolveProjectDir(projectId: string) {
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(projectId)) return null
+  return path.join(storageRoot, projectId)
+}
+
+function isVec3(value: unknown): value is [number, number, number] {
+  return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite)
+}
+
+function isCommentDraft(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object') return false
+  const draft = value as Record<string, unknown>
+  return typeof draft.body === 'string' && draft.body.trim().length > 0 &&
+    typeof draft.authorName === 'string' && draft.authorName.trim().length > 0 &&
+    (draft.objectName === null || typeof draft.objectName === 'string') &&
+    isVec3(draft.position) && isVec3(draft.normal) &&
+    Boolean(draft.camera && typeof draft.camera === 'object')
+}
+
+async function readComments(projectDir: string): Promise<StoredComment[]> {
+  try {
+    const value = JSON.parse(await readFile(path.join(projectDir, 'comments.json'), 'utf8'))
+    return Array.isArray(value) ? value : []
+  } catch {
+    return []
+  }
+}
+
+async function writeComments(projectDir: string, comments: StoredComment[]) {
+  const target = path.join(projectDir, 'comments.json')
+  const temporary = path.join(projectDir, `comments-${randomUUID()}.tmp`)
+  await writeFile(temporary, JSON.stringify(comments, null, 2))
+  await rename(temporary, target)
+}
 
 function runBlender(bin: string, sourcePath: string, glbPath: string, manifestPath: string) {
   return new Promise<void>((resolve, reject) => {
