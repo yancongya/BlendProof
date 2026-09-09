@@ -1,9 +1,9 @@
 # BlendProof Project State
 
 Phase: 3 of 4（本地分享后端）
-Plan: 待创建
-Status: Ready
-Last activity: 2026-09-09 - 表面批注、编辑、视角重放与只读分享通过浏览器验收
+Plan: 03-01
+Status: In progress
+Last activity: 2026-09-09 - 固定 SQLite、owner capability、密码、过期及评论权限实施波次
 
 Progress: ████░ 72%
 
@@ -15,11 +15,11 @@ Progress: ████░ 72%
 
 ## Current Risks
 
-- 项目评论目前仍落在 `comments.json`，需要迁移到 SQLite 并保留 repository 合同。
-- owner mutation 尚无服务端 capability；分享密码、有效期和访客评论权限尚未实现。
+- `node:sqlite` 在本机 Node 22 可用但仍有 ExperimentalWarning，必须锁定运行时并保持 D1 适配边界。
+- owner capability、密码访问 cookie、过期和访客评论权限尚未实现。
 
 ## Session Continuity
 
 Last session: 2026-09-09
-Stopped at: Phase 3 planning boundary
-Resume file: `docs/LONG_TERM_PLAN.md`
+Stopped at: Phase 3 Wave 3A implementation boundary
+Resume file: `.planning/phases/03-local-backend/03-01-PLAN.md`
