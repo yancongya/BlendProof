@@ -38,6 +38,8 @@ export function UploaderPanel({
   shareExpiresAt,
   onFile,
   onConvert,
+  recentProjects = [],
+  onProjectSelect,
 }: {
   file: File | null;
   stage: UploadStage;
@@ -48,6 +50,8 @@ export function UploaderPanel({
   shareExpiresAt?: string | null;
   onFile: (file: File | null) => void;
   onConvert: () => void;
+  recentProjects?: Array<{ id: string; name: string; modelUrl: string; manifestUrl: string; ownerCapability: string }>;
+  onProjectSelect?: (project: { id: string; name: string; modelUrl: string; manifestUrl: string; ownerCapability: string }) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -85,6 +89,24 @@ export function UploaderPanel({
       <p className="uploader-panel-intro">
         在本机转换 Blender 文件，生成可审阅的 Web 预览。
       </p>
+
+      {recentProjects.length > 0 && onProjectSelect && (
+        <label className="recent-project-picker">
+          <span>最近本地项目</span>
+          <select
+            aria-label="切换最近本地项目"
+            defaultValue=""
+            onChange={(event) => {
+              const next = recentProjects.find((item) => item.id === event.target.value);
+              if (next) onProjectSelect(next);
+              event.currentTarget.value = "";
+            }}
+          >
+            <option value="">选择项目…</option>
+            {recentProjects.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.id.slice(0, 6)}</option>)}
+          </select>
+        </label>
+      )}
 
       <input
         ref={input}
@@ -174,7 +196,7 @@ export function UploaderPanel({
         <ManifestSummary manifest={manifest} />
       )}
 
-      {shareUrl && (
+      {stage === "ready" && shareUrl && (
         <section className="uploader-share-card" data-testid="uploader-share-status">
           <div className="uploader-section-label"><Link2 size={13} /> 分享状态</div>
           <strong>分享链接已建立</strong>

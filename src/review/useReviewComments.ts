@@ -21,6 +21,7 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
       setLoading(false);
       return;
     }
+    setComments([]);
     setLoading(true);
     setError(null);
     try {

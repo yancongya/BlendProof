@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Circle,
   Eye,
+  Focus,
   FolderOpen,
   Layers,
   Lightbulb,
@@ -75,9 +76,20 @@ export function App() {
   const [file, setFile] = useState<File | null>(null);
   const [project, setProject] = useState<Project | null>(() => {
     try {
-      return JSON.parse(localStorage.getItem("blendproof:last-project") ?? "null");
+      const stored: unknown = JSON.parse(localStorage.getItem("blendproof:last-project") ?? "null");
+      return isStoredProject(stored) ? stored : null;
     } catch {
       return null;
+    }
+  });
+  const [recentProjects, setRecentProjects] = useState<Project[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("blendproof:recent-projects") ?? "[]");
+      return Array.isArray(stored)
+        ? stored.filter(isStoredProject).slice(0, 8)
+        : [];
+    } catch {
+      return [];
     }
   });
   const [manifest, setManifest] = useState<Manifest | null>(null);
@@ -88,9 +100,7 @@ export function App() {
   );
   const [processing, setProcessing] = useState(false);
   const [uploaderOpen, setUploaderOpen] = useState(false);
-  const [uploadStage, setUploadStage] = useState<UploadStage>(() =>
-    project ? "ready" : "idle",
-  );
+  const [uploadStage, setUploadStage] = useState<UploadStage>("idle");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareId, setShareId] = useState<string | null>(null);
   const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(null);
@@ -99,17 +109,38 @@ export function App() {
   const [sharePermission, setSharePermission] = useState<"read_only" | "comment">("read_only");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
-  const openUploader = useCallback(() => setUploaderOpen(true), []);
+  const openUploader = useCallback(() => {
+    // Opening the file panel is always a fresh selection flow; the active Viewer project stays intact.
+    setFile(null);
+    setUploadStage("idle");
+    setUploaderOpen(true);
+  }, []);
   const closeUploader = useCallback(() => setUploaderOpen(false), []);
   const reviews = useReviewComments(project?.id ?? null, project?.ownerCapability ?? null);
   useEffect(() => {
-    if (project)
+    let active = true;
+    setManifest(null);
+    if (project) {
       blendProofClient.loadJson<Manifest>(project.manifestUrl)
-        .then(setManifest);
+        .then((nextManifest) => {
+          if (active) setManifest(nextManifest);
+        })
+        .catch((reason) => {
+          if (!active) return;
+          setMessage(reason instanceof Error ? reason.message : "无法读取本地项目。");
+        });
+    }
+    return () => { active = false; };
   }, [project]);
   useEffect(() => {
-    if (project)
+    if (project) {
       localStorage.setItem("blendproof:last-project", JSON.stringify(project));
+      setRecentProjects((current) => {
+        const next = [project, ...current.filter((item) => item.id !== project.id)].slice(0, 8);
+        localStorage.setItem("blendproof:recent-projects", JSON.stringify(next));
+        return next;
+      });
+    }
   }, [project]);
   async function convert() {
     if (!file) return;
@@ -171,6 +202,19 @@ export function App() {
       setMessage("选择 Blender 文件以建立本地审稿项目。");
     }
   }
+  function switchProject(nextProject: Project) {
+    setProject(nextProject);
+    setManifest(null);
+    setFile(null);
+    setUploadStage("idle");
+    setHidden(new Set());
+    setSelected(new Set());
+    setShareUrl(null);
+    setShareId(null);
+    setShareExpiresAt(null);
+    setUploaderOpen(false);
+    setMessage(`已切换到本地项目：${nextProject.name}`);
+  }
   function toggle(name: string) {
     setHidden((current) => {
       const next = new Set(current);
@@ -205,13 +249,15 @@ export function App() {
         <UploaderPanel
           file={file}
           stage={uploadStage}
-          message={message}
+          message={uploadStage === "idle" ? "选择 Blender 文件以建立本地审稿项目。" : message}
           manifest={manifest}
           processing={processing}
           shareUrl={shareUrl}
           shareExpiresAt={shareExpiresAt}
           onFile={pick}
           onConvert={() => void convert()}
+          recentProjects={recentProjects}
+          onProjectSelect={switchProject}
         />
       }
     >
@@ -429,6 +475,20 @@ function BlenderWorkspace({
   useEffect(() => {
     if (selected.size === 0) setIsolated(false);
   }, [selected]);
+  const toggleIsolation = useCallback(() => {
+    if (selected.size > 0) setIsolated((current) => !current);
+  }, [selected]);
+  const isolateOutlinerObject = useCallback(
+    (name: string) => {
+      if (isolated && selected.size === 1 && selected.has(name)) {
+        setIsolated(false);
+        return;
+      }
+      onSelect(name);
+      setIsolated(true);
+    },
+    [isolated, onSelect, selected],
+  );
   useEffect(() => {
     setAnnotationMode(false);
     setPendingReview(null);
@@ -448,7 +508,7 @@ function BlenderWorkspace({
         selected.size > 0
       ) {
         event.preventDefault();
-        setIsolated((current) => !current);
+        toggleIsolation();
         return;
       }
       const preset =
@@ -468,7 +528,7 @@ function BlenderWorkspace({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onCameraPreset, selected]);
+  }, [onCameraPreset, selected, toggleIsolation]);
   useEffect(() => {
     if (!uploaderOpen) {
       if (uploaderWasOpenRef.current && onOpenUploader) uploaderTriggerRef.current?.focus();
@@ -561,23 +621,23 @@ function BlenderWorkspace({
           <BlenderLogo />
           <span>BlendProof</span>
         </div>
+        {uploader && onOpenUploader && (
+          <button
+            ref={uploaderTriggerRef}
+            type="button"
+            className="menu-item file-menu-trigger"
+            data-testid="open-uploader"
+            aria-haspopup="dialog"
+            aria-expanded={uploaderOpen}
+            aria-controls="uploader-dialog"
+            title="打开 Blender 文件"
+            onClick={onOpenUploader}
+          >
+            <FolderOpen size={13} /> 文件 / 打开 .blend
+          </button>
+        )}
         <div className="project-name">{title}</div>
         <div className="header-actions">
-          {uploader && onOpenUploader && (
-            <button
-              ref={uploaderTriggerRef}
-              type="button"
-              className="menu-item file-menu-trigger"
-              data-testid="open-uploader"
-              aria-haspopup="dialog"
-              aria-expanded={uploaderOpen}
-              aria-controls="uploader-dialog"
-              title="打开 Blender 文件"
-              onClick={onOpenUploader}
-            >
-              <FolderOpen size={13} /> 文件 / 打开 .blend
-            </button>
-          )}
           {children ?? <span>只读审稿</span>}
         </div>
       </header>
@@ -686,6 +746,7 @@ function BlenderWorkspace({
                     displayMode={displayMode}
                     selected={selected}
                     isolated={isolated}
+                    onIsolationInvalid={() => setIsolated(false)}
                     selectableNames={
                       new Set(manifest?.objects.map((object) => object.name))
                     }
@@ -799,6 +860,18 @@ function BlenderWorkspace({
                       className={hidden.has(object.name) ? "muted-eye" : ""}
                     />
                   </button>
+                  <button
+                    type="button"
+                    className={`isolate ${isolated && selected.size === 1 && selected.has(object.name) ? "active" : ""}`}
+                    aria-label={isolated && selected.size === 1 && selected.has(object.name) ? `退出 ${object.name} 的独显` : `独显 ${object.name}`}
+                    title={isolated && selected.size === 1 && selected.has(object.name) ? "退出独显" : "独显此对象"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      isolateOutlinerObject(object.name);
+                    }}
+                  >
+                    <Focus />
+                  </button>
                 </div>
               ))}
             </div>
@@ -809,7 +882,7 @@ function BlenderWorkspace({
                 <SlidersHorizontal size={13} /> 属性
               </span>
             </header>
-            {active ? (
+            {active && (
               <div className="property-body">
                 <p className="property-kicker">{active.type}</p>
                 <label>
@@ -824,9 +897,8 @@ function BlenderWorkspace({
                   />
                 </label>
               </div>
-            ) : (
-              <ConversionSummary manifest={manifest} />
             )}
+            <ConversionSummary manifest={manifest} />
             <ReviewPanel
               comments={comments}
               selectedId={selectedCommentId}
@@ -900,6 +972,7 @@ function Model({
   displayMode,
   selected,
   isolated,
+  onIsolationInvalid,
   selectableNames,
   onObjectClick,
   onCameras,
@@ -913,6 +986,7 @@ function Model({
   displayMode: DisplayMode;
   selected: Set<string>;
   isolated: boolean;
+  onIsolationInvalid: () => void;
   selectableNames: Set<string>;
   onObjectClick: (name: string | null) => void;
   onCameras: (cameras: ThreeCamera[]) => void;
@@ -925,6 +999,41 @@ function Model({
   const requestHeaders = useMemo(() => blendProofClient.assetRequestHeaders(url), [url]);
   const gltf = useGLTF(url, true, true, (loader) => loader.setRequestHeader(requestHeaders));
   const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
+  const selectedInScene = useMemo(() => {
+    const names = new Set<string>();
+    scene.traverse((node) => {
+      const identity = objectIdentity(node);
+      if (selected.has(identity)) names.add(identity);
+    });
+    return names;
+  }, [scene, selected]);
+  const isolationHierarchy = useMemo(() => {
+    const nodes = new Set<Object3D>();
+    if (!isolated || selectedInScene.size === 0) return nodes;
+
+    scene.traverse((node) => {
+      if (!selected.has(objectIdentity(node))) return;
+      // A visible descendant still needs every parent in the render tree to
+      // remain visible. Include both directions around every selected node.
+      node.traverse((descendant) => nodes.add(descendant));
+      let ancestor: Object3D | null = node;
+      while (ancestor) {
+        nodes.add(ancestor);
+        ancestor = ancestor.parent;
+      }
+    });
+    return nodes;
+  }, [isolated, scene, selected, selectedInScene]);
+  // A stale manifest/outliner name must not turn local view into an empty scene.
+  const hasRenderableIsolation = useMemo(
+    () => [...isolationHierarchy].some((node) => "isMesh" in node && Boolean((node as Object3D & { isMesh?: boolean }).isMesh)),
+    [isolationHierarchy],
+  );
+  const effectiveIsolation = isolated && selectedInScene.size > 0 && hasRenderableIsolation;
+  useEffect(() => {
+    if (isolated && selected.size > 0 && (selectedInScene.size === 0 || !hasRenderableIsolation))
+      onIsolationInvalid();
+  }, [hasRenderableIsolation, isolated, onIsolationInvalid, selected.size, selectedInScene]);
   useEffect(() => {
     const cameras: ThreeCamera[] = [];
     scene.traverse((node) => {
@@ -935,11 +1044,12 @@ function Model({
   }, [onCameras, onSceneReady, scene]);
   useEffect(() => {
     scene.traverse((node: Object3D & { material?: unknown }) => {
-      node.visible =
-        !hidden.has(node.name) &&
-        (!isolated ||
-          selected.size === 0 ||
-          belongsToAnySelected(node, selected));
+      const belongsToIsolation = isolationHierarchy.has(node);
+      // In Blender-style local view the selected target remains visible even
+      // if it was hidden in the global outliner before entering local view.
+      node.visible = effectiveIsolation
+        ? belongsToIsolation
+        : !hidden.has(objectIdentity(node));
       const materials = Array.isArray(node.material)
         ? node.material
         : node.material
@@ -995,14 +1105,21 @@ function Model({
         material.needsUpdate = true;
       }
     });
-  }, [displayMode, hidden, isolated, scene, selected]);
+  }, [
+    displayMode,
+    effectiveIsolation,
+    hidden,
+    isolationHierarchy,
+    scene,
+    selected,
+  ]);
   return (
     <primitive
       object={scene}
       onClick={(event: any) => {
         event.stopPropagation();
         let node: Object3D | null = event.object;
-        while (node && !selectableNames.has(node.name)) node = node.parent;
+        while (node && !selectableNames.has(objectIdentity(node))) node = node.parent;
         if (annotationMode && event.face) {
           const normal = event.face.normal
             .clone()
@@ -1015,7 +1132,7 @@ function Model({
           if (normal.dot(towardCamera) < 0) normal.negate();
           const perspective = (camera as any).isPerspectiveCamera;
           onAnnotation({
-            objectName: node?.name ?? null,
+            objectName: node ? objectIdentity(node) : null,
             position: event.point.toArray() as Vec3,
             normal: normal.toArray() as Vec3,
             camera: {
@@ -1034,7 +1151,7 @@ function Model({
           });
           return;
         }
-        onObjectClick(node?.name ?? null);
+        onObjectClick(node ? objectIdentity(node) : null);
       }}
     />
   );
@@ -1148,7 +1265,8 @@ function BoxSelectionController({
 function selectableAncestorName(node: Object3D, selectableNames: Set<string>) {
   let current: Object3D | null = node;
   while (current) {
-    if (selectableNames.has(current.name)) return current.name;
+    const identity = objectIdentity(current);
+    if (selectableNames.has(identity)) return identity;
     current = current.parent;
   }
   return null;
@@ -1157,10 +1275,35 @@ function selectableAncestorName(node: Object3D, selectableNames: Set<string>) {
 function belongsToAnySelected(node: Object3D, selected: Set<string>) {
   let current: Object3D | null = node;
   while (current) {
-    if (selected.has(current.name)) return true;
+    if (selected.has(objectIdentity(current))) return true;
     current = current.parent;
   }
   return false;
+}
+
+function objectIdentity(node: Object3D) {
+  return typeof node.userData?.name === "string" && node.userData.name
+    ? node.userData.name
+    : node.name;
+}
+
+function isStoredProject(value: unknown): value is Project {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(item.id) &&
+    typeof item.name === "string" && item.name.length > 0 && item.name.length <= 512 &&
+    typeof item.ownerCapability === "string" && item.ownerCapability.length > 0 &&
+    typeof item.modelUrl === "string" && isLocalBridgeResource(item.modelUrl) &&
+    typeof item.manifestUrl === "string" && isLocalBridgeResource(item.manifestUrl);
+}
+
+function isLocalBridgeResource(value: string) {
+  if (value.startsWith("/api/local/")) return true;
+  try {
+    const url = new URL(value);
+    return (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1") &&
+      url.pathname.startsWith("/api/local/");
+  } catch { return false; }
 }
 
 function BlenderViewControls({
@@ -1276,7 +1419,10 @@ function BlenderViewControls({
     const element = gl.domElement;
     const chooseMiddleAction = (event: PointerEvent) => {
       if (!controls.current || event.button !== 1) return;
-      controls.current.mouseButtons.MIDDLE = event.shiftKey
+      // OrbitControls reverses ROTATE/PAN when a modifier is present. Keep
+      // Shift on ROTATE so its internal modifier branch yields PAN; invert
+      // only Ctrl/Meta so they keep Blender's ordinary MMB rotation.
+      controls.current.mouseButtons.MIDDLE = !event.shiftKey && (event.ctrlKey || event.metaKey)
         ? MOUSE.PAN
         : MOUSE.ROTATE;
     };
@@ -1417,7 +1563,7 @@ function ReviewPanel({
 
 function ConversionSummary({ manifest }: { manifest: Manifest | null }) {
   const size = (bytes?: number) =>
-    bytes ? `${(bytes / 1024).toFixed(1)} KB` : "准备导入后显示";
+    bytes !== undefined ? `${(bytes / 1024).toFixed(1)} KB` : "准备导入后显示";
   return (
     <div className="conversion-summary">
       <p className="property-kicker">转换内容</p>
@@ -1425,14 +1571,23 @@ function ConversionSummary({ manifest }: { manifest: Manifest | null }) {
         场景 <b>{manifest?.scene ?? "-"}</b>
       </span>
       <span>
+        集合 <b>{manifest?.collections?.length ?? 0}</b>
+      </span>
+      <span>
         对象{" "}
         <b>{manifest?.export?.objectCount ?? manifest?.objects.length ?? 0}</b>
       </span>
       <span>
-        原始文件 <b>{size(manifest?.export?.sourceBytes)}</b>
+        相机 <b>{manifest?.cameras?.length ?? (manifest?.camera ? 1 : 0)}</b>
       </span>
       <span>
-        Web GLB <b>{size(manifest?.export?.glbBytes)}</b>
+        材质 <b>{Array.isArray(manifest?.materials) ? manifest.materials.length : manifest?.materials ?? 0}</b>
+      </span>
+      <span>
+        原始文件 <b>{size(manifest?.export?.sourceBytes ?? manifest?.sourceBytes)}</b>
+      </span>
+      <span>
+        Web GLB <b>{size(manifest?.export?.glbBytes ?? manifest?.glbBytes)}</b>
       </span>
     </div>
   );

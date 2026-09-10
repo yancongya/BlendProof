@@ -352,7 +352,7 @@ button {
 }
 .tree-row {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 22px;
+  grid-template-columns: 18px minmax(0, 1fr) 22px 22px;
   align-items: center;
   gap: 4px;
   min-height: 24px;
@@ -392,6 +392,22 @@ button {
   opacity: 0.6;
 }
 .eye svg {
+  width: 13px;
+  height: 13px;
+}
+.isolate {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #aaa;
+  padding: 2px;
+}
+.isolate:hover,
+.isolate.active {
+  color: #e87d0d;
+}
+.isolate svg {
   width: 13px;
   height: 13px;
 }
