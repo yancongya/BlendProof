@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, test } from 'node:test'
 import { LocalProjectStorage } from '../server/local-storage.js'
+import { assertPublicAssetContent } from '../server/asset-policy.js'
 
 const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
@@ -29,16 +30,27 @@ describe('LocalProjectStorage', () => {
     await storage.deleteProject('project-a')
     assert.equal(await storage.has('project-a', 'model.glb'), false)
   })
+
+  test('rejects a VP8X-only wrapper without image payload', () => {
+    const bytes = new Uint8Array(30)
+    bytes.set(new TextEncoder().encode('RIFF'), 0)
+    new DataView(bytes.buffer).setUint32(4, 22, true)
+    bytes.set(new TextEncoder().encode('WEBPVP8X'), 8)
+    new DataView(bytes.buffer).setUint32(16, 10, true)
+    assert.throws(() => assertPublicAssetContent('thumbnail.webp', bytes, 'image/webp'), /图像 chunk/)
+  })
 })
 
 function validGlb() {
-  const bytes = new Uint8Array(24)
+  const json = new TextEncoder().encode('{"asset":{"version":"2.0"}}')
+  const chunkLength = Math.ceil(json.byteLength / 4) * 4
+  const bytes = new Uint8Array(20 + chunkLength).fill(0x20)
   const view = new DataView(bytes.buffer)
   view.setUint32(0, 0x46546c67, true)
   view.setUint32(4, 2, true)
   view.setUint32(8, bytes.byteLength, true)
-  view.setUint32(12, 4, true)
+  view.setUint32(12, chunkLength, true)
   view.setUint32(16, 0x4e4f534a, true)
-  bytes.set(new TextEncoder().encode('{}  '), 20)
+  bytes.set(json, 20)
   return bytes
 }

@@ -6,12 +6,12 @@ export class R2ProjectStorage implements ProjectStorage {
 
   async has(projectId: string, asset: PublicProjectAsset, version = 1) {
     assertPublicProjectAsset(asset)
-    return Boolean(await this.bucket.head(key(projectId, version, asset)))
+    return Boolean(await this.bucket.head(r2AssetKey(projectId, version, asset)))
   }
 
   async get(projectId: string, asset: PublicProjectAsset, version = 1): Promise<StoredAsset | null> {
     assertPublicProjectAsset(asset)
-    const object = await this.bucket.get(key(projectId, version, asset))
+    const object = await this.bucket.get(r2AssetKey(projectId, version, asset))
     if (!object) return null
     return {
       body: object.body,
@@ -27,12 +27,14 @@ export class R2ProjectStorage implements ProjectStorage {
     body: Uint8Array | string,
     contentType: string,
     version = 1,
+    customMetadata?: Record<string, string>,
   ) {
     assertStorageNamespace(projectId)
     assertVersion(version)
     assertPublicAssetContent(asset, body, contentType)
-    await this.bucket.put(key(projectId, version, asset), body, {
+    await this.bucket.put(r2AssetKey(projectId, version, asset), body, {
       httpMetadata: { contentType: publicAssetContentTypes[asset] },
+      customMetadata,
     })
   }
 
@@ -55,7 +57,7 @@ export class R2ProjectStorage implements ProjectStorage {
   }
 }
 
-function key(storageNamespace: string, version: number, asset: PublicProjectAsset) {
+export function r2AssetKey(storageNamespace: string, version: number, asset: PublicProjectAsset) {
   assertStorageNamespace(storageNamespace)
   assertVersion(version)
   assertPublicProjectAsset(asset)

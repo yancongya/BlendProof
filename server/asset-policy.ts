@@ -39,10 +39,61 @@ function assertGlb(bytes: Uint8Array): void {
     throw new TypeError('GLB 文件头无效。')
   }
   if (view.getUint32(8, true) !== bytes.byteLength) throw new TypeError('GLB 文件长度无效。')
-  const firstChunkLength = view.getUint32(12, true)
-  const firstChunkType = view.getUint32(16, true)
-  if (firstChunkType !== 0x4e4f534a || 20 + firstChunkLength > bytes.byteLength) {
-    throw new TypeError('GLB JSON chunk 无效。')
+  if (containsBlenderHeader(bytes)) throw new TypeError('GLB 包含 Blender 源文件标记。')
+  let offset = 12
+  let chunkIndex = 0
+  let json: Record<string, unknown> | null = null
+  let binaryLength: number | null = null
+  while (offset < bytes.byteLength) {
+    if (offset + 8 > bytes.byteLength) throw new TypeError('GLB chunk 头不完整。')
+    const chunkLength = view.getUint32(offset, true)
+    const chunkType = view.getUint32(offset + 4, true)
+    const chunkEnd = offset + 8 + chunkLength
+    if (chunkEnd > bytes.byteLength || chunkLength % 4 !== 0) throw new TypeError('GLB chunk 长度无效。')
+    if (chunkIndex === 0) {
+      if (chunkType !== 0x4e4f534a) throw new TypeError('GLB JSON chunk 无效。')
+      try {
+        const text = new TextDecoder().decode(bytes.slice(offset + 8, chunkEnd)).trim()
+        json = JSON.parse(text) as Record<string, unknown>
+      } catch {
+        throw new TypeError('GLB JSON chunk 无效。')
+      }
+    } else if (chunkIndex === 1 && chunkType === 0x004e4942) {
+      binaryLength = chunkLength
+    } else {
+      throw new TypeError('GLB 包含未允许的额外 chunk。')
+    }
+    offset = chunkEnd
+    chunkIndex += 1
+  }
+  if (offset !== bytes.byteLength || !json || chunkIndex < 1) throw new TypeError('GLB chunk 边界无效。')
+  const asset = json.asset as Record<string, unknown> | undefined
+  if (!asset || asset.version !== '2.0') throw new TypeError('GLB glTF 版本无效。')
+  const buffers = json.buffers
+  for (const collection of [json.buffers, json.images]) {
+    if (Array.isArray(collection) && collection.some((item) => {
+      if (!item || typeof item !== 'object') return true
+      const uri = (item as Record<string, unknown>).uri
+      return typeof uri === 'string' && !uri.startsWith('data:')
+    })) throw new TypeError('GLB 不允许外部资源 URI。')
+  }
+  if (buffers !== undefined && !Array.isArray(buffers)) throw new TypeError('GLB buffer 声明无效。')
+  if (Array.isArray(buffers) && buffers.some((item) => {
+    if (!item || typeof item !== 'object') return true
+    const declared = (item as Record<string, unknown>).byteLength
+    return typeof declared !== 'number' || !Number.isSafeInteger(declared) || declared < 0
+  })) throw new TypeError('GLB buffer 声明无效。')
+  if (binaryLength !== null) {
+    if (!Array.isArray(buffers) || buffers.length !== 1 || !buffers[0] || typeof buffers[0] !== 'object') {
+      throw new TypeError('GLB buffer 声明无效。')
+    }
+    const buffer = buffers[0] as Record<string, unknown>
+    const declared = buffer.byteLength as number
+    if (buffer.uri !== undefined || declared > binaryLength || binaryLength - declared > 3) {
+      throw new TypeError('GLB BIN chunk 长度无效。')
+    }
+  } else if (Array.isArray(buffers) && buffers.some((item) => (item as Record<string, unknown>).uri === undefined)) {
+    throw new TypeError('GLB 缺少 BIN chunk。')
   }
 }
 
@@ -93,4 +144,41 @@ function assertWebp(bytes: Uint8Array): void {
   if (bytes.byteLength < 12 || ascii(0, 4) !== 'RIFF' || ascii(8, 12) !== 'WEBP') {
     throw new TypeError('WebP 文件头无效。')
   }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  if (view.getUint32(4, true) + 8 !== bytes.byteLength) throw new TypeError('WebP 文件长度无效。')
+  let offset = 12
+  let hasImageChunk = false
+  while (offset < bytes.byteLength) {
+    if (offset + 8 > bytes.byteLength) throw new TypeError('WebP chunk 头不完整。')
+    const chunkLength = view.getUint32(offset + 4, true)
+    const chunkType = ascii(offset, offset + 4)
+    const payload = offset + 8
+    if (chunkType === 'VP8 ' && chunkLength > 10 && bytes[payload + 3] === 0x9d && bytes[payload + 4] === 0x01 && bytes[payload + 5] === 0x2a) {
+      const width = view.getUint16(payload + 6, true) & 0x3fff
+      const height = view.getUint16(payload + 8, true) & 0x3fff
+      if (width > 0 && height > 0) hasImageChunk = true
+    }
+    if (chunkType === 'VP8L' && chunkLength > 5 && bytes[payload] === 0x2f) {
+      const bits = view.getUint32(payload + 1, true)
+      const version = (bits >>> 29) & 0x07
+      if (version === 0) hasImageChunk = true
+    }
+    // VP8X only describes extended canvas/features. It is not image payload.
+    offset += 8 + chunkLength + (chunkLength % 2)
+    if (offset > bytes.byteLength) throw new TypeError('WebP chunk 长度无效。')
+  }
+  if (offset !== bytes.byteLength || !hasImageChunk) throw new TypeError('WebP 图像 chunk 无效。')
+}
+
+function containsBlenderHeader(bytes: Uint8Array): boolean {
+  const markers = ['BLENDER-v', 'BLENDER_V'].map((value) => new TextEncoder().encode(value))
+  for (const marker of markers) {
+    outer: for (let index = 0; index <= bytes.byteLength - marker.byteLength; index += 1) {
+      for (let offset = 0; offset < marker.byteLength; offset += 1) {
+        if (bytes[index + offset] !== marker[offset]) continue outer
+      }
+      return true
+    }
+  }
+  return false
 }

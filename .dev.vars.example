@@ -1,0 +1,3 @@
+# Copy to .dev.vars for local Worker upload development only.
+# Configure the production value with `wrangler secret put UPLOAD_SIGNING_SECRET`.
+UPLOAD_SIGNING_SECRET="replace-with-at-least-32-random-characters"

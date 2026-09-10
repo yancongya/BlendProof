@@ -1,6 +1,8 @@
 node_modules
 dist
 dist-worker
+.wrangler
+.dev.vars
 .DS_Store
 storage/projects
 storage/*.sqlite
