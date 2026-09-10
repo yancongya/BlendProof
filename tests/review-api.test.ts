@@ -24,7 +24,7 @@ type Json = Record<string, unknown>;
 
 async function isApiAvailable() {
   try {
-    const response = await fetch(`${apiBase}/api/health`);
+    const response = await fetch(`${apiBase}/api/local/health`);
     return response.ok;
   } catch {
     return false;
@@ -113,18 +113,39 @@ after(async () => {
 });
 
 describe("阶段 2 评论 API", () => {
+  test("本机 bridge 仅在 /api/local 下暴露转换与派生资产", async () => {
+    const legacyConvert = await fetch(`${apiBase}/api/projects`, {
+      method: "POST",
+      headers: { "content-type": "application/x-blender" },
+      body: "not-a-real-blend",
+    });
+    assert.equal(legacyConvert.status, 404);
+
+    const missingBlend = await fetch(`${apiBase}/api/local/convert`, {
+      method: "POST",
+      body: new FormData(),
+    });
+    assert.equal(missingBlend.status, 400);
+    assert.equal(typeof (await missingBlend.json() as Json).error, "string");
+
+    const asset = await fetch(`${apiBase}/api/local/projects/${projectId}/assets/model.glb`);
+    assert.equal(asset.status, 200);
+    assert.equal(await asset.text(), "test model");
+    assert.equal((await fetch(`${apiBase}/files/${projectId}/model.glb`)).status, 404);
+  });
+
   test("owner capability 严格限定项目", async () => {
-    const missing = await request(`/api/projects/${projectId}/comments`);
+    const missing = await request(`/api/local/projects/${projectId}/comments`);
     assert.equal(missing.response.status, 401);
-    const wrong = await request(`/api/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": "wrong" } });
+    const wrong = await request(`/api/local/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": "wrong" } });
     assert.equal(wrong.response.status, 403);
-    const crossProject = await request(`/api/projects/${secondProjectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
+    const crossProject = await request(`/api/local/projects/${secondProjectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
     assert.equal(crossProject.response.status, 403);
-    const valid = await request(`/api/projects/${secondProjectId}/comments`, { headers: { "x-blendproof-owner": secondOwnerCapability } });
+    const valid = await request(`/api/local/projects/${secondProjectId}/comments`, { headers: { "x-blendproof-owner": secondOwnerCapability } });
     assert.equal(valid.response.status, 200);
   });
   test("创建、读取并更新评论", async () => {
-    const created = await request(`/api/projects/${projectId}/comments`, {
+    const created = await request(`/api/local/projects/${projectId}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
       body: JSON.stringify(validDraft),
@@ -139,12 +160,12 @@ describe("阶段 2 评论 API", () => {
     assert.equal(typeof comment.createdAt, "string");
     assert.equal(typeof comment.updatedAt, "string");
 
-    const listed = await request(`/api/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
+    const listed = await request(`/api/local/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
     assert.equal(listed.response.status, 200);
     assert.deepEqual(listed.body.comments, [comment]);
 
     const updated = await request(
-      `/api/projects/${projectId}/comments/${encodeURIComponent(String(comment.id))}`,
+      `/api/local/projects/${projectId}/comments/${encodeURIComponent(String(comment.id))}`,
       {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
@@ -158,14 +179,14 @@ describe("阶段 2 评论 API", () => {
     assert.equal(updatedComment.status, "resolved");
     assert.notEqual(updatedComment.updatedAt, comment.updatedAt);
 
-    const reread = await request(`/api/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
+    const reread = await request(`/api/local/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
     assert.equal(reread.response.status, 200);
     assert.deepEqual(reread.body.comments, [updatedComment]);
   });
 
   test("拒绝非法锚点且不写入评论", async () => {
     const invalidDraft = { ...validDraft, position: [1, 2] };
-    const result = await request(`/api/projects/${projectId}/comments`, {
+    const result = await request(`/api/local/projects/${projectId}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
       body: JSON.stringify(invalidDraft),
@@ -173,19 +194,19 @@ describe("阶段 2 评论 API", () => {
 
     assert.equal(result.response.status, 400);
     assert.equal(typeof result.body.error, "string");
-    const listed = await request(`/api/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
+    const listed = await request(`/api/local/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
     assert.equal(listed.response.status, 200);
     assert.equal((listed.body.comments as unknown[]).length, 1);
   });
 
   test("拒绝非法路径和不存在项目", async () => {
-    const illegalPath = await request("/api/projects/not.a.valid.project/comments", { headers: { "x-blendproof-owner": ownerCapability } });
+    const illegalPath = await request("/api/local/projects/not.a.valid.project/comments", { headers: { "x-blendproof-owner": ownerCapability } });
     assert.equal(illegalPath.response.status, 404);
 
-    const missingProject = await request("/api/projects/does-not-exist/comments", { headers: { "x-blendproof-owner": ownerCapability } });
+    const missingProject = await request("/api/local/projects/does-not-exist/comments", { headers: { "x-blendproof-owner": ownerCapability } });
     assert.equal(missingProject.response.status, 404);
 
-    const missingCreate = await request("/api/projects/does-not-exist/comments", {
+    const missingCreate = await request("/api/local/projects/does-not-exist/comments", {
       method: "POST",
       headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
       body: JSON.stringify(validDraft),
@@ -195,7 +216,7 @@ describe("阶段 2 评论 API", () => {
 
   test("拒绝更新不存在的评论和非法状态", async () => {
     const missingComment = await request(
-      `/api/projects/${projectId}/comments/${randomUUID()}`,
+      `/api/local/projects/${projectId}/comments/${randomUUID()}`,
       {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
@@ -204,10 +225,10 @@ describe("阶段 2 评论 API", () => {
     );
     assert.equal(missingComment.response.status, 404);
 
-    const listed = await request(`/api/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
+    const listed = await request(`/api/local/projects/${projectId}/comments`, { headers: { "x-blendproof-owner": ownerCapability } });
     const existingComment = (listed.body.comments as Json[])[0];
     const invalidStatus = await request(
-      `/api/projects/${projectId}/comments/${encodeURIComponent(String(existingComment.id))}`,
+      `/api/local/projects/${projectId}/comments/${encodeURIComponent(String(existingComment.id))}`,
       {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
@@ -218,7 +239,7 @@ describe("阶段 2 评论 API", () => {
   });
 
   test("分享只返回 token 资源并隐藏项目能力", async () => {
-    const createdShare = await request(`/api/projects/${projectId}/shares`, {
+    const createdShare = await request(`/api/local/projects/${projectId}/shares`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
       body: JSON.stringify({}),
@@ -226,14 +247,14 @@ describe("阶段 2 评论 API", () => {
     assert.equal(createdShare.response.status, 201);
     const token = String(createdShare.body.token);
 
-    const shared = await request(`/api/shares/${token}`);
+    const shared = await request(`/api/local/shares/${token}`);
     assert.equal(shared.response.status, 200);
     assert.equal(shared.body.projectId, undefined);
-    assert.equal(shared.body.modelUrl, `/api/shares/${token}/model.glb`);
+    assert.equal(shared.body.modelUrl, `/api/local/shares/${token}/model.glb`);
     const sharedComment = (shared.body.comments as Json[])[0];
     assert.equal(sharedComment.projectId, undefined);
 
-    const model = await fetch(`${apiBase}/api/shares/${token}/model.glb`);
+    const model = await fetch(`${apiBase}/api/local/shares/${token}/model.glb`);
     assert.equal(model.status, 200);
     const source = await fetch(`${apiBase}/files/${projectId}/source.blend`);
     assert.equal(source.status, 404);
@@ -242,7 +263,7 @@ describe("阶段 2 评论 API", () => {
   });
 
   test("密码、评论权限、过期和撤销由服务端强制执行", async () => {
-    const created = await request(`/api/projects/${projectId}/shares`, {
+    const created = await request(`/api/local/projects/${projectId}/shares`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
       body: JSON.stringify({ password: "review-pass", commentsPermission: "comment", expiresAt: "2099-01-01T00:00:00.000Z" }),
@@ -251,26 +272,26 @@ describe("阶段 2 评论 API", () => {
     const token = String(created.body.token);
     const shareId = String(created.body.id);
 
-    const locked = await request(`/api/shares/${token}`);
+    const locked = await request(`/api/local/shares/${token}`);
     assert.equal(locked.response.status, 401);
     assert.equal(locked.body.passwordRequired, true);
 
-    const wrong = await fetch(`${apiBase}/api/shares/${token}/access`, {
+    const wrong = await fetch(`${apiBase}/api/local/shares/${token}/access`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "bad-pass" }),
     });
     assert.equal(wrong.status, 403);
-    const access = await fetch(`${apiBase}/api/shares/${token}/access`, {
+    const access = await fetch(`${apiBase}/api/local/shares/${token}/access`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "review-pass" }),
     });
     assert.equal(access.status, 204);
     const cookie = access.headers.get("set-cookie")?.split(";", 1)[0];
     assert.ok(cookie);
 
-    const opened = await request(`/api/shares/${token}`, { headers: { cookie } });
+    const opened = await request(`/api/local/shares/${token}`, { headers: { cookie } });
     assert.equal(opened.response.status, 200);
     assert.equal(opened.body.projectId, undefined);
     assert.equal(opened.body.commentsPermission, "comment");
-    const guest = await request(`/api/shares/${token}/comments`, {
+    const guest = await request(`/api/local/shares/${token}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({ ...validDraft, authorName: "Guest" }),
@@ -278,19 +299,19 @@ describe("阶段 2 评论 API", () => {
     assert.equal(guest.response.status, 201);
     assert.equal((guest.body.comment as Json).projectId, undefined);
 
-    const revoked = await fetch(`${apiBase}/api/projects/${projectId}/shares/${shareId}`, {
+    const revoked = await fetch(`${apiBase}/api/local/projects/${projectId}/shares/${shareId}`, {
       method: "DELETE", headers: { "x-blendproof-owner": ownerCapability },
     });
     assert.equal(revoked.status, 204);
-    const afterRevoke = await request(`/api/shares/${token}`, { headers: { cookie } });
+    const afterRevoke = await request(`/api/local/shares/${token}`, { headers: { cookie } });
     assert.equal(afterRevoke.response.status, 404);
 
-    const expired = await request(`/api/projects/${projectId}/shares`, {
+    const expired = await request(`/api/local/projects/${projectId}/shares`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
       body: JSON.stringify({ expiresAt: "2000-01-01T00:00:00.000Z" }),
     });
-    const expiredRead = await request(`/api/shares/${String(expired.body.token)}`);
+    const expiredRead = await request(`/api/local/shares/${String(expired.body.token)}`);
     assert.equal(expiredRead.response.status, 410);
   });
 });

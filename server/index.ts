@@ -41,7 +41,7 @@ const upload = multer({ dest: incomingRoot, limits: { fileSize: 1024 * 1024 * 10
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }))
 app.use(express.json({ limit: '1mb' }))
-app.get('/files/:projectId/:fileName', async (request, response) => {
+app.get('/api/local/projects/:projectId/assets/:fileName', async (request, response) => {
   if (!isProjectId(request.params.projectId) || !isPublicProjectAsset(request.params.fileName) || request.params.fileName === 'thumbnail.webp') {
     response.status(404).end()
     return
@@ -54,11 +54,11 @@ app.get('/files/:projectId/:fileName', async (request, response) => {
   sendStoredAsset(response, asset)
 })
 
-app.get('/api/health', (_request, response) => {
+app.get('/api/local/health', (_request, response) => {
   response.json({ blenderReady: Boolean(blenderBin), blenderBin: blenderBin ?? null })
 })
 
-app.post('/api/projects', upload.single('blend'), async (request, response) => {
+app.post('/api/local/convert', upload.single('blend'), async (request, response) => {
   if (!request.file || path.extname(request.file.originalname).toLowerCase() !== '.blend') {
     response.status(400).json({ error: '请选择一个 .blend 文件。' })
     return
@@ -80,7 +80,12 @@ app.post('/api/projects', upload.single('blend'), async (request, response) => {
 
   try {
     await runBlender(blenderBin, sourcePath, glbPath, manifestPath)
-    const project = await repository.registerProject({ id: projectId, name: request.file.originalname })
+    const project = await repository.registerProject({
+      id: projectId,
+      name: request.file.originalname,
+      modelUrl: `/api/local/projects/${projectId}/assets/model.glb`,
+      manifestUrl: `/api/local/projects/${projectId}/assets/manifest.json`,
+    })
     response.status(201).json(project)
   } catch (error) {
     await projectStorage.deleteProject(projectId)
@@ -88,7 +93,7 @@ app.post('/api/projects', upload.single('blend'), async (request, response) => {
   }
 })
 
-app.post('/api/projects/:projectId/shares', async (request, response) => {
+app.post('/api/local/projects/:projectId/shares', async (request, response) => {
   if (!isProjectId(request.params.projectId)) {
     response.status(400).json({ error: '项目标识无效。' })
     return
@@ -127,7 +132,7 @@ app.post('/api/projects/:projectId/shares', async (request, response) => {
   }
 })
 
-app.delete('/api/projects/:projectId/shares/:shareId', async (request, response) => {
+app.delete('/api/local/projects/:projectId/shares/:shareId', async (request, response) => {
   if (!await requireOwner(request, response, request.params.projectId)) return
   const share = await repository.revokeShare(request.params.projectId, request.params.shareId)
   if (!share) {
@@ -137,7 +142,7 @@ app.delete('/api/projects/:projectId/shares/:shareId', async (request, response)
   response.status(204).end()
 })
 
-app.get('/api/projects/:projectId/comments', async (request, response) => {
+app.get('/api/local/projects/:projectId/comments', async (request, response) => {
   if (!isProjectId(request.params.projectId) || !await projectStorage.has(request.params.projectId, 'model.glb')) {
     response.status(404).json({ error: '找不到本地项目。' })
     return
@@ -150,7 +155,7 @@ app.get('/api/projects/:projectId/comments', async (request, response) => {
   response.json({ comments: await repository.listComments(request.params.projectId) })
 })
 
-app.post('/api/projects/:projectId/comments', async (request, response) => {
+app.post('/api/local/projects/:projectId/comments', async (request, response) => {
   if (!isProjectId(request.params.projectId) || !await projectStorage.has(request.params.projectId, 'model.glb')) {
     response.status(404).json({ error: '找不到本地项目。' })
     return
@@ -168,7 +173,7 @@ app.post('/api/projects/:projectId/comments', async (request, response) => {
   response.status(201).json({ comment })
 })
 
-app.patch('/api/projects/:projectId/comments/:commentId', async (request, response) => {
+app.patch('/api/local/projects/:projectId/comments/:commentId', async (request, response) => {
   if (!isProjectId(request.params.projectId) || !await projectStorage.has(request.params.projectId, 'model.glb')) {
     response.status(404).json({ error: '找不到本地项目。' })
     return
@@ -204,7 +209,7 @@ app.patch('/api/projects/:projectId/comments/:commentId', async (request, respon
   response.json({ comment: updated })
 })
 
-app.post('/api/shares/:token/access', async (request, response) => {
+app.post('/api/local/shares/:token/access', async (request, response) => {
   const share = await resolveShare(request.params.token, response, false)
   if (!share) return
   if (!share.passwordProtected) {
@@ -219,7 +224,7 @@ app.post('/api/shares/:token/access', async (request, response) => {
   response.status(204).end()
 })
 
-app.get('/api/shares/:token/status', async (request, response) => {
+app.get('/api/local/shares/:token/status', async (request, response) => {
   const share = await resolveShare(request.params.token, response, false)
   if (!share) return
   response.json({
@@ -228,7 +233,7 @@ app.get('/api/shares/:token/status', async (request, response) => {
   })
 })
 
-app.get('/api/shares/:token', async (request, response) => {
+app.get('/api/local/shares/:token', async (request, response) => {
   const share = await resolveShare(request.params.token, response, true, request.headers.cookie)
   if (!share) return
   const project = await repository.getProject(share.projectId)
@@ -244,14 +249,14 @@ app.get('/api/shares/:token', async (request, response) => {
   const manifest = JSON.parse(await new Response(manifestAsset.body).text())
   response.json({
     name: manifest.scene,
-    modelUrl: `/api/shares/${request.params.token}/model.glb`,
+    modelUrl: `/api/local/shares/${request.params.token}/model.glb`,
     manifest,
     comments: (await repository.listComments(share.projectId)).map(toSharedComment),
     commentsPermission: share.commentsPermission,
   })
 })
 
-app.get('/api/shares/:token/model.glb', async (request, response) => {
+app.get('/api/local/shares/:token/model.glb', async (request, response) => {
   const share = await resolveShare(request.params.token, response, true, request.headers.cookie)
   if (!share) return
   const asset = await projectStorage.get(share.projectId, 'model.glb')
@@ -262,7 +267,7 @@ app.get('/api/shares/:token/model.glb', async (request, response) => {
   sendStoredAsset(response, asset)
 })
 
-app.post('/api/shares/:token/comments', async (request, response) => {
+app.post('/api/local/shares/:token/comments', async (request, response) => {
   const share = await resolveShare(request.params.token, response, true, request.headers.cookie)
   if (!share) return
   if (share.commentsPermission !== 'comment') {
@@ -385,8 +390,8 @@ function runBlender(bin: string, sourcePath: string, glbPath: string, manifestPa
   })
 }
 
-const port = Number(process.env.PORT ?? 8787)
-const server = app.listen(port, () => console.log(`BlendProof local API running at http://localhost:${port}`))
+const port = Number(process.env.PORT ?? 8788)
+const server = app.listen(port, () => console.log(`BlendProof local bridge running at http://localhost:${port}`))
 
 function close() {
   server.close(() => database.close())

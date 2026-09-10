@@ -1,3 +1,5 @@
+import { blendProofClient } from "./api/blendProofClient";
+
 export type Vec3 = [number, number, number];
 
 export type ReviewCameraState = {
@@ -29,32 +31,13 @@ export type ReviewCommentDraft = Omit<
   "id" | "projectId" | "status" | "createdAt" | "updatedAt"
 >;
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
-  const body = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new Error(body.error ?? "评论服务请求失败。");
-  return body;
-}
-
 export const reviewRepository = {
   async list(projectId: string, ownerCapability: string) {
-    const body = await request<{ comments: ReviewComment[] }>(
-      `/api/projects/${projectId}/comments`,
-      { headers: { "x-blendproof-owner": ownerCapability } },
-    );
-    return body.comments;
+    return blendProofClient.listOwnerComments(projectId, ownerCapability);
   },
 
   async create(projectId: string, ownerCapability: string, draft: ReviewCommentDraft) {
-    const body = await request<{ comment: ReviewComment }>(
-      `/api/projects/${projectId}/comments`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
-        body: JSON.stringify(draft),
-      },
-    );
-    return body.comment;
+    return blendProofClient.createOwnerComment(projectId, ownerCapability, draft);
   },
 
   async update(
@@ -63,14 +46,6 @@ export const reviewRepository = {
     commentId: string,
     patch: Pick<Partial<ReviewComment>, "body" | "status">,
   ) {
-    const body = await request<{ comment: ReviewComment }>(
-      `/api/projects/${projectId}/comments/${commentId}`,
-      {
-        method: "PATCH",
-        headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
-        body: JSON.stringify(patch),
-      },
-    );
-    return body.comment;
+    return blendProofClient.updateOwnerComment(projectId, ownerCapability, commentId, patch);
   },
 };

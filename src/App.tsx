@@ -14,7 +14,6 @@ import {
   Settings2,
   Share2,
   SlidersHorizontal,
-  Upload,
   Grid2X2,
 } from "lucide-react";
 import {
@@ -25,7 +24,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   Box3,
   Matrix3,
@@ -37,6 +36,8 @@ import {
   type Object3D,
 } from "three";
 import { BlenderLogo } from "./components/BlenderLogo";
+import { UploaderPanel, type UploadStage } from "./components/UploaderPanel";
+import { blendProofClient, type OwnerProject } from "./api/blendProofClient";
 import { ReviewAnnotations } from "./review/ReviewAnnotations";
 import { useReviewComments } from "./review/useReviewComments";
 import type {
@@ -46,19 +47,17 @@ import type {
   Vec3,
 } from "./reviewRepository";
 
-type Project = {
-  id: string;
-  name: string;
-  modelUrl: string;
-  manifestUrl: string;
-  ownerCapability: string;
-};
+type Project = OwnerProject;
 type SceneObject = { name: string; type: string; collections: string[] };
 type Manifest = {
   scene: string;
-  camera: string | null;
+  camera?: string | null;
+  cameras?: Array<{ name?: string; projection?: string }>;
   objects: SceneObject[];
-  collections: string[];
+  collections?: string[];
+  materials?: Array<unknown> | number | null;
+  sourceBytes?: number;
+  glbBytes?: number;
   export?: { sourceBytes: number; glbBytes: number; objectCount: number };
 };
 type DisplayMode = "material" | "gray" | "wire";
@@ -88,19 +87,24 @@ export function App() {
     "选择 Blender 文件以建立本地审稿项目。",
   );
   const [processing, setProcessing] = useState(false);
+  const [uploaderOpen, setUploaderOpen] = useState(false);
+  const [uploadStage, setUploadStage] = useState<UploadStage>(() =>
+    project ? "ready" : "idle",
+  );
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareId, setShareId] = useState<string | null>(null);
+  const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(null);
   const [sharePassword, setSharePassword] = useState("");
   const [shareDays, setShareDays] = useState("7");
   const [sharePermission, setSharePermission] = useState<"read_only" | "comment">("read_only");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
-  const input = useRef<HTMLInputElement>(null);
+  const openUploader = useCallback(() => setUploaderOpen(true), []);
+  const closeUploader = useCallback(() => setUploaderOpen(false), []);
   const reviews = useReviewComments(project?.id ?? null, project?.ownerCapability ?? null);
   useEffect(() => {
     if (project)
-      fetch(project.manifestUrl)
-        .then((res) => res.json())
+      blendProofClient.loadJson<Manifest>(project.manifestUrl)
         .then(setManifest);
   }, [project]);
   useEffect(() => {
@@ -110,22 +114,20 @@ export function App() {
   async function convert() {
     if (!file) return;
     setProcessing(true);
+    setUploadStage("converting");
     setMessage("正在调用本机 Blender 导出 GLB。");
-    const body = new FormData();
-    body.append("blend", file);
     try {
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        body,
-      });
-      const result = (await response.json()) as Project & { error?: string };
-      if (!response.ok) throw new Error(result.error ?? "导入失败。");
+      const result = await blendProofClient.convertLocal(file);
       setProject(result);
       setHidden(new Set());
       setSelected(new Set());
       setShareUrl(null);
+      setShareId(null);
+      setShareExpiresAt(null);
+      setUploadStage("ready");
       setMessage("本机转换完成。");
     } catch (reason) {
+      setUploadStage("error");
       setMessage(reason instanceof Error ? reason.message : "导入失败。");
     } finally {
       setProcessing(false);
@@ -133,44 +135,41 @@ export function App() {
   }
   async function createShare() {
     if (!project) return;
-    const response = await fetch(
-      `/api/projects/${project.id}/shares`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-blendproof-owner": project.ownerCapability },
-        body: JSON.stringify({
-          password: sharePassword || null,
-          expiresAt: shareDays === "never" ? null : new Date(Date.now() + Number(shareDays) * 86_400_000).toISOString(),
-          commentsPermission: sharePermission,
-        }),
-      },
-    );
-    const body = (await response.json()) as {
-      shareUrl?: string;
-      id?: string;
-      error?: string;
-    };
-    setShareUrl(body.shareUrl ?? null);
-    setShareId(body.id ?? null);
-    setMessage(body.error ?? (sharePermission === "comment" ? "已建立可评论分享链接。" : "已建立本地只读分享链接。"));
+    try {
+      const share = await blendProofClient.createShare(project.id, project.ownerCapability, {
+        password: sharePassword || null,
+        expiresAt: shareDays === "never" ? null : new Date(Date.now() + Number(shareDays) * 86_400_000).toISOString(),
+        commentsPermission: sharePermission,
+      });
+      setShareUrl(share.shareUrl);
+      setShareId(share.id);
+      setShareExpiresAt(share.expiresAt);
+      setMessage(sharePermission === "comment" ? "已建立可评论分享链接。" : "已建立本地只读分享链接。");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "无法建立分享链接。");
+    }
   }
   async function revokeShare() {
     if (!project || !shareId) return;
-    const response = await fetch(`/api/projects/${project.id}/shares/${shareId}`, {
-      method: "DELETE", headers: { "x-blendproof-owner": project.ownerCapability },
-    });
-    if (!response.ok) {
-      const body = await response.json() as { error?: string };
-      setMessage(body.error ?? "无法撤销分享。");
-      return;
+    try {
+      await blendProofClient.revokeShare(project.id, project.ownerCapability, shareId);
+      setShareUrl(null);
+      setShareId(null);
+      setShareExpiresAt(null);
+      setMessage("分享已撤销。");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "无法撤销分享。");
     }
-    setShareUrl(null);
-    setShareId(null);
-    setMessage("分享已撤销。");
   }
-  function pick(event: ChangeEvent<HTMLInputElement>) {
-    setFile(event.target.files?.[0] ?? null);
-    setMessage("文件已选择，点击导入即可开始。");
+  function pick(nextFile: File | null) {
+    setFile(nextFile);
+    if (nextFile) {
+      setUploadStage("selected");
+      setMessage("文件已选择，点击导入即可开始。");
+    } else {
+      setUploadStage("idle");
+      setMessage("选择 Blender 文件以建立本地审稿项目。");
+    }
   }
   function toggle(name: string) {
     setHidden((current) => {
@@ -199,24 +198,23 @@ export function App() {
       reviewError={reviews.error}
       onCreateComment={reviews.create}
       onUpdateComment={reviews.update}
+      uploaderOpen={uploaderOpen}
+      onOpenUploader={openUploader}
+      onCloseUploader={closeUploader}
+      uploader={
+        <UploaderPanel
+          file={file}
+          stage={uploadStage}
+          message={message}
+          manifest={manifest}
+          processing={processing}
+          shareUrl={shareUrl}
+          shareExpiresAt={shareExpiresAt}
+          onFile={pick}
+          onConvert={() => void convert()}
+        />
+      }
     >
-      <input
-        ref={input}
-        className="visually-hidden"
-        type="file"
-        accept=".blend"
-        onChange={pick}
-      />
-      <button className="menu-item" onClick={() => input.current?.click()}>
-        <FolderOpen size={13} /> 打开 .blend
-      </button>
-      <button
-        className="menu-item"
-        disabled={!file || processing}
-        onClick={convert}
-      >
-        <Upload size={13} /> {processing ? "导入中" : "导入审稿模型"}
-      </button>
       <button className="menu-item" disabled={!project} onClick={createShare}>
         <Share2 size={13} /> 创建分享
       </button>
@@ -269,18 +267,8 @@ export function SharePage() {
   const loadShare = useCallback(() => {
     if (!token) return setError("缺少分享标识。");
     setError(null);
-    fetch(`/api/shares/${token}`)
-      .then(async (response) => {
-        const body = (await response.json()) as {
-          name: string;
-          modelUrl: string;
-          manifest: Manifest;
-          comments: ReviewComment[];
-          commentsPermission: "read_only" | "comment";
-          passwordRequired?: boolean;
-          error?: string;
-        };
-        if (!response.ok) throw new Error(body.error);
+    blendProofClient.loadShare<Manifest>(token)
+      .then((body) => {
         setPasswordRequired(false);
         setShare(body);
       })
@@ -290,34 +278,27 @@ export function SharePage() {
   }, [token]);
   useEffect(() => {
     if (!token) return setError("缺少分享标识。");
-    fetch(`/api/shares/${token}/status`)
-      .then(async (response) => {
-        const body = await response.json() as { passwordRequired?: boolean; error?: string };
-        if (!response.ok) throw new Error(body.error);
+    blendProofClient.shareStatus(token)
+      .then((body) => {
         if (body.passwordRequired) setPasswordRequired(true);
         else loadShare();
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : "无法读取分享。"));
   }, [loadShare, token]);
   async function unlockShare() {
-    const response = await fetch(`/api/shares/${token}/access`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password }),
-    });
-    if (!response.ok) {
-      const body = await response.json() as { error?: string };
-      setError(body.error ?? "密码验证失败。");
-      return;
+    if (!token) return setError("缺少分享标识。");
+    try {
+      await blendProofClient.unlockShare(token, password);
+      loadShare();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "密码验证失败。");
     }
-    loadShare();
   }
   async function createGuestComment(draft: ReviewCommentDraft) {
-    const response = await fetch(`/api/shares/${token}/comments`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(draft),
-    });
-    const body = await response.json() as { comment?: ReviewComment; error?: string };
-    if (!response.ok || !body.comment) throw new Error(body.error ?? "无法添加评论。");
-    setShare((current) => current ? { ...current, comments: [...current.comments, body.comment!] } : current);
-    return body.comment;
+    if (!token) throw new Error("缺少分享标识。");
+    const comment = await blendProofClient.createGuestComment(token, draft);
+    setShare((current) => current ? { ...current, comments: [...current.comments, comment] } : current);
+    return comment;
   }
   if (passwordRequired) return <PasswordNotice password={password} error={error} onPassword={setPassword} onSubmit={unlockShare} />;
   if (error) return <Notice text={error} />;
@@ -383,6 +364,10 @@ function BlenderWorkspace({
   reviewError,
   onCreateComment,
   onUpdateComment,
+  uploaderOpen = false,
+  onOpenUploader,
+  onCloseUploader,
+  uploader,
   children,
 }: {
   title: string;
@@ -408,6 +393,10 @@ function BlenderWorkspace({
     commentId: string,
     patch: Pick<Partial<ReviewComment>, "body" | "status">,
   ) => Promise<ReviewComment>;
+  uploaderOpen?: boolean;
+  onOpenUploader?: () => void;
+  onCloseUploader?: () => void;
+  uploader?: ReactNode;
   children?: ReactNode;
 }) {
   const active =
@@ -429,6 +418,10 @@ function BlenderWorkspace({
     camera: ReviewCameraState;
     nonce: number;
   } | null>(null);
+  const uploaderTriggerRef = useRef<HTMLButtonElement>(null);
+  const uploaderCloseRef = useRef<HTMLButtonElement>(null);
+  const uploaderDialogRef = useRef<HTMLElement>(null);
+  const uploaderWasOpenRef = useRef(false);
   const collectCameras = useCallback(
     (cameras: ThreeCamera[]) => setFileCameras(cameras),
     [],
@@ -476,6 +469,39 @@ function BlenderWorkspace({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onCameraPreset, selected]);
+  useEffect(() => {
+    if (!uploaderOpen) {
+      if (uploaderWasOpenRef.current && onOpenUploader) uploaderTriggerRef.current?.focus();
+      uploaderWasOpenRef.current = false;
+      return;
+    }
+    uploaderWasOpenRef.current = true;
+    const frame = requestAnimationFrame(() => uploaderCloseRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [onOpenUploader, uploaderOpen]);
+  function handleUploaderDialogKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onCloseUploader?.();
+      return;
+    }
+    if (event.key !== "Tab" || !uploaderDialogRef.current) return;
+    const focusable = Array.from(
+      uploaderDialogRef.current.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]",
+      ),
+    );
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
   async function savePendingReview() {
     if (!pendingReview || !onCreateComment || !commentBody.trim()) return;
     if (reviewBusy) return;
@@ -537,6 +563,21 @@ function BlenderWorkspace({
         </div>
         <div className="project-name">{title}</div>
         <div className="header-actions">
+          {uploader && onOpenUploader && (
+            <button
+              ref={uploaderTriggerRef}
+              type="button"
+              className="menu-item file-menu-trigger"
+              data-testid="open-uploader"
+              aria-haspopup="dialog"
+              aria-expanded={uploaderOpen}
+              aria-controls="uploader-dialog"
+              title="打开 Blender 文件"
+              onClick={onOpenUploader}
+            >
+              <FolderOpen size={13} /> 文件 / 打开 .blend
+            </button>
+          )}
           {children ?? <span>只读审稿</span>}
         </div>
       </header>
@@ -808,6 +849,41 @@ function BlenderWorkspace({
           </section>
         </aside>
       </div>
+      {uploader && uploaderOpen && (
+        <div
+          className="uploader-modal-backdrop"
+          data-testid="uploader-modal"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) onCloseUploader?.();
+          }}
+        >
+          <section
+            ref={uploaderDialogRef}
+            id="uploader-dialog"
+            className="uploader-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="uploader-dialog-title"
+            onKeyDown={handleUploaderDialogKeyDown}
+          >
+            <div className="uploader-dialog-bar">
+              <h2 id="uploader-dialog-title">文件 / 打开 .blend</h2>
+              <button
+                ref={uploaderCloseRef}
+                type="button"
+                className="uploader-dialog-close"
+                data-testid="close-uploader"
+                aria-label="关闭上传工作台"
+                onClick={onCloseUploader}
+              >
+                ×
+              </button>
+            </div>
+            {uploader}
+          </section>
+        </div>
+      )}
       <footer className="blender-status">
         <span>{message}</span>
         <span>
