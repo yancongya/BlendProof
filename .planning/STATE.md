@@ -3,7 +3,7 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: In progress
-Last activity: 2026-09-10 - Worker 分享/评论 API 与本机 bridge 配对完成，并通过独立标签页浏览器验收
+Last activity: 2026-09-10 - Blender 文件工作台、完整转换摘要与局部视图交互完成浏览器验收
 
 Progress: ████▊ 96%
 
