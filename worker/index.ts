@@ -1,6 +1,7 @@
 import { createUploadIntent, finalizeUpload, initializeProject, uploadAsset } from './uploads.js'
 import type { UploadEnv } from './uploads.js'
 import { scheduledCleanup } from './cleanup.js'
+import { handleShareRequest } from './shares.js'
 
 export default {
   async fetch(request: Request, env: UploadEnv): Promise<Response> {
@@ -8,6 +9,9 @@ export default {
     if (request.method === 'GET' && url.pathname === '/api/health') {
       return Response.json({ runtime: 'cloudflare-worker', d1: Boolean(env.DB), r2: Boolean(env.ASSETS) })
     }
+
+    const shareResponse = await handleShareRequest(request, env as import('./shares.js').ShareEnv, url)
+    if (shareResponse) return shareResponse
 
     if (request.method === 'POST' && url.pathname === '/api/projects') {
       const contentType = (request.headers.get('content-type') ?? '').toLowerCase()

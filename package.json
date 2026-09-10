@@ -24,6 +24,7 @@
     "worker:dry-run": "wrangler deploy --dry-run --outdir dist-worker"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.3.0",
     "cors": "^2.8.5",
