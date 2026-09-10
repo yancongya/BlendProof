@@ -3,9 +3,9 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: In progress
-Last activity: 2026-09-10 - Worker 派生资产上传状态机与本机 bridge/上传弹窗完成并通过浏览器验收
+Last activity: 2026-09-10 - Worker 分享/评论 API 与本机 bridge 配对完成，并通过独立标签页浏览器验收
 
-Progress: ████░ 92%
+Progress: ████▊ 96%
 
 ## Decisions
 
@@ -16,13 +16,13 @@ Progress: ████░ 92%
 ## Current Risks
 
 - `node:sqlite` 在本机 Node 22 可用但仍有 ExperimentalWarning，必须锁定运行时并保持 D1 适配边界。
-- Worker 已完成项目初始化、上传 intent、派生资产 PUT、finalize 与定时 staging 清理；分享访问、密码、撤销和评论 API 尚未迁移。
-- 本机 bridge 与 Worker 已拆分 transport，但本机 bridge 的一次性 pairing nonce 和精确 Origin 授权仍待实现。
-- Web typed client 已收口现有本地流程，云端 publish 编排与上传阶段 UI 尚未接入。
+- Worker 已完成项目、派生资产、分享访问、密码、撤销、评论及定时清理本地实现；尚未进行真实 Cloudflare 资源验收。
+- 本机 bridge 使用精确 Origin/Referer 解析与短期、Origin-bound nonce；开发脚本中的固定配对码只用于本地便利，生产仍需带外配对入口。
+- Web typed client 已收口本地流程，云端 publish 编排与上传阶段 UI 尚未接入。
 - Phase 4 需要真实 Cloudflare 资源授权；本地 Miniflare 验收不能替代线上部署验收。
 
 ## Session Continuity
 
 Last session: 2026-09-10
-Stopped at: Phase 4B upload slice + Phase 4C local uploader modal; next implement Worker share/comments and bridge pairing
+Stopped at: Phase 4B Worker APIs + Phase 4C local bridge pairing; next implement Web cloud publish orchestration
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
