@@ -7,7 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:server\"",
+    "dev": "BLENDPROOF_PAIRING_CODE=blendproof-local-dev-pairing-code-01 VITE_LOCAL_BRIDGE_PAIRING_CODE=blendproof-local-dev-pairing-code-01 concurrently -k \"npm:dev:web\" \"npm:dev:server\"",
     "dev:web": "vite",
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",

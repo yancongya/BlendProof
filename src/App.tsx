@@ -188,7 +188,7 @@ export function App() {
       onSelectMany={(names) => setSelected(new Set(names))}
       onToggle={toggle}
       message={message}
-      modelUrl={project?.modelUrl}
+      modelUrl={manifest ? project?.modelUrl : undefined}
       readOnly={false}
       displayMode={displayMode}
       onDisplayMode={setDisplayMode}
@@ -922,7 +922,8 @@ function Model({
   onAnnotation: (draft: PendingReview) => void;
 }) {
   const { camera } = useThree();
-  const gltf = useGLTF(url);
+  const requestHeaders = useMemo(() => blendProofClient.assetRequestHeaders(url), [url]);
+  const gltf = useGLTF(url, true, true, (loader) => loader.setRequestHeader(requestHeaders));
   const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
   useEffect(() => {
     const cameras: ThreeCamera[] = [];

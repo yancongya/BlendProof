@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, describe, test } from "node:test";
 import { createRepository } from "../server/db.js";
+import { BRIDGE_NONCE_HEADER } from "../server/local-pairing.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const projectId = `api-test-${randomUUID()}`;
@@ -19,12 +20,15 @@ let projectDir = "";
 let apiBase = "";
 let ownerCapability = "";
 let secondOwnerCapability = "";
+let bridgeNonce = "";
+const bridgeOrigin = "http://localhost:5173";
+const pairingCode = "review-api-one-shot-code";
 
 type Json = Record<string, unknown>;
 
 async function isApiAvailable() {
   try {
-    const response = await fetch(`${apiBase}/api/local/health`);
+    const response = await fetch(`${apiBase}/api/local/health`, { headers: { Origin: bridgeOrigin } });
     return response.ok;
   } catch {
     return false;
@@ -41,9 +45,19 @@ async function waitForApi(timeoutMs = 8_000) {
 }
 
 async function request(pathname: string, init?: RequestInit) {
-  const response = await fetch(`${apiBase}${pathname}`, init);
+  const headers = new Headers(init?.headers);
+  headers.set("Origin", bridgeOrigin);
+  if (bridgeNonce) headers.set(BRIDGE_NONCE_HEADER, bridgeNonce);
+  const response = await fetch(`${apiBase}${pathname}`, { ...init, headers });
   const body = (await response.json()) as Json;
   return { response, body };
+}
+
+async function bridgeFetch(pathname: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  headers.set("Origin", bridgeOrigin);
+  if (bridgeNonce) headers.set(BRIDGE_NONCE_HEADER, bridgeNonce);
+  return fetch(`${apiBase}${pathname}`, { ...init, headers });
 }
 
 const validDraft = {
@@ -95,10 +109,19 @@ before(async () => {
         BLENDPROOF_STORAGE_ROOT: projectsRoot,
         BLENDPROOF_INCOMING_ROOT: path.join(testRoot, "incoming"),
         BLENDPROOF_DB_PATH: dbPath,
+        BLENDPROOF_PAIRING_CODE: pairingCode,
       },
     },
   );
   await waitForApi();
+  const pairing = await fetch(`${apiBase}/api/local/pair`, {
+    method: "POST",
+    headers: { Origin: bridgeOrigin, "content-type": "application/json" },
+    body: JSON.stringify({ pairingCode }),
+  });
+  assert.equal(pairing.status, 201);
+  bridgeNonce = String((await pairing.json() as Json).nonce);
+  assert.match(bridgeNonce, /^[A-Za-z0-9_-]{43}$/);
 });
 
 after(async () => {
@@ -113,6 +136,37 @@ after(async () => {
 });
 
 describe("阶段 2 评论 API", () => {
+  test("本机 bridge 使用精确 Origin 与短期配对 nonce", async () => {
+    const missingOrigin = await fetch(`${apiBase}/api/local/projects/${projectId}/assets/model.glb`, {
+      headers: { [BRIDGE_NONCE_HEADER]: bridgeNonce },
+    });
+    assert.equal(missingOrigin.status, 401);
+
+    const wrongOrigin = await fetch(`${apiBase}/api/local/projects/${projectId}/assets/model.glb`, {
+      headers: { Origin: "http://localhost:5174", [BRIDGE_NONCE_HEADER]: bridgeNonce },
+    });
+    assert.equal(wrongOrigin.status, 403);
+
+    const missingNonce = await fetch(`${apiBase}/api/local/projects/${projectId}/assets/model.glb`, {
+      headers: { Origin: bridgeOrigin },
+    });
+    assert.equal(missingNonce.status, 401);
+
+    const wrongNonce = await fetch(`${apiBase}/api/local/projects/${projectId}/assets/model.glb`, {
+      headers: { Origin: bridgeOrigin, [BRIDGE_NONCE_HEADER]: "b".repeat(43) },
+    });
+    assert.equal(wrongNonce.status, 401);
+
+    const secondSession = await fetch(`${apiBase}/api/local/pair`, {
+      method: "POST",
+      headers: { Origin: bridgeOrigin, "content-type": "application/json" },
+      body: JSON.stringify({ pairingCode }),
+    });
+    assert.equal(secondSession.status, 201);
+    const secondBody = await secondSession.json() as { nonce: string };
+    assert.notEqual(secondBody.nonce, bridgeNonce);
+  });
+
   test("本机 bridge 仅在 /api/local 下暴露转换与派生资产", async () => {
     const legacyConvert = await fetch(`${apiBase}/api/projects`, {
       method: "POST",
@@ -121,14 +175,14 @@ describe("阶段 2 评论 API", () => {
     });
     assert.equal(legacyConvert.status, 404);
 
-    const missingBlend = await fetch(`${apiBase}/api/local/convert`, {
+    const missingBlend = await bridgeFetch(`/api/local/convert`, {
       method: "POST",
       body: new FormData(),
     });
     assert.equal(missingBlend.status, 400);
     assert.equal(typeof (await missingBlend.json() as Json).error, "string");
 
-    const asset = await fetch(`${apiBase}/api/local/projects/${projectId}/assets/model.glb`);
+    const asset = await bridgeFetch(`/api/local/projects/${projectId}/assets/model.glb`);
     assert.equal(asset.status, 200);
     assert.equal(await asset.text(), "test model");
     assert.equal((await fetch(`${apiBase}/files/${projectId}/model.glb`)).status, 404);
@@ -254,7 +308,7 @@ describe("阶段 2 评论 API", () => {
     const sharedComment = (shared.body.comments as Json[])[0];
     assert.equal(sharedComment.projectId, undefined);
 
-    const model = await fetch(`${apiBase}/api/local/shares/${token}/model.glb`);
+    const model = await bridgeFetch(`/api/local/shares/${token}/model.glb`);
     assert.equal(model.status, 200);
     const source = await fetch(`${apiBase}/files/${projectId}/source.blend`);
     assert.equal(source.status, 404);
@@ -276,14 +330,15 @@ describe("阶段 2 评论 API", () => {
     assert.equal(locked.response.status, 401);
     assert.equal(locked.body.passwordRequired, true);
 
-    const wrong = await fetch(`${apiBase}/api/local/shares/${token}/access`, {
+    const wrong = await bridgeFetch(`/api/local/shares/${token}/access`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "bad-pass" }),
     });
     assert.equal(wrong.status, 403);
-    const access = await fetch(`${apiBase}/api/local/shares/${token}/access`, {
+    const access = await bridgeFetch(`/api/local/shares/${token}/access`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "review-pass" }),
     });
     assert.equal(access.status, 204);
+    assert.match(access.headers.get("set-cookie") ?? "", new RegExp(`Path=/api/local/shares/${token}`));
     const cookie = access.headers.get("set-cookie")?.split(";", 1)[0];
     assert.ok(cookie);
 
@@ -299,7 +354,7 @@ describe("阶段 2 评论 API", () => {
     assert.equal(guest.response.status, 201);
     assert.equal((guest.body.comment as Json).projectId, undefined);
 
-    const revoked = await fetch(`${apiBase}/api/local/projects/${projectId}/shares/${shareId}`, {
+    const revoked = await bridgeFetch(`/api/local/projects/${projectId}/shares/${shareId}`, {
       method: "DELETE", headers: { "x-blendproof-owner": ownerCapability },
     });
     assert.equal(revoked.status, 204);

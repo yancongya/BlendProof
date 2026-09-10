@@ -14,6 +14,7 @@ import { isPublicProjectAsset, LocalProjectStorage } from './local-storage.js'
 import type { StoredAsset } from './contracts.js'
 import { LocalReviewDatabase } from './local-database.js'
 import { LocalShareAccess } from './local-share-access.js'
+import { BRIDGE_NONCE_HEADER, LocalBridgePairing } from './local-pairing.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const storageRoot = process.env.BLENDPROOF_STORAGE_ROOT ?? path.join(root, 'storage', 'projects')
@@ -35,12 +36,42 @@ const repository = new LocalReviewDatabase(sqliteRepository)
 const projectStorage = new LocalProjectStorage(storageRoot)
 const accessSecret = process.env.BLENDPROOF_ACCESS_SECRET ?? await loadAccessSecret(path.join(path.dirname(storageRoot), '.access-secret'))
 const shareAccess = new LocalShareAccess(repository, accessSecret)
+const bridgePairing = new LocalBridgePairing()
+const bridgeOrigins = new Set(
+  (process.env.BLENDPROOF_ALLOWED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+)
 
 const app = express()
 const upload = multer({ dest: incomingRoot, limits: { fileSize: 1024 * 1024 * 1024 } })
 
-app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }))
+app.use(bridgeOriginGuard)
+app.use(cors({
+  origin: [...bridgeOrigins],
+  credentials: true,
+  allowedHeaders: ['content-type', 'x-blendproof-owner', BRIDGE_NONCE_HEADER],
+}))
 app.use(express.json({ limit: '1mb' }))
+app.use('/api/local', bridgeNonceGuard)
+
+app.post('/api/local/pair', (request, response) => {
+  const input = request.body as { pairingCode?: unknown; code?: unknown } | undefined
+  const pairingCode = input?.pairingCode ?? input?.code
+  const origin = requestOrigin(request)
+  const session = origin ? bridgePairing.pair(pairingCode, origin) : null
+  if (!session) {
+    response.status(401).json({ error: '配对码无效或已使用。' })
+    return
+  }
+  response.setHeader('Cache-Control', 'no-store')
+  response.status(201).json({
+    nonce: session.nonce,
+    expiresAt: new Date(session.expiresAt).toISOString(),
+  })
+})
+
 app.get('/api/local/projects/:projectId/assets/:fileName', async (request, response) => {
   if (!isProjectId(request.params.projectId) || !isPublicProjectAsset(request.params.fileName) || request.params.fileName === 'thumbnail.webp') {
     response.status(404).end()
@@ -55,7 +86,8 @@ app.get('/api/local/projects/:projectId/assets/:fileName', async (request, respo
 })
 
 app.get('/api/local/health', (_request, response) => {
-  response.json({ blenderReady: Boolean(blenderBin), blenderBin: blenderBin ?? null })
+  response.setHeader('Cache-Control', 'no-store')
+  response.json({ blenderReady: Boolean(blenderBin) })
 })
 
 app.post('/api/local/convert', upload.single('blend'), async (request, response) => {
@@ -282,6 +314,45 @@ app.post('/api/local/shares/:token/comments', async (request, response) => {
   response.status(201).json({ comment: toSharedComment(comment) })
 })
 
+function bridgeOriginGuard(request: express.Request, response: express.Response, next: express.NextFunction) {
+  if (!request.path.startsWith('/api/local')) {
+    next()
+    return
+  }
+  const origin = requestOrigin(request)
+  const requiresOrigin = request.path === '/api/local/pair' || !['GET', 'HEAD', 'OPTIONS'].includes(request.method)
+  if ((requiresOrigin && !origin) || (origin && !bridgeOrigins.has(origin))) {
+    response.status(403).json({ error: '本机 bridge 仅接受受信任的 Web Origin。' })
+    return
+  }
+  next()
+}
+
+function bridgeNonceGuard(request: express.Request, response: express.Response, next: express.NextFunction) {
+  response.setHeader('Cache-Control', 'private, no-store')
+  // Pairing is the only route allowed to bootstrap a session. CORS preflight
+  // has no application nonce yet, and health is intentionally non-sensitive.
+  if (request.path === '/pair' || request.path === '/health' || request.method === 'OPTIONS') {
+    next()
+    return
+  }
+  const origin = requestOrigin(request)
+  if (!origin || !bridgePairing.isValid(request.header(BRIDGE_NONCE_HEADER), origin)) {
+    response.setHeader('X-BlendProof-Bridge-Session', 'invalid')
+    response.status(401).json({ error: '缺少或已过期的本机 bridge 会话。' })
+    return
+  }
+  next()
+}
+
+function requestOrigin(request: express.Request) {
+  const header = request.header('origin')
+  if (header) return header
+  const referer = request.header('referer')
+  if (!referer) return null
+  try { return new URL(referer).origin } catch { return null }
+}
+
 type StoredComment = Record<string, unknown> & { id: string }
 
 function toSharedComment(comment: StoredComment) {
@@ -391,7 +462,7 @@ function runBlender(bin: string, sourcePath: string, glbPath: string, manifestPa
 }
 
 const port = Number(process.env.PORT ?? 8788)
-const server = app.listen(port, () => console.log(`BlendProof local bridge running at http://localhost:${port}`))
+const server = app.listen(port, '127.0.0.1', () => console.log(`BlendProof local bridge running at http://127.0.0.1:${port}`))
 
 function close() {
   server.close(() => database.close())

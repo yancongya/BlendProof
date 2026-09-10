@@ -25,7 +25,7 @@ export class LocalShareAccess implements ShareAccess {
   }
 
   async createCookie(token: string, maxAgeSeconds = 86_400): Promise<string> {
-    return `${this.cookieName(token)}=${this.cookieValue(token)}; HttpOnly; SameSite=Lax; Path=/api/shares/${token}; Max-Age=${maxAgeSeconds}`
+    return `${this.cookieName(token)}=${this.cookieValue(token)}; HttpOnly; SameSite=Lax; Path=/api/local/shares/${token}; Max-Age=${maxAgeSeconds}`
   }
 
   hasCookie(token: string, cookieHeader?: string): boolean {
