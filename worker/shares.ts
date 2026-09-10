@@ -256,6 +256,23 @@ function sanitizeManifest(value: unknown): Record<string, unknown> | null {
   }
   const manifest: Record<string, unknown> = { scene: record.scene, objects, collections: record.collections }
   if (record.camera !== undefined) manifest.camera = record.camera
+  if (record.cameras !== undefined) {
+    if (!Array.isArray(record.cameras) || record.cameras.length > 256) return null
+    const cameras: Array<{ name: string; projection: string }> = []
+    for (const value of record.cameras) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+      const camera = value as Record<string, unknown>
+      if (Object.keys(camera).some((key) => key !== 'name' && key !== 'projection') ||
+        typeof camera.name !== 'string' || camera.name.length > 256 ||
+        typeof camera.projection !== 'string' || camera.projection.length > 32) return null
+      cameras.push({ name: camera.name, projection: camera.projection })
+    }
+    manifest.cameras = cameras
+  }
+  if (record.materials !== undefined) {
+    if (!isStringArray(record.materials, 2_000)) return null
+    manifest.materials = record.materials
+  }
   if (record.export !== undefined) {
     if (!record.export || typeof record.export !== 'object' || Array.isArray(record.export)) return null
     const source = record.export as Record<string, unknown>

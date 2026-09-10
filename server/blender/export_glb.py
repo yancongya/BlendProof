@@ -26,6 +26,11 @@ manifest = {
         for obj in bpy.context.scene.objects
     ],
     "collections": [collection.name for collection in bpy.data.collections],
+    "cameras": [
+        {"name": obj.name, "projection": obj.data.type}
+        for obj in bpy.context.scene.objects if obj.type == 'CAMERA'
+    ],
+    "materials": [material.name for material in bpy.data.materials],
     "export": {
         "sourceBytes": os.path.getsize(bpy.data.filepath),
         "glbBytes": os.path.getsize(glb_path),

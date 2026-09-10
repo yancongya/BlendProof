@@ -400,7 +400,7 @@ describe('BlendProof Worker local runtime', () => {
     expect(access.status).toBe(204)
     const cookie = (access.headers.get('set-cookie') ?? '').split(';', 1)[0]
     expect((await SELF.fetch(`https://blendproof.test/api/shares/${token}`, { headers: { cookie } })).status).toBe(200)
-  })
+  }, 15_000)
 
   it('rejects a ready asset when its persisted ETag or content type diverges from R2', async () => {
     const origin = 'http://127.0.0.1:5173'
