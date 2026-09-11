@@ -124,6 +124,31 @@ describe('BlendProof Worker local runtime', () => {
     expect(adminStats.status).toBe(200)
     expect(await adminStats.json()).toHaveProperty('capacityBytes', 5 * 1024 ** 3)
 
+    const users = await SELF.fetch('https://blendproof.test/api/admin/users', { headers: { cookie: `bp_session=${adminToken}` } })
+    expect(users.status).toBe(200)
+    expect(await users.json()).toMatchObject({ users: expect.arrayContaining([
+      expect.objectContaining({ id: member.user.id, displayName: 'Member', role: 'user', usedBytes: 0, projectCount: 1 }),
+    ]) })
+    const deniedSettings = await SELF.fetch('https://blendproof.test/api/admin/settings', {
+      method: 'PATCH', headers: { origin, cookie: memberCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ capacityBytes: 2 * 1024 ** 3, maxShareHours: 24 }),
+    })
+    expect(deniedSettings.status).toBe(403)
+    const settings = await SELF.fetch('https://blendproof.test/api/admin/settings', {
+      method: 'PATCH', headers: { origin, cookie: `bp_session=${adminToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ capacityBytes: 2 * 1024 ** 3, maxShareHours: 24 }),
+    })
+    expect(settings.status).toBe(200)
+    expect(await settings.json()).toEqual({ capacityBytes: 2 * 1024 ** 3, maxShareHours: 24 })
+    await SELF.fetch('https://blendproof.test/api/admin/settings', {
+      method: 'PATCH', headers: { origin, cookie: `bp_session=${adminToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ capacityBytes: 5 * 1024 ** 3, maxShareHours: 48 }),
+    })
+    const listedInvites = await SELF.fetch('https://blendproof.test/api/admin/invites', { headers: { cookie: `bp_session=${adminToken}` } })
+    expect(listedInvites.status).toBe(200)
+    const inviteRows = await listedInvites.json<{ invites: Array<{ id: string; usesCount: number }> }>()
+    expect(inviteRows.invites.some((item) => item.usesCount === 1)).toBe(true)
+
     const loggedOut = await SELF.fetch('https://blendproof.test/api/auth/logout', { method: 'POST', headers: { origin, cookie: memberCookie } })
     expect(loggedOut.status).toBe(204)
     expect(loggedOut.headers.get('set-cookie')).toContain('Max-Age=0')

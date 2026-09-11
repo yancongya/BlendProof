@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Trash2,
   User,
+  X,
 } from "lucide-react";
 import {
   Suspense,
@@ -47,7 +48,7 @@ import {
 } from "three";
 import { BlenderLogo } from "./components/BlenderLogo";
 import { UploaderPanel, type UploadStage } from "./components/UploaderPanel";
-import { blendProofClient, type AccountStats, type AccountUser, type CloudOwnerProject, type OwnerProject, type ProjectTransport, type PublicStats } from "./api/blendProofClient";
+import { blendProofClient, type AccountStats, type AccountUser, type AdminInvite, type AdminSettings, type AdminUser, type CloudOwnerProject, type OwnerProject, type ProjectTransport, type PublicStats } from "./api/blendProofClient";
 import { ReviewAnnotations } from "./review/ReviewAnnotations";
 import { useReviewComments } from "./review/useReviewComments";
 import type {
@@ -326,6 +327,15 @@ export function App() {
   }
   if (homeOpen) {
     return (
+      <>
+      <BlenderWorkspace
+        title={project?.name ?? file?.name ?? "未命名"} manifest={manifest} hidden={hidden} selected={selected}
+        onSelect={(name) => setSelected(name ? new Set([name]) : new Set())} onSelectMany={(names) => setSelected(new Set(names))}
+        onToggle={toggle} message={message} modelUrl={manifest ? project?.modelUrl : undefined} readOnly={false}
+        displayMode={displayMode} onDisplayMode={setDisplayMode} cameraPreset={cameraPreset} onCameraPreset={setCameraPreset}
+        comments={reviews.comments} reviewError={reviews.error} onCreateComment={reviews.create} onUpdateComment={reviews.update}
+        onOpenUploader={openUploader} onHome={() => setHomeOpen(true)}
+      />
       <StartPage
         recentProjects={recentProjects}
         stats={publicStats}
@@ -352,7 +362,9 @@ export function App() {
           setAccountStats(null);
         }}
         onCreateInvite={(expiresInHours, maxUses) => blendProofClient.createInvite(expiresInHours, maxUses)}
+        onClose={() => setHomeOpen(false)}
       />
+      </>
     );
   }
   return (
@@ -553,6 +565,7 @@ function StartPage({
   onRegister,
   onLogout,
   onCreateInvite,
+  onClose,
 }: {
   recentProjects: Project[];
   stats: PublicStats | null;
@@ -564,6 +577,7 @@ function StartPage({
   onRegister: (input: { inviteCode: string; email: string; password: string; displayName: string }) => Promise<void>;
   onLogout: () => Promise<void>;
   onCreateInvite: (expiresInHours: number, maxUses: number) => Promise<{ code: string; expiresAt: string; maxUses: number }>;
+  onClose: () => void;
 }) {
   const [shareInput, setShareInput] = useState("");
   const [shareError, setShareError] = useState<string | null>(null);
@@ -575,7 +589,6 @@ function StartPage({
   const [inviteCode, setInviteCode] = useState("");
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
-  const [inviteResult, setInviteResult] = useState<string | null>(null);
   const [startTab, setStartTab] = useState<"start" | "recent" | "status" | "account">("start");
 
   function openShare() {
@@ -607,8 +620,9 @@ function StartPage({
   }
 
   return (
-    <main className="blendproof-start-page" data-testid="start-page">
-      <section className="start-launcher">
+    <main className="blendproof-start-page" data-testid="start-page" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="start-launcher" onMouseDown={(event) => event.stopPropagation()}>
+        <button type="button" className="start-launcher-close" aria-label="关闭欢迎页" onClick={onClose}><X size={16} /></button>
         <div className="start-splash">
           <div className="start-splash-brand"><BlenderLogo /><span>BlendProof</span></div>
           <span className="start-splash-version">Web 0.1</span>
@@ -623,14 +637,37 @@ function StartPage({
             <section className="start-action-section"><h2>打开分享</h2><form className="start-share-entry" onSubmit={(event) => { event.preventDefault(); openShare(); }}><label htmlFor="start-share-code"><Link2 size={18} /><span><strong>审稿链接或分享码</strong><small>无需账号即可打开只读分享</small></span></label><div><input id="start-share-code" aria-label="分享链接或分享码" value={shareInput} onChange={(event) => { setShareInput(event.target.value); setShareError(null); }} placeholder="粘贴 /s/… 或 32 位分享码" /><button type="submit">打开</button></div>{shareError && <small role="alert">{shareError}</small>}</form></section>
           </div>}
           {startTab === "recent" && <section className="start-recent-panel"><div className="start-panel-heading"><span>最近打开的项目</span><button onClick={onOpenFile}>打开其他文件</button></div>{recentProjects.length ? <div className="start-recent-list">{recentProjects.slice(0, 8).map((item) => <button type="button" className="start-recent-item" key={item.id} onClick={() => onProjectSelect(item)}><FileIcon /><span><strong>{item.name}</strong><small>本机转换项目 · {item.id.slice(0, 6)}</small></span><ChevronDown size={14} className="start-recent-arrow" /></button>)}</div> : <p className="start-empty">还没有最近项目。请先打开一个 .blend 文件。</p>}</section>}
-          {startTab === "status" && <section className="start-system-panel"><div className="start-panel-heading"><span><HardDrive size={14} /> 公益存储池</span><i>运行中</i></div><div className="storage-reading"><strong>{stats ? formatBytes(stats.remainingBytes) : "—"}</strong><span>当前可用 / 5 GB</span></div><div className="storage-meter"><span style={{ width: `${stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}%` }} /></div><div className="start-stats" aria-label="平台状态"><span><strong>{stats?.projectCount ?? "—"}</strong><small>在线项目</small></span><span><strong>{stats?.activeShareCount ?? "—"}</strong><small>有效分享</small></span><span><strong>{stats?.userCount ?? "—"}</strong><small>注册用户</small></span></div><p className="start-retention">建议 24 小时内完成审稿；派生资产最长保留 48 小时，到期自动清理。</p></section>}
-          {startTab === "account" && <section className="start-user-panel"><div className="start-panel-heading"><span><User size={14} /> {account ? "我的账号" : "账号入口"}</span>{account?.role === "admin" && <i className="admin-badge"><ShieldCheck size={12} /> 管理员</i>}</div>{account ? <><div className="account-identity"><b>{account.displayName.slice(0, 1).toUpperCase()}</b><span><strong>{account.displayName}</strong><small>{account.email}</small></span><button className="account-logout" onClick={() => void onLogout()}><LogOut size={13} /> 退出</button></div><dl className="account-usage"><div><dt>个人占用</dt><dd>{accountStats ? formatBytes(accountStats.usedBytes) : "—"}</dd></div><div><dt>项目</dt><dd>{accountStats?.projectCount ?? "—"}</dd></div><div><dt>有效分享</dt><dd>{accountStats?.activeShareCount ?? "—"}</dd></div></dl>{account.role === "admin" && <div className="admin-controls"><strong>管理员控制</strong><button onClick={async () => { try { const result = await onCreateInvite(168, 1); setInviteResult(result.code); } catch (reason) { setAccountError(reason instanceof Error ? reason.message : "无法创建邀请码。"); } }}><KeyRound size={13} /> 生成 7 天一次性邀请码</button>{inviteResult && <code>{inviteResult}</code>}</div>}</> : <><p>登录后可以查看自己的项目、分享数量和空间占用。为了控制公益资源，注册需要管理员发放的邀请码。</p><div className="account-buttons"><button onClick={() => { setAuthMode("login"); setAuthOpen(true); }}><LogIn size={13} /> 登录</button><button onClick={() => { setAuthMode("register"); setAuthOpen(true); }}><KeyRound size={13} /> 使用邀请码注册</button></div></>}</section>}
+          {startTab === "status" && <section className="start-system-panel"><div className="start-panel-heading"><span><HardDrive size={14} /> 公益存储池</span><i>运行中</i></div><div className="storage-reading"><strong>{stats ? formatBytes(stats.remainingBytes) : "—"}</strong><span>当前可用 / {stats ? formatBytes(stats.capacityBytes) : "—"}</span></div><div className="storage-meter"><span style={{ width: `${stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}%` }} /></div><div className="start-stats" aria-label="平台状态"><span><strong>{stats?.projectCount ?? "—"}</strong><small>在线项目</small></span><span><strong>{stats?.activeShareCount ?? "—"}</strong><small>有效分享</small></span><span><strong>{stats?.userCount ?? "—"}</strong><small>注册用户</small></span></div><p className="start-retention">建议 24 小时内完成审稿；分享最长 {stats?.retentionHours ?? 48} 小时，派生资产到期自动清理。</p></section>}
+          {startTab === "account" && <section className="start-user-panel"><div className="start-panel-heading"><span><User size={14} /> {account ? "我的账号" : "账号入口"}</span>{account?.role === "admin" && <i className="admin-badge"><ShieldCheck size={12} /> 管理员</i>}</div>{account ? <><div className="account-identity"><b>{account.displayName.slice(0, 1).toUpperCase()}</b><span><strong>{account.displayName}</strong><small>{account.email}</small></span><button className="account-logout" onClick={() => void onLogout()}><LogOut size={13} /> 退出</button></div><dl className="account-usage"><div><dt>个人占用</dt><dd>{accountStats ? formatBytes(accountStats.usedBytes) : "—"}</dd></div><div><dt>项目</dt><dd>{accountStats?.projectCount ?? "—"}</dd></div><div><dt>有效分享</dt><dd>{accountStats?.activeShareCount ?? "—"}</dd></div></dl>{account.role === "admin" && <AdminConsole accountId={account.id} onCreateInvite={onCreateInvite} />}</> : <><p>登录后可以查看自己的项目、分享数量和空间占用。为了控制公益资源，注册需要管理员发放的邀请码。</p><div className="account-buttons"><button onClick={() => { setAuthMode("login"); setAuthOpen(true); }}><LogIn size={13} /> 登录</button><button onClick={() => { setAuthMode("register"); setAuthOpen(true); }}><KeyRound size={13} /> 使用邀请码注册</button></div></>}</section>}
         </div>
-        <footer className="start-launcher-footer"><span>BlendProof 公益 3D 审稿</span><span>容量 5 GB · 最长保留 48 小时</span></footer>
+        <footer className="start-launcher-footer"><span>BlendProof 公益 3D 审稿</span><span>容量 {stats ? formatBytes(stats.capacityBytes) : "—"} · 最长分享 {stats?.retentionHours ?? 48} 小时</span></footer>
       </section>
       {authOpen && <div className="uploader-modal-backdrop account-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuthOpen(false); }}><form className="account-modal" role="dialog" aria-label={authMode === "login" ? "登录" : "邀请码注册"} onSubmit={submitAccount}><div className="account-modal-head"><strong>{authMode === "login" ? "登录 BlendProof" : "使用邀请码注册"}</strong><button type="button" aria-label="关闭账号面板" onClick={() => setAuthOpen(false)}>×</button></div><div className="account-tabs"><button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAccountError(null); }}>登录</button><button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setAccountError(null); }}>注册</button></div>{authMode === "register" && <><label>显示名称<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label><label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} required /></label></>}<label>邮箱<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>密码<input type="password" value={password} minLength={8} onChange={(event) => setPassword(event.target.value)} required /></label>{accountError && <p role="alert">{accountError}</p>}<button className="account-submit" disabled={accountBusy}>{accountBusy ? "处理中…" : authMode === "login" ? "登录" : "创建账号"}</button><small>注册只接受管理员发放的邀请码。</small></form></div>}
     </main>
   );
+}
+
+function AdminConsole({ accountId, onCreateInvite }: { accountId: string; onCreateInvite: (expiresInHours: number, maxUses: number) => Promise<{ code: string }> }) {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [invites, setInvites] = useState<AdminInvite[]>([]);
+  const [settings, setSettings] = useState<AdminSettings>({ capacityBytes: 5 * 1024 ** 3, maxShareHours: 48 });
+  const [inviteHours, setInviteHours] = useState(168);
+  const [inviteUses, setInviteUses] = useState(1);
+  const [latestCode, setLatestCode] = useState<string | null>(null);
+  const [adminMessage, setAdminMessage] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    const [nextUsers, nextInvites, nextSettings] = await Promise.all([
+      blendProofClient.adminUsers(), blendProofClient.adminInvites(), blendProofClient.adminSettings(),
+    ]);
+    setUsers(nextUsers); setInvites(nextInvites); setSettings(nextSettings);
+  }, []);
+  useEffect(() => { refresh().catch((reason) => setAdminMessage(reason instanceof Error ? reason.message : "无法读取管理信息。")); }, [refresh]);
+  return <div className="admin-console">
+    <section><div className="admin-section-title"><strong>平台设置</strong><span>安全上限：5 GB / 48 小时</span></div><div className="admin-settings-row"><label>存储阈值<select value={settings.capacityBytes} onChange={(event) => setSettings((current) => ({ ...current, capacityBytes: Number(event.target.value) }))}><option value={1024 ** 3}>1 GB</option><option value={2 * 1024 ** 3}>2 GB</option><option value={3 * 1024 ** 3}>3 GB</option><option value={5 * 1024 ** 3}>5 GB</option></select></label><label>最长分享<select value={settings.maxShareHours} onChange={(event) => setSettings((current) => ({ ...current, maxShareHours: Number(event.target.value) }))}><option value={12}>12 小时</option><option value={24}>24 小时</option><option value={48}>48 小时</option></select></label><button onClick={async () => { try { setSettings(await blendProofClient.updateAdminSettings(settings)); setAdminMessage("平台设置已保存。"); } catch (reason) { setAdminMessage(reason instanceof Error ? reason.message : "保存失败。"); } }}>保存设置</button></div></section>
+    <section><div className="admin-section-title"><strong>成员</strong><span>{users.filter((user) => !user.disabledAt).length} 个有效账号</span></div><div className="admin-table">{users.map((user) => <div className={user.disabledAt ? "disabled" : ""} key={user.id}><span><b>{user.displayName}</b><small>{user.email}</small></span><span>{formatBytes(user.usedBytes)}</span><span>{user.projectCount} 项目</span><span>{user.role === "admin" ? "管理员" : user.disabledAt ? "已停用" : "成员"}</span>{user.id !== accountId && user.role !== "admin" && !user.disabledAt ? <button aria-label={`停用 ${user.displayName}`} onClick={async () => { if (!window.confirm(`停用成员“${user.displayName}”吗？`)) return; await blendProofClient.disableAdminUser(user.id); await refresh(); }}>停用</button> : <i />}</div>)}</div></section>
+    <section><div className="admin-section-title"><strong>邀请码</strong><span>一个管理员可创建多个，每个码独立计算使用次数</span></div><div className="admin-invite-create"><label>有效期<input type="number" min={1} max={720} value={inviteHours} onChange={(event) => setInviteHours(Number(event.target.value))} /> 小时</label><label>可用次数<input type="number" min={1} max={10000} value={inviteUses} onChange={(event) => setInviteUses(Number(event.target.value))} /></label><button onClick={async () => { try { const result = await onCreateInvite(inviteHours, inviteUses); setLatestCode(result.code); await refresh(); } catch (reason) { setAdminMessage(reason instanceof Error ? reason.message : "创建失败。"); } }}><KeyRound size={13} /> 新增邀请码</button></div>{latestCode && <code className="admin-latest-code">{latestCode}</code>}<div className="admin-table invite-table">{invites.map((invite) => { const inactive = Boolean(invite.revokedAt) || invite.usesCount >= invite.maxUses || Date.parse(invite.expiresAt) <= Date.now(); return <div className={inactive ? "disabled" : ""} key={invite.id}><span><b>…{invite.id.slice(-8)}</b><small>{new Date(invite.expiresAt).toLocaleString()}</small></span><span>{invite.usesCount} / {invite.maxUses} 次</span><span>{invite.revokedAt ? "已撤销" : inactive ? "已失效" : "可用"}</span>{!inactive ? <button aria-label={`撤销邀请码 ${invite.id.slice(-8)}`} onClick={async () => { await blendProofClient.revokeAdminInvite(invite.id); await refresh(); }}>撤销</button> : <i />}</div>; })}</div></section>
+    {adminMessage && <p className="admin-message" role="status">{adminMessage}</p>}
+  </div>;
 }
 
 function FileIcon() {

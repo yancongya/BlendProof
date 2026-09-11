@@ -72,6 +72,10 @@ export type AccountStats = {
   activeShareCount: number;
 };
 
+export type AdminUser = AccountUser & { disabledAt: string | null; usedBytes: number; projectCount: number };
+export type AdminInvite = { id: string; maxUses: number; usesCount: number; expiresAt: string; revokedAt: string | null; createdAt: string };
+export type AdminSettings = { capacityBytes: number; maxShareHours: number };
+
 export type SharedProject<Manifest> = {
   name: string;
   modelUrl: string;
@@ -320,6 +324,30 @@ export class BlendProofClient {
     return this.workerJson<{ code: string; expiresAt: string; maxUses: number }>("/api/admin/invites", {
       method: "POST", headers: jsonHeaders(), body: JSON.stringify({ expiresInHours, maxUses }),
     });
+  }
+
+  async adminUsers() {
+    return (await this.workerJson<{ users: AdminUser[] }>("/api/admin/users")).users;
+  }
+
+  async adminInvites() {
+    return (await this.workerJson<{ invites: AdminInvite[] }>("/api/admin/invites")).invites;
+  }
+
+  revokeAdminInvite(inviteId: string) {
+    return this.workerVoid(`/api/admin/invites/${encodeURIComponent(inviteId)}`, { method: "DELETE" });
+  }
+
+  disableAdminUser(userId: string) {
+    return this.workerVoid(`/api/admin/users/${encodeURIComponent(userId)}/disable`, { method: "POST", headers: jsonHeaders() });
+  }
+
+  adminSettings() {
+    return this.workerJson<AdminSettings>("/api/admin/settings");
+  }
+
+  updateAdminSettings(settings: AdminSettings) {
+    return this.workerJson<AdminSettings>("/api/admin/settings", { method: "PATCH", headers: jsonHeaders(), body: JSON.stringify(settings) });
   }
 
   async listOwnerComments(projectId: string, ownerCapability: string, transport: ProjectTransport = "local") {

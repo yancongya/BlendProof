@@ -11,6 +11,8 @@
 
 - D1 角色只有 `admin`、`user`；审稿权限来自分享的 `read/comment` 设置，不增加静态 reviewer 角色。
 - 邀请码注册、会话和项目归属必须由 Worker 强制执行，前端显示不能代替服务端授权。
+- 邀请码是管理员可创建的独立资源，不是一账号一邀请码；每个码有自己的 `max_uses`、到期和撤销状态，公开响应不得返回 code hash。
+- “删除成员”采用停用账号和撤销会话，不物理删除项目、评论或审计关系；禁止管理员停用自己。
 - 首位管理员仅允许空库 bootstrap：邮箱/名称是部署变量，`BOOTSTRAP_ADMIN_TOKEN` 是 Cloudflare Secret。成功后删除 Secret，不提供“首位注册自动升管理员”。
 - 临时账号密码、邀请码、session、owner capability 和 Secret 不得提交。`.dev.vars` 保持 Git ignored。
 

@@ -18,7 +18,6 @@ type CommentRow = {
 type ReadyAssetRow = { object_key: string; content_type: string; byte_size: number; etag: string | null }
 
 const DEFAULT_SHARE_TTL_MS = 24 * 60 * 60_000
-const MAX_SHARE_TTL_MS = 48 * 60 * 60_000
 
 /** Returns null when the request does not belong to the share/review surface. */
 export async function handleShareRequest(request: Request, env: ShareEnv, url: URL): Promise<Response | null> {
@@ -72,11 +71,15 @@ async function createShare(request: Request, env: ShareEnv, projectId: string): 
   const permission = body.commentsPermission ?? 'read_only'
   if (permission !== 'read_only' && permission !== 'comment') return error('评论权限无效。', 400)
   const nowMs = Date.now()
+  const configured = await env.DB.prepare('SELECT max_share_hours FROM platform_settings WHERE id = 1')
+    .first<{ max_share_hours: number }>()
+  const maxShareHours = configured?.max_share_hours ?? 48
+  const maxShareTtlMs = maxShareHours * 60 * 60_000
   const requestedExpiry = body.expiresAt === undefined || body.expiresAt === null || body.expiresAt === ''
     ? nowMs + DEFAULT_SHARE_TTL_MS
     : Date.parse(String(body.expiresAt))
-  if (!Number.isFinite(requestedExpiry) || requestedExpiry <= nowMs || requestedExpiry > nowMs + MAX_SHARE_TTL_MS) {
-    return error('分享有效期必须在未来 48 小时内；默认保留 24 小时。', 400)
+  if (!Number.isFinite(requestedExpiry) || requestedExpiry <= nowMs || requestedExpiry > nowMs + maxShareTtlMs) {
+    return error(`分享有效期必须在未来 ${maxShareHours} 小时内；默认保留 24 小时。`, 400)
   }
   if (project.expires_at && requestedExpiry > Date.parse(project.expires_at)) {
     return error('分享有效期不能超过该项目的 48 小时保留上限。', 400)

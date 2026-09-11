@@ -39,6 +39,14 @@ export async function handleAuthRequest(request: Request, env: AuthEnv, url: URL
   }
   if (request.method === 'GET' && url.pathname === '/api/me/stats') return ownStats(request, env)
   if (request.method === 'POST' && url.pathname === '/api/admin/invites') return createInvite(request, env)
+  if (request.method === 'GET' && url.pathname === '/api/admin/invites') return listInvites(request, env)
+  const inviteRevoke = url.pathname.match(/^\/api\/admin\/invites\/([a-f0-9]{32})$/)
+  if (request.method === 'DELETE' && inviteRevoke) return revokeInvite(request, env, inviteRevoke[1])
+  if (request.method === 'GET' && url.pathname === '/api/admin/users') return listUsers(request, env)
+  const userDisable = url.pathname.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/disable$/)
+  if (request.method === 'POST' && userDisable) return disableUser(request, env, userDisable[1])
+  if (request.method === 'GET' && url.pathname === '/api/admin/settings') return adminSettings(request, env)
+  if (request.method === 'PATCH' && url.pathname === '/api/admin/settings') return updateAdminSettings(request, env)
   if (request.method === 'GET' && url.pathname === '/api/admin/stats') return adminStats(request, env)
   return null
 }
@@ -178,6 +186,90 @@ async function createInvite(request: Request, env: AuthEnv): Promise<Response> {
   return Response.json({ code, expiresAt, maxUses }, { status: 201, headers: privateHeaders() })
 }
 
+async function requireAdmin(request: Request, env: AuthEnv) {
+  const user = await currentUser(request, env)
+  return user?.role === 'admin' ? user : null
+}
+
+async function listInvites(request: Request, env: AuthEnv): Promise<Response> {
+  if (!await requireAdmin(request, env)) return forbidden()
+  const rows = await env.DB.prepare(`SELECT id, max_uses, uses_count, expires_at, revoked_at, created_at
+    FROM invites ORDER BY created_at DESC LIMIT 100`).all<{
+      id: string; max_uses: number; uses_count: number; expires_at: string; revoked_at: string | null; created_at: string
+    }>()
+  return Response.json({ invites: rows.results.map((row) => ({ id: row.id, maxUses: row.max_uses,
+    usesCount: row.uses_count, expiresAt: row.expires_at, revokedAt: row.revoked_at, createdAt: row.created_at })) }, { headers: privateHeaders() })
+}
+
+async function revokeInvite(request: Request, env: AuthEnv, inviteId: string): Promise<Response> {
+  const originError = mutationOriginError(request, env)
+  if (originError) return originError
+  if (!await requireAdmin(request, env)) return forbidden()
+  const now = new Date().toISOString()
+  const result = await env.DB.prepare('UPDATE invites SET revoked_at = ?, updated_at = ? WHERE id = ? AND revoked_at IS NULL')
+    .bind(now, now, inviteId).run()
+  return result.meta.changes === 1 ? new Response(null, { status: 204, headers: privateHeaders() }) : error('邀请码不存在或已撤销。', 404)
+}
+
+async function listUsers(request: Request, env: AuthEnv): Promise<Response> {
+  if (!await requireAdmin(request, env)) return forbidden()
+  const rows = await env.DB.prepare(`SELECT u.id, u.email, u.display_name, u.role, u.disabled_at, u.created_at,
+    COALESCE(SUM(CASE WHEN r.status = 'settled' THEN r.byte_size ELSE 0 END), 0) AS used_bytes,
+    COUNT(DISTINCT CASE WHEN p.status = 'ready' THEN p.id END) AS project_count
+    FROM users u LEFT JOIN projects p ON p.owner_id = u.id
+    LEFT JOIN project_storage_reservations r ON r.project_id = p.id
+    GROUP BY u.id ORDER BY u.created_at ASC`).all<{
+      id: string; email: string; display_name: string; role: 'user' | 'admin'; disabled_at: string | null
+      created_at: string; used_bytes: number; project_count: number
+    }>()
+  return Response.json({ users: rows.results.map((row) => ({ id: row.id, email: row.email,
+    displayName: row.display_name, role: row.role, disabledAt: row.disabled_at, createdAt: row.created_at,
+    usedBytes: row.used_bytes, projectCount: row.project_count })) }, { headers: privateHeaders() })
+}
+
+async function disableUser(request: Request, env: AuthEnv, userId: string): Promise<Response> {
+  const originError = mutationOriginError(request, env)
+  if (originError) return originError
+  const admin = await requireAdmin(request, env)
+  if (!admin) return forbidden()
+  if (admin.id === userId) return error('不能停用当前管理员。', 409)
+  const now = new Date().toISOString()
+  const result = await env.DB.prepare(`UPDATE users SET disabled_at = ?, updated_at = ?
+    WHERE id = ? AND role = 'user' AND disabled_at IS NULL`).bind(now, now, userId).run()
+  if (result.meta.changes !== 1) return error('成员不存在、已停用或不是普通成员。', 404)
+  await env.DB.prepare('UPDATE sessions SET revoked_at = ?, updated_at = ? WHERE user_id = ? AND revoked_at IS NULL')
+    .bind(now, now, userId).run()
+  return new Response(null, { status: 204, headers: privateHeaders() })
+}
+
+async function adminSettings(request: Request, env: AuthEnv): Promise<Response> {
+  if (!await requireAdmin(request, env)) return forbidden()
+  const settings = await env.DB.prepare('SELECT capacity_bytes, max_share_hours FROM platform_settings WHERE id = 1')
+    .first<{ capacity_bytes: number; max_share_hours: number }>()
+  return Response.json({ capacityBytes: settings?.capacity_bytes ?? 5 * 1024 ** 3,
+    maxShareHours: settings?.max_share_hours ?? 48 }, { headers: privateHeaders() })
+}
+
+async function updateAdminSettings(request: Request, env: AuthEnv): Promise<Response> {
+  const originError = mutationOriginError(request, env)
+  if (originError) return originError
+  if (!await requireAdmin(request, env)) return forbidden()
+  const body = await readJson<Record<string, unknown>>(request)
+  if (!body || Object.keys(body).some((key) => key !== 'capacityBytes' && key !== 'maxShareHours')) return error('平台设置无效。', 400)
+  const capacityBytes = body.capacityBytes
+  const maxShareHours = body.maxShareHours
+  if (typeof capacityBytes !== 'number' || !Number.isInteger(capacityBytes) || capacityBytes < 100 * 1024 ** 2 || capacityBytes > 5 * 1024 ** 3 ||
+    typeof maxShareHours !== 'number' || !Number.isInteger(maxShareHours) || maxShareHours < 1 || maxShareHours > 48) return error('平台设置超出安全范围。', 400)
+  const pool = await env.DB.prepare('SELECT ready_bytes, reserved_bytes FROM storage_pool WHERE id = 1').first<{ ready_bytes: number; reserved_bytes: number }>()
+  if ((pool?.ready_bytes ?? 0) + (pool?.reserved_bytes ?? 0) > capacityBytes) return error('新容量不能低于当前占用。', 409)
+  const now = new Date().toISOString()
+  await env.DB.batch([
+    env.DB.prepare('UPDATE platform_settings SET capacity_bytes = ?, max_share_hours = ?, updated_at = ? WHERE id = 1')
+      .bind(capacityBytes, maxShareHours, now),
+  ])
+  return adminSettings(request, env)
+}
+
 async function adminStats(request: Request, env: AuthEnv): Promise<Response> {
   const user = await currentUser(request, env)
   if (!user || user.role !== 'admin') return forbidden()
@@ -195,11 +287,13 @@ export async function publicStats(env: AuthEnv) {
     WHERE disabled_at IS NULL`).first<{ user_count: number }>()
   const shares = await env.DB.prepare(`SELECT COUNT(*) AS share_count FROM shares
     WHERE revoked_at IS NULL AND expires_at > ?`).bind(now).first<{ share_count: number }>()
-  const capacityBytes = pool?.capacity_bytes ?? 5 * 1024 ** 3
+  const settings = await env.DB.prepare('SELECT capacity_bytes, max_share_hours FROM platform_settings WHERE id = 1')
+    .first<{ capacity_bytes: number; max_share_hours: number }>()
+  const capacityBytes = settings?.capacity_bytes ?? pool?.capacity_bytes ?? 5 * 1024 ** 3
   const usedBytes = (pool?.ready_bytes ?? 0) + (pool?.reserved_bytes ?? 0)
   return { capacityBytes, usedBytes, remainingBytes: Math.max(0, capacityBytes - usedBytes),
     projectCount: counts?.project_count ?? 0, activeShareCount: shares?.share_count ?? 0,
-    userCount: users?.user_count ?? 0, retentionHours: 48, recommendedShareHours: 24 }
+    userCount: users?.user_count ?? 0, retentionHours: settings?.max_share_hours ?? 48, recommendedShareHours: 24 }
 }
 
 async function sessionResponse(env: AuthEnv, user: AuthUser, status: number) {
