@@ -315,11 +315,10 @@ button {
   );
 }
 .right-editors {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
-  grid-template-rows: 48% minmax(0, 1fr);
   background: #252525;
-  gap: 1px;
 }
 .outliner,
 .properties {
@@ -328,6 +327,12 @@ button {
   flex-direction: column;
   overflow: hidden;
   background: #252525;
+}
+.outliner {
+  flex: none;
+}
+.properties {
+  flex: 1;
 }
 .right-editors header {
   justify-content: space-between;
@@ -415,6 +420,7 @@ button {
   opacity: 0.25;
 }
 .property-body {
+  flex: none;
   padding: 12px;
   overflow: auto;
 }

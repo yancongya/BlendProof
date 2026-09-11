@@ -1,4 +1,4 @@
-import { Environment, OrbitControls, useGLTF } from "@react-three/drei";
+import { Environment, Grid, Line, OrbitControls, useGLTF } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import {
   Box,
@@ -38,6 +38,7 @@ import {
 import type { ReactNode } from "react";
 import {
   Box3,
+  DoubleSide,
   Matrix3,
   MOUSE,
   OrthographicCamera,
@@ -81,6 +82,15 @@ type SelectionBox = {
   height: number;
 } | null;
 type PendingReview = Omit<ReviewCommentDraft, "body" | "authorName">;
+const DEFAULT_MONKEY_MANIFEST: Manifest = {
+  scene: "Suzanne 演示",
+  camera: null,
+  cameras: [],
+  objects: [{ name: "苏珊娜", type: "MESH", collections: ["Collection"] }],
+  collections: ["Collection"],
+  materials: ["Material"],
+  export: { glbBytes: 69708, objectCount: 1 },
+};
 
 export function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -325,13 +335,15 @@ export function App() {
       return next;
     });
   }
+  const workspaceManifest = manifest ?? (!project ? DEFAULT_MONKEY_MANIFEST : null);
+  const workspaceModelUrl = manifest ? project?.modelUrl : !project ? "/default-monkey.glb" : undefined;
   if (homeOpen) {
     return (
       <>
       <BlenderWorkspace
-        title={project?.name ?? file?.name ?? "未命名"} manifest={manifest} hidden={hidden} selected={selected}
+        title={project?.name ?? file?.name ?? "Suzanne 演示"} manifest={workspaceManifest} hidden={hidden} selected={selected}
         onSelect={(name) => setSelected(name ? new Set([name]) : new Set())} onSelectMany={(names) => setSelected(new Set(names))}
-        onToggle={toggle} message={message} modelUrl={manifest ? project?.modelUrl : undefined} readOnly={false}
+        onToggle={toggle} message={message} modelUrl={workspaceModelUrl} readOnly={false} canComment={Boolean(project)}
         displayMode={displayMode} onDisplayMode={setDisplayMode} cameraPreset={cameraPreset} onCameraPreset={setCameraPreset}
         comments={reviews.comments} reviewError={reviews.error} onCreateComment={reviews.create} onUpdateComment={reviews.update}
         onOpenUploader={openUploader} onHome={() => setHomeOpen(true)}
@@ -369,16 +381,17 @@ export function App() {
   }
   return (
     <BlenderWorkspace
-      title={project?.name ?? file?.name ?? "未命名"}
-      manifest={manifest}
+      title={project?.name ?? file?.name ?? "Suzanne 演示"}
+      manifest={workspaceManifest}
       hidden={hidden}
       selected={selected}
       onSelect={(name) => setSelected(name ? new Set([name]) : new Set())}
       onSelectMany={(names) => setSelected(new Set(names))}
       onToggle={toggle}
       message={message}
-      modelUrl={manifest ? project?.modelUrl : undefined}
+      modelUrl={workspaceModelUrl}
       readOnly={false}
+      canComment={Boolean(project)}
       displayMode={displayMode}
       onDisplayMode={setDisplayMode}
       cameraPreset={cameraPreset}
@@ -688,6 +701,64 @@ function formatBytes(bytes: number) {
   return `${Math.max(0, bytes)} B`;
 }
 
+function PanelResizeHandle({
+  label,
+  onDelta,
+}: {
+  label: string;
+  onDelta: (delta: number) => void;
+}) {
+  const lastY = useRef(0);
+  return (
+    <div
+      className="panel-resize-handle"
+      role="separator"
+      aria-label={label}
+      aria-orientation="horizontal"
+      tabIndex={0}
+      onPointerDown={(event) => {
+        lastY.current = event.clientY;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+        const delta = event.clientY - lastY.current;
+        if (delta === 0) return;
+        lastY.current = event.clientY;
+        onDelta(delta);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowUp") onDelta(-12);
+        if (event.key === "ArrowDown") onDelta(12);
+      }}
+    />
+  );
+}
+
+function BlenderViewportGrid() {
+  return (
+    <group>
+      <Grid
+        position={[0, -0.003, 0]}
+        args={[10, 10]}
+        cellSize={1}
+        cellThickness={0.45}
+        cellColor="#4a4a4a"
+        sectionSize={10}
+        sectionThickness={0.8}
+        sectionColor="#606060"
+        fadeDistance={120}
+        fadeStrength={1.2}
+        infiniteGrid
+        followCamera
+        side={DoubleSide}
+      />
+      <Line points={[[-1000, 0, 0], [1000, 0, 0]]} color="#b84b55" lineWidth={1.15} />
+      <Line points={[[0, 0, -1000], [0, 0, 1000]]} color="#5b9b46" lineWidth={1.15} />
+    </group>
+  );
+}
+
 function BlenderWorkspace({
   title,
   manifest,
@@ -766,6 +837,9 @@ function BlenderWorkspace({
   const [reviewBusy, setReviewBusy] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState<Vec3>([0, 0, 0]);
+  const [outlinerHeight, setOutlinerHeight] = useState(280);
+  const [propertyHeight, setPropertyHeight] = useState(132);
+  const [summaryHeight, setSummaryHeight] = useState(180);
   const [reviewCameraRequest, setReviewCameraRequest] = useState<{
     camera: ReviewCameraState;
     nonce: number;
@@ -1076,12 +1150,13 @@ function BlenderWorkspace({
           <div className="viewport" data-testid="viewer-viewport" aria-label="3D 模型视图">
             {modelUrl ? (
               <Canvas
-                camera={{ position: [7, -7, 5], fov: 45 }}
+                camera={{ position: [7, 7, 5], fov: 45 }}
                 dpr={[1, 2]}
                 onPointerMissed={() => onSelect(null)}
                 onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
               >
                 <color attach="background" args={["#1e1e1e"]} />
+                <BlenderViewportGrid />
                 <ambientLight intensity={1.35} />
                 <directionalLight position={[5, 8, 4]} intensity={2.5} />
                 <Suspense fallback={null}>
@@ -1166,7 +1241,7 @@ function BlenderWorkspace({
           </div>
         </section>
         <aside className="right-editors">
-          <section className="outliner">
+          <section className="outliner" style={{ height: outlinerHeight }}>
             <header>
               <span>
                 <Layers size={13} /> 场景集合
@@ -1221,6 +1296,10 @@ function BlenderWorkspace({
               ))}
             </div>
           </section>
+          <PanelResizeHandle
+            label="调整场景集合面板高度"
+            onDelta={(delta) => setOutlinerHeight((height) => Math.min(560, Math.max(90, height + delta)))}
+          />
           <section className="properties">
             <header>
               <span>
@@ -1228,7 +1307,7 @@ function BlenderWorkspace({
               </span>
             </header>
             {active && (
-              <div className="property-body">
+              <div className="property-body" style={{ height: propertyHeight }}>
                 <p className="property-kicker">{active.type}</p>
                 <label>
                   对象名称
@@ -1243,26 +1322,40 @@ function BlenderWorkspace({
                 </label>
               </div>
             )}
-            <ConversionSummary manifest={manifest} />
-            <ReviewPanel
-              comments={comments}
-              selectedId={selectedCommentId}
-              pending={pendingReview}
-              body={commentBody}
-              readOnly={readOnly}
-              canComment={canComment}
-              message={reviewMessage ?? reviewError}
-              onBody={setCommentBody}
-              onSelect={selectReviewComment}
-              onSave={() => void savePendingReview()}
-              busy={reviewBusy}
-              onCancel={() => {
-                setPendingReview(null);
-                setCommentBody("");
-              }}
-              onToggleStatus={(comment) => void toggleReviewStatus(comment)}
-              onEdit={(comment, body) => void editReviewComment(comment, body)}
+            {active && (
+              <PanelResizeHandle
+                label="调整对象属性面板高度"
+                onDelta={(delta) => setPropertyHeight((height) => Math.min(360, Math.max(76, height + delta)))}
+              />
+            )}
+            <div className="property-summary-slot" style={{ height: summaryHeight }}>
+              <ConversionSummary manifest={manifest} />
+            </div>
+            <PanelResizeHandle
+              label="调整转换信息面板高度"
+              onDelta={(delta) => setSummaryHeight((height) => Math.min(360, Math.max(82, height + delta)))}
             />
+            <div className="review-panel-slot">
+              <ReviewPanel
+                comments={comments}
+                selectedId={selectedCommentId}
+                pending={pendingReview}
+                body={commentBody}
+                readOnly={readOnly}
+                canComment={canComment}
+                message={reviewMessage ?? reviewError}
+                onBody={setCommentBody}
+                onSelect={selectReviewComment}
+                onSave={() => void savePendingReview()}
+                busy={reviewBusy}
+                onCancel={() => {
+                  setPendingReview(null);
+                  setCommentBody("");
+                }}
+                onToggleStatus={(comment) => void toggleReviewStatus(comment)}
+                onEdit={(comment, body) => void editReviewComment(comment, body)}
+              />
+            </div>
           </section>
         </aside>
       </div>

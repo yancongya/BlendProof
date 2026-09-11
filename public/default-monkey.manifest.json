@@ -1,0 +1,18 @@
+{
+  "scene": "Scene",
+  "camera": null,
+  "objects": [
+    {
+      "name": "苏珊娜",
+      "type": "MESH",
+      "collections": ["Collection"]
+    }
+  ],
+  "collections": ["Collection"],
+  "cameras": [],
+  "materials": ["Material"],
+  "export": {
+    "glbBytes": 69708,
+    "objectCount": 1
+  }
+}
