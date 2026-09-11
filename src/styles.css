@@ -123,11 +123,29 @@ button {
 .project-name {
   justify-self: center;
   width: min(300px, 100%);
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   text-align: center;
+  color: #a9a9a9;
+}
+.project-name > span:first-child {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #a9a9a9;
+}
+.project-share-status {
+  display: inline-grid;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid #76501f;
+  border-radius: 50%;
+  background: #33291d;
+  color: #f39a35;
 }
 .workspace-tabs {
   display: flex;

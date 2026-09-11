@@ -84,6 +84,10 @@ type SelectionBox = {
   height: number;
 } | null;
 type PendingReview = Omit<ReviewCommentDraft, "body" | "authorName">;
+type ActiveShareStatus = {
+  expiresAt: string | null;
+  permission: "read_only" | "comment";
+};
 const DEFAULT_MONKEY_MANIFEST: Manifest = {
   scene: "Suzanne 演示",
   camera: null,
@@ -417,6 +421,7 @@ export function App() {
       <>
       <BlenderWorkspace
         title={project?.name ?? file?.name ?? "Suzanne 演示"} manifest={workspaceManifest} hidden={hidden} selected={selected}
+        shareStatus={shareUrl ? { expiresAt: shareExpiresAt, permission: sharePermission } : null}
         onSelect={(name) => setSelected(name ? new Set([name]) : new Set())} onSelectMany={(names) => setSelected(new Set(names))}
         onToggle={toggle} message={message} modelUrl={workspaceModelUrl} readOnly={false} canComment={Boolean(project)}
         displayMode={displayMode} onDisplayMode={setDisplayMode} cameraPreset={cameraPreset} onCameraPreset={setCameraPreset}
@@ -457,6 +462,7 @@ export function App() {
   return (
     <BlenderWorkspace
       title={project?.name ?? file?.name ?? "Suzanne 演示"}
+      shareStatus={shareUrl ? { expiresAt: shareExpiresAt, permission: sharePermission } : null}
       manifest={workspaceManifest}
       hidden={hidden}
       selected={selected}
@@ -842,6 +848,7 @@ function BlenderViewportGrid() {
 
 function BlenderWorkspace({
   title,
+  shareStatus,
   manifest,
   hidden,
   selected,
@@ -873,6 +880,7 @@ function BlenderWorkspace({
   children,
 }: {
   title: string;
+  shareStatus?: ActiveShareStatus | null;
   manifest: Manifest | null;
   hidden: Set<string>;
   selected: Set<string>;
@@ -1153,7 +1161,19 @@ function BlenderWorkspace({
             )}
           </div>
         )}
-        <div className="project-name">{title}</div>
+        <div className="project-name">
+          <span>{title}</span>
+          {shareStatus && (
+            <span
+              className="project-share-status"
+              role="status"
+              aria-label={`已分享，${shareStatus.permission === "comment" ? "可评论" : "只读"}，${formatShareExpiry(shareStatus.expiresAt)}到期`}
+              title={`已分享 · ${shareStatus.permission === "comment" ? "可评论" : "只读"} · ${formatShareExpiry(shareStatus.expiresAt)}到期`}
+            >
+              <Share2 size={11} strokeWidth={2.2} />
+            </span>
+          )}
+        </div>
         <div className="header-actions">
           {children ?? <span>只读审稿</span>}
         </div>
