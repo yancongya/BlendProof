@@ -421,7 +421,7 @@ export function App() {
         onToggle={toggle} message={message} modelUrl={workspaceModelUrl} readOnly={false} canComment={Boolean(project)}
         displayMode={displayMode} onDisplayMode={setDisplayMode} cameraPreset={cameraPreset} onCameraPreset={setCameraPreset}
         comments={reviews.comments} reviewError={reviews.error} onCreateComment={reviews.create} onUpdateComment={reviews.update}
-        onOpenUploader={openUploader} onHome={() => setHomeOpen(true)}
+        onOpenUploader={openUploader} onHome={() => setHomeOpen(true)} recentProjects={recentProjects} onProjectSelect={switchProject}
       />
       <StartPage
         recentProjects={recentProjects}
@@ -481,6 +481,8 @@ export function App() {
       onHome={() => setHomeOpen(true)}
       onDeleteProject={!cloudProject && project ? () => void deleteCurrentProject() : undefined}
       onOpenFileMenu={() => setSharePanelOpen(false)}
+      recentProjects={recentProjects}
+      onProjectSelect={switchProject}
       uploader={
         <UploaderPanel
           file={file}
@@ -821,13 +823,13 @@ function BlenderViewportGrid() {
         position={[0, -0.003, 0]}
         args={[10, 10]}
         cellSize={1}
-        cellThickness={0.45}
-        cellColor="#4a4a4a"
+        cellThickness={0.65}
+        cellColor="#5a5a5a"
         sectionSize={10}
         sectionThickness={0.8}
-        sectionColor="#606060"
-        fadeDistance={120}
-        fadeStrength={1.2}
+        sectionColor="#707070"
+        fadeDistance={150}
+        fadeStrength={1}
         infiniteGrid
         followCamera
         side={DoubleSide}
@@ -865,6 +867,8 @@ function BlenderWorkspace({
   onHome,
   onDeleteProject,
   onOpenFileMenu,
+  recentProjects = [],
+  onProjectSelect,
   uploader,
   children,
 }: {
@@ -897,6 +901,8 @@ function BlenderWorkspace({
   onHome?: () => void;
   onDeleteProject?: () => void;
   onOpenFileMenu?: () => void;
+  recentProjects?: Project[];
+  onProjectSelect?: (project: Project) => void;
   uploader?: ReactNode;
   children?: ReactNode;
 }) {
@@ -919,6 +925,7 @@ function BlenderWorkspace({
   const [outlinerHeight, setOutlinerHeight] = useState(280);
   const [propertyHeight, setPropertyHeight] = useState(132);
   const [summaryHeight, setSummaryHeight] = useState(180);
+  const [overlaysVisible, setOverlaysVisible] = useState(true);
   const [reviewCameraRequest, setReviewCameraRequest] = useState<{
     camera: ReviewCameraState;
     nonce: number;
@@ -1123,9 +1130,21 @@ function BlenderWorkspace({
                 <button type="button" role="menuitem" onClick={() => { setFileMenuOpen(false); onOpenUploader(); }}>
                   <FolderOpen size={14} /> 打开上传工作台
                 </button>
-                <button type="button" role="menuitem" onClick={() => { setFileMenuOpen(false); onOpenUploader(); }}>
-                  <ClockIcon /> 最近项目
-                </button>
+                <div className="file-menu-item-with-submenu">
+                  <button type="button" role="menuitem" aria-haspopup="menu">
+                    <ClockIcon /> 最近项目 <span className="submenu-arrow">›</span>
+                  </button>
+                  <div className="file-recent-submenu" role="menu" aria-label="最近项目">
+                    {recentProjects.length ? recentProjects.map((item) => (
+                      <button key={item.id} type="button" role="menuitem" onClick={() => {
+                        setFileMenuOpen(false);
+                        onProjectSelect?.(item);
+                      }}>
+                        <FileIcon /> <span>{item.name}</span>
+                      </button>
+                    )) : <p>暂无最近项目</p>}
+                  </div>
+                </div>
                 <div className="file-menu-separator" />
                 <button type="button" role="menuitem" disabled={!onDeleteProject} onClick={() => { setFileMenuOpen(false); onDeleteProject?.(); }}>
                   <TrashIcon /> 删除当前本地项目
@@ -1224,7 +1243,15 @@ function BlenderWorkspace({
                 </button>
               ))}
             </div>
-            <div className="editor-mode">对象模式</div>
+            <button
+              type="button"
+              className={`editor-mode overlay-toggle ${overlaysVisible ? "active" : ""}`}
+              aria-pressed={overlaysVisible}
+              title="显示或隐藏网格与坐标轴"
+              onClick={() => setOverlaysVisible((visible) => !visible)}
+            >
+              <Grid2X2 size={12} /> 叠加层
+            </button>
           </div>
           <div className="viewport" data-testid="viewer-viewport" aria-label="3D 模型视图">
             {modelUrl ? (
@@ -1235,7 +1262,7 @@ function BlenderWorkspace({
                 onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
               >
                 <color attach="background" args={["#1e1e1e"]} />
-                <BlenderViewportGrid />
+                {overlaysVisible && <BlenderViewportGrid />}
                 <ambientLight intensity={1.35} />
                 <directionalLight position={[5, 8, 4]} intensity={2.5} />
                 <Suspense fallback={null}>
@@ -1292,11 +1319,13 @@ function BlenderWorkspace({
                 <p>打开 .blend 以开始审稿</p>
               </div>
             )}
-            <div className="axis-widget">
-              <b>Z</b>
-              <i>Y</i>
-              <em>X</em>
-            </div>
+            {overlaysVisible && (
+              <div className="axis-widget">
+                <b>Z</b>
+                <i>Y</i>
+                <em>X</em>
+              </div>
+            )}
             {selectionBox && (
               <div
                 className="selection-box"

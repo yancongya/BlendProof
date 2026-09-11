@@ -15,6 +15,7 @@ import type { StoredAsset } from './contracts.js'
 import { LocalReviewDatabase } from './local-database.js'
 import { LocalShareAccess } from './local-share-access.js'
 import { BRIDGE_NONCE_HEADER, LocalBridgePairing } from './local-pairing.js'
+import { normalizeUploadFilename } from './upload-filename.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const storageRoot = process.env.BLENDPROOF_STORAGE_ROOT ?? path.join(root, 'storage', 'projects')
@@ -94,7 +95,8 @@ app.get('/api/local/health', (_request, response) => {
 })
 
 app.post('/api/local/convert', upload.single('blend'), async (request, response) => {
-  if (!request.file || path.extname(request.file.originalname).toLowerCase() !== '.blend') {
+  const uploadName = request.file ? normalizeUploadFilename(request.file.originalname) : ''
+  if (!request.file || path.extname(uploadName).toLowerCase() !== '.blend') {
     response.status(400).json({ error: '请选择一个 .blend 文件。' })
     return
   }
@@ -117,7 +119,7 @@ app.post('/api/local/convert', upload.single('blend'), async (request, response)
     await runBlender(blenderBin, sourcePath, glbPath, manifestPath)
     const project = await repository.registerProject({
       id: projectId,
-      name: request.file.originalname,
+      name: uploadName,
       modelUrl: `/api/local/projects/${projectId}/assets/model.glb`,
       manifestUrl: `/api/local/projects/${projectId}/assets/manifest.json`,
     })

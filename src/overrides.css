@@ -761,6 +761,7 @@
   background: #2d2d2d;
   box-shadow: 0 8px 22px #000b;
 }
+.file-menu { left: 0; right: auto; overflow: visible; }
 .file-menu button {
   display: flex;
   align-items: center;
@@ -789,6 +790,29 @@
   flex: none;
   color: #e87d0d;
 }
+.file-menu-item-with-submenu { position: relative; }
+.file-menu-item-with-submenu > button .submenu-arrow { margin-left: auto; color: #999; font-size: 15px; }
+.file-recent-submenu {
+  position: absolute;
+  top: -5px;
+  left: calc(100% + 2px);
+  display: none;
+  width: 245px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid #111;
+  background: #2d2d2d;
+  box-shadow: 0 8px 22px #000b;
+}
+.file-menu-item-with-submenu:hover > .file-recent-submenu,
+.file-menu-item-with-submenu:focus-within > .file-recent-submenu { display: block; }
+.file-recent-submenu button span:not(.start-file-icon) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-recent-submenu p { margin: 0; padding: 7px 8px; color: #777; font-size: 10px; }
 .file-menu button:disabled svg { color: #666; }
 .file-menu-separator {
   height: 1px;
@@ -935,6 +959,20 @@
   font-size: 10px;
 }
 .editor-type svg { color: #777; }
+.overlay-toggle {
+  display: flex;
+  height: 24px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid #3f3f3f;
+  border-radius: 2px;
+  background: #2b2b2b;
+  color: #aaa;
+  font-size: 10px;
+}
+.overlay-toggle:hover { background: #383838; color: #eee; }
+.overlay-toggle.active { border-color: #86602d; color: #ef963e; }
 
 /* Keep the four-step upload status legible at the compact desktop width. */
 .upload-progress {

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { after, before, describe, test } from "node:test";
 import { createRepository } from "../server/db.js";
 import { BRIDGE_NONCE_HEADER } from "../server/local-pairing.js";
+import { normalizeUploadFilename } from "../server/upload-filename.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const projectId = `api-test-${randomUUID()}`;
@@ -25,6 +26,14 @@ const bridgeOrigin = "http://localhost:5173";
 const pairingCode = "review-api-one-shot-code";
 
 type Json = Record<string, unknown>;
+
+test("multipart UTF-8 文件名恢复且不破坏已解码名称", () => {
+  const mojibake = Buffer.from("猴头.blend", "utf8").toString("latin1");
+  assert.equal(normalizeUploadFilename(mojibake), "猴头.blend");
+  assert.equal(normalizeUploadFilename("猴头.blend"), "猴头.blend");
+  assert.equal(normalizeUploadFilename("review-scene.blend"), "review-scene.blend");
+  assert.equal(normalizeUploadFilename("café.blend"), "café.blend");
+});
 
 async function isApiAvailable() {
   try {

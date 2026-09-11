@@ -12,6 +12,8 @@ Blender 风格的 Web 3D 审稿工具。原始 `.blend` 只在本机交给 Blend
 
 没有打开项目时，Viewer 默认展示内置的 Suzanne 猴头 GLB；它由开发测试文件离线导出，原始 `.blend` 不进入前端构建。默认模型只用于演示查看与选择，不创建无归属批注。
 
+本地阶段最终验收范围与证据见 [`docs/LOCAL_MILESTONE_ACCEPTANCE.md`](docs/LOCAL_MILESTONE_ACCEPTANCE.md)。
+
 ## 产品与账号约定
 
 - 首页是 Blender Welcome 风格的单一启动面板，通过“开始 / 最近项目 / 平台状态 / 账号”Tab 切换；不要重新拆成多张 Dashboard 卡片。
