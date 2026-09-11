@@ -46,6 +46,7 @@ describe('BlendProof Worker local runtime', () => {
     ['source.blend', validGlb(), 'model/gltf-binary'],
     ['model.glb', new TextEncoder().encode('BLENDER-secret-marker'), 'model/gltf-binary'],
     ['manifest.json', JSON.stringify({ scene: 'x', objects: [], collections: [], r2Key: 'trap' }), 'application/json'],
+    ['manifest.json', JSON.stringify({ scene: 'x', objects: [], collections: [], export: { sourceBytes: 42 } }), 'application/json'],
   ])('rejects invalid derived asset %s before an R2 write', async (asset, body, contentType) => {
     const storage = new R2ProjectStorage(env.ASSETS)
     const id = 'abcdef0123456789abcdef0123456789'

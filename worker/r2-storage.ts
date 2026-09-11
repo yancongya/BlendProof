@@ -31,7 +31,7 @@ export class R2ProjectStorage implements ProjectStorage {
   ) {
     assertStorageNamespace(projectId)
     assertVersion(version)
-    assertPublicAssetContent(asset, body, contentType)
+    assertPublicAssetContent(asset, body, contentType, { allowLocalSourceMetadata: false })
     await this.bucket.put(r2AssetKey(projectId, version, asset), body, {
       httpMetadata: { contentType: publicAssetContentTypes[asset] },
       customMetadata,

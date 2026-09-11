@@ -18,6 +18,7 @@ export function assertPublicAssetContent(
   asset: PublicProjectAsset,
   body: Uint8Array | string,
   contentType: string,
+  options: { allowLocalSourceMetadata?: boolean } = {},
 ): void {
   assertPublicProjectAsset(asset)
   const normalizedType = contentType.toLowerCase().replace(/\s+/g, '')
@@ -28,7 +29,7 @@ export function assertPublicAssetContent(
 
   const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body
   if (asset === 'model.glb') assertGlb(bytes)
-  else if (asset === 'manifest.json') assertManifest(body)
+  else if (asset === 'manifest.json') assertManifest(body, options.allowLocalSourceMetadata ?? true)
   else assertWebp(bytes)
 }
 
@@ -97,7 +98,7 @@ function assertGlb(bytes: Uint8Array): void {
   }
 }
 
-function assertManifest(body: Uint8Array | string): void {
+function assertManifest(body: Uint8Array | string, allowLocalSourceMetadata: boolean): void {
   const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body
   if (bytes.byteLength === 0 || bytes.byteLength > 512 * 1024) throw new TypeError('Manifest 大小无效。')
   let value: unknown
@@ -108,7 +109,7 @@ function assertManifest(body: Uint8Array | string): void {
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Manifest 结构无效。')
   const record = value as Record<string, unknown>
-  assertAllowedKeys(record, ['scene', 'camera', 'objects', 'collections', 'export'])
+  assertAllowedKeys(record, ['scene', 'camera', 'cameras', 'materials', 'objects', 'collections', 'export'])
   if (typeof record.scene !== 'string' || record.scene.length > 256) throw new TypeError('Manifest 场景无效。')
   if (record.camera !== null && record.camera !== undefined && typeof record.camera !== 'string') throw new TypeError('Manifest 相机无效。')
   if (!Array.isArray(record.objects) || record.objects.length > 10_000) throw new TypeError('Manifest 对象列表无效。')
@@ -121,10 +122,23 @@ function assertManifest(body: Uint8Array | string): void {
     if (!isStringArray(object.collections, 2_000)) throw new TypeError('Manifest 对象集合无效。')
   }
   if (!isStringArray(record.collections, 2_000)) throw new TypeError('Manifest 集合列表无效。')
+  if (record.cameras !== undefined) {
+    if (!Array.isArray(record.cameras) || record.cameras.length > 256) throw new TypeError('Manifest 相机列表无效。')
+    for (const item of record.cameras) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) throw new TypeError('Manifest 相机信息无效。')
+      const camera = item as Record<string, unknown>
+      assertAllowedKeys(camera, ['name', 'projection'])
+      if (typeof camera.name !== 'string' || camera.name.length > 256 ||
+        typeof camera.projection !== 'string' || camera.projection.length > 32) throw new TypeError('Manifest 相机信息无效。')
+    }
+  }
+  if (record.materials !== undefined && !isStringArray(record.materials, 2_000)) {
+    throw new TypeError('Manifest 材质列表无效。')
+  }
   if (record.export !== undefined) {
     if (!record.export || typeof record.export !== 'object' || Array.isArray(record.export)) throw new TypeError('Manifest 导出信息无效。')
     const exportInfo = record.export as Record<string, unknown>
-    assertAllowedKeys(exportInfo, ['sourceBytes', 'glbBytes', 'objectCount'])
+    assertAllowedKeys(exportInfo, allowLocalSourceMetadata ? ['sourceBytes', 'glbBytes', 'objectCount'] : ['glbBytes', 'objectCount'])
     if (Object.values(exportInfo).some((item) => typeof item !== 'number' || !Number.isFinite(item) || item < 0)) {
       throw new TypeError('Manifest 导出数值无效。')
     }

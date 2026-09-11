@@ -276,7 +276,7 @@ function sanitizeManifest(value: unknown): Record<string, unknown> | null {
   if (record.export !== undefined) {
     if (!record.export || typeof record.export !== 'object' || Array.isArray(record.export)) return null
     const source = record.export as Record<string, unknown>
-    const allowed = ['sourceBytes', 'glbBytes', 'objectCount']
+    const allowed = ['glbBytes', 'objectCount']
     if (Object.keys(source).some((key) => !allowed.includes(key)) || Object.values(source).some((item) =>
       typeof item !== 'number' || !Number.isFinite(item) || item < 0)) return null
     manifest.export = { ...source }

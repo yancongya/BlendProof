@@ -160,3 +160,190 @@ test("typed client retries once with the bootstrap pairing code after an invalid
     [LOCAL_BRIDGE_NONCE_HEADER]: "e".repeat(43),
   });
 });
+
+test("cloud publish uploads only bridge-derived assets with a sanitized manifest and finalizes the Worker project", async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const model = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0, 12, 0, 0, 0]);
+  const sourceOnlyMarker = "source.blend::must-never-leave-loopback";
+  const sourceManifest = {
+    scene: "Cloud review",
+    camera: null,
+    cameras: [{ name: "Camera", projection: "PERSP", r2Key: "do-not-upload" }],
+    objects: [{ name: "Body", type: "MESH", collections: ["Scene"], sourcePath: sourceOnlyMarker }],
+    collections: ["Scene"],
+    materials: ["Steel"],
+    export: { sourceBytes: 987_654, glbBytes: model.byteLength, objectCount: 1, sourceHash: sourceOnlyMarker },
+    sourceFileName: sourceOnlyMarker,
+    sourceBytes: 987_654,
+    r2Key: "do-not-upload",
+  };
+  const fetchImplementation: typeof fetch = async (input, init) => {
+    const url = String(input);
+    requests.push({ url, init });
+    if (url.endsWith("/api/local/pair")) {
+      return Response.json({
+        nonce: "f".repeat(43),
+        expiresAt: new Date(Date.now() + 300_000).toISOString(),
+      }, { status: 201 });
+    }
+    if (url.endsWith("/api/local/projects/local-1/assets/model.glb")) return new Response(model, { status: 200 });
+    if (url.endsWith("/api/local/projects/local-1/assets/manifest.json")) return Response.json(sourceManifest);
+    if (url === "https://worker.blendproof.test/api/projects") {
+      return Response.json({
+        id: "1".repeat(32), name: "Cloud review", ownerCapability: "2".repeat(64), status: "pending",
+      }, { status: 201 });
+    }
+    if (url.endsWith("/upload-intents")) {
+      return Response.json({
+        intentToken: "3".repeat(64),
+        assets: [
+          { name: "model.glb", method: "PUT", url: `/api/projects/${"1".repeat(32)}/assets/model.glb` },
+          { name: "manifest.json", method: "PUT", url: `/api/projects/${"1".repeat(32)}/assets/manifest.json` },
+        ],
+      });
+    }
+    if (url.endsWith("/assets/model.glb") || url.endsWith("/assets/manifest.json")) return new Response(null, { status: 204 });
+    if (url.endsWith("/finalize")) return Response.json({ id: "1".repeat(32), status: "ready" });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  const client = new BlendProofClient({
+    bridgeOrigin: "http://127.0.0.1:8788",
+    workerOrigin: "https://worker.blendproof.test",
+    bridgePairingCode: "pairing-code",
+    fetchImplementation,
+  });
+
+  const project = await client.publishCloud({
+    name: "Cloud review",
+    modelUrl: "/api/local/projects/local-1/assets/model.glb",
+    manifestUrl: "/api/local/projects/local-1/assets/manifest.json",
+    idempotencyKey: "publish-cloud-review-0001",
+  });
+
+  assert.deepEqual(project, {
+    id: "1".repeat(32),
+    name: "Cloud review",
+    ownerCapability: "2".repeat(64),
+    transport: "cloud",
+    status: "ready",
+  });
+
+  const localAssetRequests = requests.filter((request) => request.url.startsWith("http://127.0.0.1:8788/api/local/projects/"));
+  assert.equal(localAssetRequests.length, 2);
+  for (const request of localAssetRequests) {
+    assert.equal(new Headers(request.init?.headers).get(LOCAL_BRIDGE_NONCE_HEADER), "f".repeat(43));
+  }
+  const workerRequests = requests.filter((request) => request.url.startsWith("https://worker.blendproof.test/"));
+  assert.equal(workerRequests.length, 5);
+  assert.equal(workerRequests[0]?.url, "https://worker.blendproof.test/api/projects");
+  assert.deepEqual(JSON.parse(String(workerRequests[0]?.init?.body)), { name: "Cloud review" });
+  assert.equal(workerRequests[1]?.url, `https://worker.blendproof.test/api/projects/${"1".repeat(32)}/upload-intents`);
+  const intentRequest = JSON.parse(String(workerRequests[1]?.init?.body)) as {
+    idempotencyKey: string;
+    assets: Array<{ name: string; contentType: string; byteSize: number; sha256: string }>;
+  };
+  assert.equal(intentRequest.idempotencyKey, "publish-cloud-review-0001");
+  assert.deepEqual(intentRequest.assets.map(({ name, contentType, byteSize }) => ({ name, contentType, byteSize })), [
+    { name: "model.glb", contentType: "model/gltf-binary", byteSize: model.byteLength },
+    { name: "manifest.json", contentType: "application/json", byteSize: JSON.stringify({
+      scene: "Cloud review", collections: ["Scene"], objects: [{ name: "Body", type: "MESH", collections: ["Scene"] }],
+      camera: null, cameras: [{ name: "Camera", projection: "PERSP" }], materials: ["Steel"], export: { glbBytes: model.byteLength, objectCount: 1 },
+    }).length },
+  ]);
+  const expectedManifestText = JSON.stringify({
+    scene: "Cloud review", collections: ["Scene"], objects: [{ name: "Body", type: "MESH", collections: ["Scene"] }],
+    camera: null, cameras: [{ name: "Camera", projection: "PERSP" }], materials: ["Steel"], export: { glbBytes: model.byteLength, objectCount: 1 },
+  });
+  assert.equal(intentRequest.assets[0]!.sha256, await sha256Hex(model));
+  assert.equal(intentRequest.assets[1]!.sha256, await sha256Hex(new TextEncoder().encode(expectedManifestText)));
+
+  const uploads = workerRequests.slice(2, 4);
+  assert.equal(uploads.length, 2);
+  for (const upload of uploads) {
+    assert.equal(new Headers(upload.init?.headers).get("authorization"), `Bearer ${"3".repeat(64)}`);
+    assert.ok(["model/gltf-binary", "application/json"].includes(new Headers(upload.init?.headers).get("content-type") ?? ""));
+  }
+  const manifestUpload = uploads.find((request) => request.url.endsWith("manifest.json"));
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(manifestUpload?.init?.body as Uint8Array)), {
+    scene: "Cloud review", collections: ["Scene"], objects: [{ name: "Body", type: "MESH", collections: ["Scene"] }],
+    camera: null, cameras: [{ name: "Camera", projection: "PERSP" }], materials: ["Steel"], export: { glbBytes: model.byteLength, objectCount: 1 },
+  });
+  assert.equal(workerRequests[4]?.url, `https://worker.blendproof.test/api/projects/${"1".repeat(32)}/finalize`);
+  assert.deepEqual(JSON.parse(String(workerRequests[4]?.init?.body)), { idempotencyKey: "publish-cloud-review-0001" });
+  assert.ok(workerRequests.every((request) => !String(request.init?.body).includes(sourceOnlyMarker)));
+  assert.ok(workerRequests.every((request) => !String(request.init?.body).includes("sourceBytes")));
+  assert.ok(workerRequests.every((request) => !request.url.includes("source.blend")));
+});
+
+test("cloud transport routes owner review and share calls to the Worker without bridge session credentials", async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const client = new BlendProofClient({
+    bridgeOrigin: "http://127.0.0.1:8788",
+    workerOrigin: "https://worker.blendproof.test",
+    fetchImplementation: async (input, init) => {
+      const url = String(input);
+      requests.push({ url, init });
+      if (url.endsWith("/shares")) return Response.json({ id: "share-1", shareUrl: "/s/token", expiresAt: null, commentsPermission: "comment" });
+      if (url.endsWith("/comments")) return Response.json({ comments: [] });
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+
+  const share = await client.createShare("cloud-project", "owner-capability", { commentsPermission: "comment" }, "cloud");
+  const comments = await client.listOwnerComments("cloud-project", "owner-capability", "cloud");
+
+  assert.equal(share.shareUrl, "/s/token");
+  assert.deepEqual(comments, []);
+  assert.equal(requests[0]?.url, "https://worker.blendproof.test/api/projects/cloud-project/shares");
+  assert.equal(requests[1]?.url, "https://worker.blendproof.test/api/projects/cloud-project/comments");
+  assert.equal(new Headers(requests[0]?.init?.headers).get(LOCAL_BRIDGE_NONCE_HEADER), null);
+  assert.equal(new Headers(requests[0]?.init?.headers).get("x-blendproof-owner"), "owner-capability");
+  assert.equal(requests.some((request) => request.url.includes("/api/local/")), false);
+});
+
+test("cloud publish resumes the same project after a lost finalize response", async () => {
+  const session = installSessionStorage();
+  let projectCreates = 0;
+  let finalizeCalls = 0;
+  const model = new Uint8Array([1, 2, 3]);
+  const fetchImplementation: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.endsWith("/api/local/pair")) return Response.json({ nonce: "g".repeat(43), expiresAt: new Date(Date.now() + 300_000).toISOString() });
+    if (url.endsWith("/model.glb")) return new Response(model);
+    if (url.endsWith("/manifest.json")) return Response.json({ scene: "Retry", objects: [], collections: [] });
+    if (url.endsWith("/api/projects")) {
+      projectCreates += 1;
+      return Response.json({ id: "4".repeat(32), name: "Retry", ownerCapability: "5".repeat(64), status: "pending" });
+    }
+    if (url.endsWith("/upload-intents")) return Response.json({
+      intentToken: "6".repeat(64),
+      assets: [
+        { name: "model.glb", method: "PUT", url: `/api/projects/${"4".repeat(32)}/assets/model.glb` },
+        { name: "manifest.json", method: "PUT", url: `/api/projects/${"4".repeat(32)}/assets/manifest.json` },
+      ],
+    });
+    if (url.includes("/assets/")) return new Response(null, { status: 204 });
+    if (url.endsWith("/finalize")) {
+      finalizeCalls += 1;
+      if (finalizeCalls === 1) throw new TypeError("response lost");
+      return Response.json({ id: "4".repeat(32), status: "ready" });
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  const input = { name: "Retry", modelUrl: "https://local.test/api/local/model.glb", manifestUrl: "https://local.test/api/local/manifest.json",
+    idempotencyKey: "publish-retry-response-loss" };
+  const clientOptions = { bridgeOrigin: "https://local.test", bridgePairingCode: "pairing-code", workerOrigin: "https://worker.test", fetchImplementation };
+  const client = new BlendProofClient(clientOptions);
+  await assert.rejects(client.publishCloud(input), /response lost/);
+  const recovered = await new BlendProofClient(clientOptions)
+    .publishCloud(input);
+  assert.equal(recovered.id, "4".repeat(32));
+  assert.equal(projectCreates, 1);
+  assert.equal(finalizeCalls, 2);
+  session.restore();
+});
+
+async function sha256Hex(bytes: Uint8Array) {
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
