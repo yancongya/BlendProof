@@ -5,6 +5,8 @@ import {
   Camera,
   ChevronDown,
   Circle,
+  CheckCircle2,
+  Copy,
   Eye,
   Focus,
   FolderOpen,
@@ -92,6 +94,79 @@ const DEFAULT_MONKEY_MANIFEST: Manifest = {
   export: { glbBytes: 69708, objectCount: 1 },
 };
 
+function formatShareExpiry(expiresAt: string | null) {
+  if (!expiresAt) return "不限时";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(expiresAt));
+}
+
+function SenderShareCard({
+  url,
+  expiresAt,
+  permission,
+  protectedByPassword,
+}: {
+  url: string;
+  expiresAt: string | null;
+  permission: "read_only" | "comment";
+  protectedByPassword: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <section className="share-credential-card sender-card" aria-label="发送方分享凭证">
+      <header><span>审稿凭证</span><b>已就绪</b></header>
+      <div className="share-credential-code">{url.split("/s/").at(-1)?.split("?")[0] ?? url}</div>
+      <dl>
+        <div><dt>权限</dt><dd>{permission === "comment" ? "可评论" : "只读"}</dd></div>
+        <div><dt>到期</dt><dd>{formatShareExpiry(expiresAt)}</dd></div>
+        <div><dt>密码</dt><dd>{protectedByPassword ? "已设置" : "无"}</dd></div>
+      </dl>
+      <div className="share-credential-actions">
+        <button type="button" onClick={async () => {
+          await navigator.clipboard.writeText(new URL(url, window.location.origin).toString());
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1600);
+        }}>{copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}{copied ? "已复制" : "复制链接"}</button>
+        <a href={url} target="_blank" rel="noreferrer">打开检查</a>
+      </div>
+    </section>
+  );
+}
+
+function ReceiverShareCard({
+  permission,
+  expiresAt,
+  transport,
+}: {
+  permission: "read_only" | "comment";
+  expiresAt: string | null;
+  transport: ProjectTransport;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="receiver-card-wrap">
+      <button type="button" className="receiver-card-trigger" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        <ShieldCheck size={13} /> {permission === "comment" ? "可评论审稿" : "只读审稿"}
+      </button>
+      {open && (
+        <section className="share-credential-card receiver-card" aria-label="接收方审稿凭证">
+          <header><span>审稿通行证</span><b>访问有效</b></header>
+          <p>此页面只读取派生的 Web 模型，不包含原始 Blender 工程。</p>
+          <dl>
+            <div><dt>权限</dt><dd>{permission === "comment" ? "查看与批注" : "仅查看"}</dd></div>
+            <div><dt>来源</dt><dd>{transport === "cloud" ? "云端快递柜" : "本机分享"}</dd></div>
+            <div><dt>到期</dt><dd>{formatShareExpiry(expiresAt)}</dd></div>
+          </dl>
+        </section>
+      )}
+    </div>
+  );
+}
+
 export function App() {
   const [file, setFile] = useState<File | null>(null);
   const [project, setProject] = useState<Project | null>(() => {
@@ -162,9 +237,9 @@ export function App() {
   }, [project]);
   useEffect(() => {
     blendProofClient.publicStats().then(setPublicStats).catch(() => setPublicStats(null));
-    blendProofClient.currentUser().then((user) => {
+    blendProofClient.currentUser().then(async (user) => {
       setAccount(user);
-      return blendProofClient.accountStats();
+      return user ? blendProofClient.accountStats() : null;
     }).then(setAccountStats).catch(() => {
       setAccount(null);
       setAccountStats(null);
@@ -459,9 +534,12 @@ export function App() {
               <Share2 size={13} /> {cloudProject ? "创建云端分享" : "创建本地分享"}
             </button>
             {shareUrl && (
-              <a className="share-panel-link" href={shareUrl} target="_blank" rel="noreferrer">
-                {sharePermission === "comment" ? "打开可评论分享" : "打开只读分享"}
-              </a>
+              <SenderShareCard
+                url={shareUrl}
+                expiresAt={shareExpiresAt}
+                permission={sharePermission}
+                protectedByPassword={Boolean(sharePassword)}
+              />
             )}
             {shareId && <button type="button" className="share-panel-revoke" onClick={() => void revokeShare()}>撤销分享</button>}
           </form>
@@ -480,6 +558,7 @@ export function SharePage() {
     manifest: Manifest;
     comments: ReviewComment[];
     commentsPermission: "read_only" | "comment";
+    expiresAt: string | null;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [passwordRequired, setPasswordRequired] = useState(false);
@@ -548,7 +627,7 @@ export function SharePage() {
       reviewError={null}
       onCreateComment={share.commentsPermission === "comment" ? createGuestComment : undefined}
     >
-      <span>{share.commentsPermission === "comment" ? "可评论审稿" : "只读审稿"}</span>
+      <ReceiverShareCard permission={share.commentsPermission} expiresAt={share.expiresAt} transport={transport} />
     </BlenderWorkspace>
   );
 }

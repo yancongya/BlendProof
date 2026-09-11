@@ -35,7 +35,8 @@ export async function handleAuthRequest(request: Request, env: AuthEnv, url: URL
   if (request.method === 'POST' && url.pathname === '/api/auth/logout') return logout(request, env)
   if (request.method === 'GET' && url.pathname === '/api/me') {
     const user = await currentUser(request, env)
-    return user ? Response.json({ user }, { headers: privateHeaders() }) : unauthorized()
+    // Anonymous identity lookup is a normal launcher state, not an auth error.
+    return Response.json({ user }, { headers: privateHeaders() })
   }
   if (request.method === 'GET' && url.pathname === '/api/me/stats') return ownStats(request, env)
   if (request.method === 'POST' && url.pathname === '/api/admin/invites') return createInvite(request, env)

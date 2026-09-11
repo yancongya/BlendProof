@@ -318,6 +318,7 @@ app.get('/api/local/shares/:token', async (request, response) => {
     manifest,
     comments: (await repository.listComments(share.projectId)).map(toSharedComment),
     commentsPermission: share.commentsPermission,
+    expiresAt: share.expiresAt,
   })
 })
 

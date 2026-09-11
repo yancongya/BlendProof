@@ -152,7 +152,9 @@ describe('BlendProof Worker local runtime', () => {
     const loggedOut = await SELF.fetch('https://blendproof.test/api/auth/logout', { method: 'POST', headers: { origin, cookie: memberCookie } })
     expect(loggedOut.status).toBe(204)
     expect(loggedOut.headers.get('set-cookie')).toContain('Max-Age=0')
-    expect((await SELF.fetch('https://blendproof.test/api/me', { headers: { cookie: memberCookie } })).status).toBe(401)
+    const disabledIdentity = await SELF.fetch('https://blendproof.test/api/me', { headers: { cookie: memberCookie } })
+    expect(disabledIdentity.status).toBe(200)
+    expect(await disabledIdentity.json()).toEqual({ user: null })
   }, 20_000)
 
   it.each([
@@ -541,6 +543,8 @@ describe('BlendProof Worker local runtime', () => {
     expect(loaded.status).toBe(200)
     const shared = await loaded.json<Record<string, unknown>>()
     expect(shared).toMatchObject({ name: 'Password Share', commentsPermission: 'comment', comments: [] })
+    expect(typeof shared.expiresAt).toBe('string')
+    expect(Number.isFinite(Date.parse(String(shared.expiresAt)))).toBe(true)
     expect(JSON.stringify(shared)).not.toMatch(/projectId|ownerCapability|capability_hash|storage_namespace|object_key|password_hash/i)
     const manifest = await SELF.fetch(`https://blendproof.test/api/shares/${share.token}/manifest.json`, { headers: { cookie } })
     expect(manifest.status).toBe(200)

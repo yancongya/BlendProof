@@ -346,6 +346,7 @@ describe("阶段 2 评论 API", () => {
     assert.equal(opened.response.status, 200);
     assert.equal(opened.body.projectId, undefined);
     assert.equal(opened.body.commentsPermission, "comment");
+    assert.equal(opened.body.expiresAt, "2099-01-01T00:00:00.000Z");
     const guest = await request(`/api/local/shares/${token}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json", cookie },

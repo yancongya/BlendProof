@@ -82,6 +82,7 @@ export type SharedProject<Manifest> = {
   manifest: Manifest;
   comments: ReviewComment[];
   commentsPermission: "read_only" | "comment";
+  expiresAt: string | null;
 };
 
 type CloudManifest = {
@@ -297,7 +298,7 @@ export class BlendProofClient {
   }
 
   async currentUser() {
-    return (await this.workerJson<{ user: AccountUser }>("/api/me")).user;
+    return (await this.workerJson<{ user: AccountUser | null }>("/api/me")).user;
   }
 
   async accountStats() {

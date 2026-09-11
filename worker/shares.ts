@@ -187,7 +187,8 @@ async function loadShare(request: Request, env: ShareEnv, token: string): Promis
   if (manifest === null) return shareError('分享模型不存在。', 404, share)
   const comments = await commentsFor(env, project.id)
   return Response.json({ name: project.name, modelUrl: `/api/shares/${token}/model.glb`,
-    manifest, comments: comments.map(toPublicComment), commentsPermission: share.comments_permission }, { headers: privateHeaders(share) })
+    manifest, comments: comments.map(toPublicComment), commentsPermission: share.comments_permission,
+    expiresAt: share.expires_at }, { headers: privateHeaders(share) })
 }
 
 async function shareAsset(request: Request, env: ShareEnv, token: string, asset: 'model.glb' | 'manifest.json'): Promise<Response> {
