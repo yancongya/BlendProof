@@ -400,7 +400,8 @@
 .uploader-status-ready {
   color: #9ebf79;
 }
-.uploader-status-error {
+.uploader-status-error,
+.uploader-status-publish_error {
   color: #e18c7b;
 }
 .manifest-summary-grid {

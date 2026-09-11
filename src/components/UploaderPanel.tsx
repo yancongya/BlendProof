@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 
-export type UploadStage = "idle" | "selected" | "converting" | "ready" | "uploading" | "published" | "error";
+export type UploadStage = "idle" | "selected" | "converting" | "ready" | "uploading" | "published" | "publish_error" | "error";
 
 type ManifestLike = {
   scene?: string | null;
@@ -194,16 +194,16 @@ export function UploaderPanel({
         <ProgressRow label="发布云端快递柜" state={progressState(stage, "published")} />
       </section>
 
-      <p className={`uploader-status uploader-status-${statusStage}`} role={statusStage === "error" ? "alert" : "status"}>
-        {statusStage === "error" ? <AlertTriangle size={13} /> : statusStage === "ready" || statusStage === "published" ? <Check size={13} /> : null}
+      <p className={`uploader-status uploader-status-${statusStage}`} role={statusStage === "error" || statusStage === "publish_error" ? "alert" : "status"}>
+        {statusStage === "error" || statusStage === "publish_error" ? <AlertTriangle size={13} /> : statusStage === "ready" || statusStage === "published" ? <Check size={13} /> : null}
         <span>{fileError ?? message}</span>
       </p>
 
-      {(stage === "ready" || stage === "uploading" || stage === "published") && (
+      {(stage === "ready" || stage === "uploading" || stage === "published" || stage === "publish_error") && (
         <ManifestSummary manifest={manifest} />
       )}
 
-      {(stage === "ready" || stage === "uploading" || stage === "published") && onPublish && onPublishTitle && (
+      {(stage === "ready" || stage === "uploading" || stage === "published" || stage === "publish_error") && onPublish && onPublishTitle && (
         <section className="cloud-publish-card" data-testid="cloud-publish-card">
           <div className="uploader-section-label">云端发布</div>
           <label>
@@ -259,6 +259,7 @@ function progressState(stage: UploadStage, milestone: "selected" | "converting" 
   if (stage === "converting") return milestone === "selected" ? "done" : milestone === "converting" ? "active" : "todo";
   if (stage === "ready") return milestone === "published" ? "todo" : "done";
   if (stage === "uploading") return milestone === "published" ? "active" : "done";
+  if (stage === "publish_error") return milestone === "published" ? "error" : "done";
   return "done";
 }
 

@@ -118,7 +118,8 @@ export function App() {
     setUploaderOpen(true);
   }, []);
   const closeUploader = useCallback(() => setUploaderOpen(false), []);
-  const reviews = useReviewComments(project?.id ?? null, project?.ownerCapability ?? null);
+  const reviewProject = cloudProject ?? project;
+  const reviews = useReviewComments(reviewProject?.id ?? null, reviewProject?.ownerCapability ?? null, cloudProject ? "cloud" : "local");
   useEffect(() => {
     let active = true;
     setManifest(null);
@@ -214,6 +215,24 @@ export function App() {
         modelUrl: project.modelUrl,
         manifestUrl: project.manifestUrl,
       });
+      const cloudComments = await blendProofClient.listOwnerComments(published.id, published.ownerCapability, "cloud");
+      for (const comment of reviews.comments) {
+        const existing = cloudComments.find((item) => item.objectName === comment.objectName && item.body === comment.body &&
+          item.authorName === comment.authorName && JSON.stringify(item.position) === JSON.stringify(comment.position));
+        if (!existing) {
+          const migrated = await blendProofClient.createOwnerComment(published.id, published.ownerCapability, {
+            objectName: comment.objectName, position: comment.position, normal: comment.normal, camera: comment.camera,
+            body: comment.body, authorName: comment.authorName,
+          }, "cloud");
+          if (comment.status === "resolved") await blendProofClient.updateOwnerComment(
+            published.id, published.ownerCapability, migrated.id, { status: "resolved" }, "cloud",
+          );
+        } else if (comment.status === "resolved" && existing.status !== "resolved") {
+          await blendProofClient.updateOwnerComment(
+            published.id, published.ownerCapability, existing.id, { status: "resolved" }, "cloud",
+          );
+        }
+      }
       setCloudProject(published);
       setShareUrl(null);
       setShareId(null);
@@ -221,7 +240,7 @@ export function App() {
       setUploadStage("published");
       setMessage("派生资产已发布到云端，可以创建审稿分享。");
     } catch (reason) {
-      setUploadStage("ready");
+      setUploadStage("publish_error");
       setMessage(reason instanceof Error ? reason.message : "云端发布失败，可安全重试。");
     } finally {
       setProcessing(false);

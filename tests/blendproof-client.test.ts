@@ -166,7 +166,7 @@ test("cloud publish uploads only bridge-derived assets with a sanitized manifest
   const model = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0, 12, 0, 0, 0]);
   const sourceOnlyMarker = "source.blend::must-never-leave-loopback";
   const sourceManifest = {
-    scene: "Cloud review",
+    scene: "source.blend",
     camera: null,
     cameras: [{ name: "Camera", projection: "PERSP", r2Key: "do-not-upload" }],
     objects: [{ name: "Body", type: "MESH", collections: ["Scene"], sourcePath: sourceOnlyMarker }],
@@ -301,45 +301,57 @@ test("cloud transport routes owner review and share calls to the Worker without 
   assert.equal(requests.some((request) => request.url.includes("/api/local/")), false);
 });
 
-test("cloud publish resumes the same project after a lost finalize response", async () => {
+test("cloud publish resumes the same project and intent after a partial asset failure", async () => {
   const session = installSessionStorage();
   let projectCreates = 0;
   let finalizeCalls = 0;
+  let manifestUploads = 0;
+  let intentCalls = 0;
+  const intentKeys: string[] = [];
   const model = new Uint8Array([1, 2, 3]);
-  const fetchImplementation: typeof fetch = async (input) => {
+  const fetchImplementation: typeof fetch = async (input, init) => {
     const url = String(input);
     if (url.endsWith("/api/local/pair")) return Response.json({ nonce: "g".repeat(43), expiresAt: new Date(Date.now() + 300_000).toISOString() });
-    if (url.endsWith("/model.glb")) return new Response(model);
-    if (url.endsWith("/manifest.json")) return Response.json({ scene: "Retry", objects: [], collections: [] });
+    if (url === "https://local.test/api/local/model.glb") return new Response(model);
+    if (url === "https://local.test/api/local/manifest.json") return Response.json({ scene: "Retry", objects: [], collections: [] });
     if (url.endsWith("/api/projects")) {
       projectCreates += 1;
       return Response.json({ id: "4".repeat(32), name: "Retry", ownerCapability: "5".repeat(64), status: "pending" });
     }
-    if (url.endsWith("/upload-intents")) return Response.json({
-      intentToken: "6".repeat(64),
-      assets: [
+    if (url.endsWith("/upload-intents")) {
+      intentCalls += 1;
+      intentKeys.push((JSON.parse(String(init?.body)) as { idempotencyKey: string }).idempotencyKey);
+      if (intentCalls === 2) return Response.json({ error: "旧上传意图已过期，请使用新的幂等键重试。" }, { status: 409 });
+      return Response.json({ intentToken: "6".repeat(64), assets: [
         { name: "model.glb", method: "PUT", url: `/api/projects/${"4".repeat(32)}/assets/model.glb` },
         { name: "manifest.json", method: "PUT", url: `/api/projects/${"4".repeat(32)}/assets/manifest.json` },
-      ],
-    });
+      ] });
+    }
+    if (url.endsWith("/assets/manifest.json")) {
+      manifestUploads += 1;
+      if (manifestUploads === 1) return Response.json({ error: "temporary failure" }, { status: 503 });
+      return new Response(null, { status: 204 });
+    }
     if (url.includes("/assets/")) return new Response(null, { status: 204 });
     if (url.endsWith("/finalize")) {
       finalizeCalls += 1;
-      if (finalizeCalls === 1) throw new TypeError("response lost");
+      if (finalizeCalls === 1) return Response.json({ error: "派生资源尚未完整上传。" }, { status: 409 });
       return Response.json({ id: "4".repeat(32), status: "ready" });
     }
     throw new Error(`Unexpected request: ${url}`);
   };
-  const input = { name: "Retry", modelUrl: "https://local.test/api/local/model.glb", manifestUrl: "https://local.test/api/local/manifest.json",
-    idempotencyKey: "publish-retry-response-loss" };
+  const input = { name: "Retry", modelUrl: "https://local.test/api/local/model.glb", manifestUrl: "https://local.test/api/local/manifest.json" };
   const clientOptions = { bridgeOrigin: "https://local.test", bridgePairingCode: "pairing-code", workerOrigin: "https://worker.test", fetchImplementation };
   const client = new BlendProofClient(clientOptions);
-  await assert.rejects(client.publishCloud(input), /response lost/);
+  await assert.rejects(client.publishCloud(input), /temporary failure/);
   const recovered = await new BlendProofClient(clientOptions)
     .publishCloud(input);
   assert.equal(recovered.id, "4".repeat(32));
   assert.equal(projectCreates, 1);
   assert.equal(finalizeCalls, 2);
+  assert.equal(intentCalls, 3);
+  assert.equal(intentKeys[0], intentKeys[1]);
+  assert.notEqual(intentKeys[1], intentKeys[2]);
   session.restore();
 });
 

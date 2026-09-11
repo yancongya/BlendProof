@@ -1,4 +1,4 @@
-import { blendProofClient } from "./api/blendProofClient";
+import { blendProofClient, type ProjectTransport } from "./api/blendProofClient";
 
 export type Vec3 = [number, number, number];
 
@@ -32,12 +32,12 @@ export type ReviewCommentDraft = Omit<
 >;
 
 export const reviewRepository = {
-  async list(projectId: string, ownerCapability: string) {
-    return blendProofClient.listOwnerComments(projectId, ownerCapability);
+  async list(projectId: string, ownerCapability: string, transport: ProjectTransport = "local") {
+    return blendProofClient.listOwnerComments(projectId, ownerCapability, transport);
   },
 
-  async create(projectId: string, ownerCapability: string, draft: ReviewCommentDraft) {
-    return blendProofClient.createOwnerComment(projectId, ownerCapability, draft);
+  async create(projectId: string, ownerCapability: string, draft: ReviewCommentDraft, transport: ProjectTransport = "local") {
+    return blendProofClient.createOwnerComment(projectId, ownerCapability, draft, transport);
   },
 
   async update(
@@ -45,7 +45,8 @@ export const reviewRepository = {
     ownerCapability: string,
     commentId: string,
     patch: Pick<Partial<ReviewComment>, "body" | "status">,
+    transport: ProjectTransport = "local",
   ) {
-    return blendProofClient.updateOwnerComment(projectId, ownerCapability, commentId, patch);
+    return blendProofClient.updateOwnerComment(projectId, ownerCapability, commentId, patch, transport);
   },
 };

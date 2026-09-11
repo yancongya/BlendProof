@@ -4,8 +4,9 @@ import {
   type ReviewComment,
   type ReviewCommentDraft,
 } from "../reviewRepository";
+import type { ProjectTransport } from "../api/blendProofClient";
 
-export function useReviewComments(projectId: string | null, ownerCapability: string | null) {
+export function useReviewComments(projectId: string | null, ownerCapability: string | null, transport: ProjectTransport = "local") {
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -25,7 +26,7 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
     setLoading(true);
     setError(null);
     try {
-      const next = await reviewRepository.list(projectId, ownerCapability);
+      const next = await reviewRepository.list(projectId, ownerCapability, transport);
       if (requestGeneration.current === generation) setComments(next);
     } catch (reason) {
       if (requestGeneration.current === generation)
@@ -33,7 +34,7 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
     } finally {
       if (requestGeneration.current === generation) setLoading(false);
     }
-  }, [projectId, ownerCapability]);
+  }, [projectId, ownerCapability, transport]);
 
   useEffect(() => {
     void reload();
@@ -43,7 +44,7 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
     async (draft: ReviewCommentDraft) => {
       if (!projectId || !ownerCapability) throw new Error("请重新导入项目以取得所有者凭据。");
       const generation = ++requestGeneration.current;
-      const comment = await reviewRepository.create(projectId, ownerCapability, draft);
+      const comment = await reviewRepository.create(projectId, ownerCapability, draft, transport);
       if (
         requestGeneration.current === generation &&
         activeProjectId.current === projectId
@@ -51,7 +52,7 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
         setComments((current) => [...current, comment]);
       return comment;
     },
-    [projectId, ownerCapability],
+    [projectId, ownerCapability, transport],
   );
 
   const update = useCallback(
@@ -61,7 +62,7 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
     ) => {
       if (!projectId || !ownerCapability) throw new Error("缺少项目所有者凭据。");
       const generation = ++requestGeneration.current;
-      const comment = await reviewRepository.update(projectId, ownerCapability, commentId, patch);
+      const comment = await reviewRepository.update(projectId, ownerCapability, commentId, patch, transport);
       if (
         requestGeneration.current === generation &&
         activeProjectId.current === projectId
@@ -71,7 +72,7 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
         );
       return comment;
     },
-    [projectId, ownerCapability],
+    [projectId, ownerCapability, transport],
   );
 
   return { comments, error, loading, create, update, reload };

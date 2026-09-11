@@ -137,8 +137,8 @@ export class BlendProofClient {
    */
   async publishCloud(input: CloudPublishInput): Promise<CloudOwnerProject> {
     const name = cloudProjectName(input.name);
-    const idempotencyKey = input.idempotencyKey ?? createIdempotencyKey();
-    if (!/^[a-zA-Z0-9_-]{16,128}$/.test(idempotencyKey)) {
+    const requestedIdempotencyKey = input.idempotencyKey ?? createIdempotencyKey();
+    if (!/^[a-zA-Z0-9_-]{16,128}$/.test(requestedIdempotencyKey)) {
       throw new Error("云端上传幂等键无效。");
     }
 
@@ -149,7 +149,7 @@ export class BlendProofClient {
     if (modelBytes.byteLength === 0 || modelBytes.byteLength > 50 * 1024 * 1024) {
       throw new Error("派生 GLB 文件大小无效。");
     }
-    const manifestBytes = serializeCloudManifest(rawManifest);
+    const manifestBytes = serializeCloudManifest(rawManifest, name);
     const assets: Array<UploadAsset & { body: Uint8Array }> = [
       {
         name: "model.glb",
@@ -172,6 +172,7 @@ export class BlendProofClient {
       assets: assets.map(({ body: _body, name: assetName, byteSize, sha256 }) => ({ name: assetName, byteSize, sha256 })),
     })));
     const recovered = restoreCloudPublishSession(fingerprint);
+    let idempotencyKey = recovered?.idempotencyKey ?? requestedIdempotencyKey;
     let project: Pick<CloudOwnerProject, "id" | "name" | "ownerCapability">;
     if (recovered) {
       const finalized = await this.workerFetch(`/api/projects/${encodeURIComponent(recovered.id)}/finalize`, {
@@ -192,14 +193,19 @@ export class BlendProofClient {
       persistCloudPublishSession({ ...project, transport: "cloud", status: "ready", fingerprint, idempotencyKey });
     }
 
-    const intent = await this.workerJson<UploadIntent>(`/api/projects/${encodeURIComponent(project.id)}/upload-intents`, {
-      method: "POST",
-      headers: ownerJsonHeaders(project.ownerCapability),
-      body: JSON.stringify({
-        idempotencyKey,
-        assets: assets.map(({ body: _body, ...asset }) => asset),
-      }),
+    const requestIntent = () => this.workerJson<UploadIntent>(`/api/projects/${encodeURIComponent(project.id)}/upload-intents`, {
+      method: "POST", headers: ownerJsonHeaders(project.ownerCapability),
+      body: JSON.stringify({ idempotencyKey, assets: assets.map(({ body: _body, ...asset }) => asset) }),
     });
+    let intent: UploadIntent;
+    try {
+      intent = await requestIntent();
+    } catch (reason) {
+      if (!recovered || !(reason instanceof Error) || !reason.message.includes("旧上传意图已过期")) throw reason;
+      idempotencyKey = createIdempotencyKey();
+      persistCloudPublishSession({ ...project, transport: "cloud", status: "ready", fingerprint, idempotencyKey });
+      intent = await requestIntent();
+    }
     validateUploadIntent(intent, project.id, assets);
 
     await Promise.all(intent.assets.map(async (target) => {
@@ -558,8 +564,9 @@ function validateUploadIntent(intent: UploadIntent, projectId: string, expectedA
   }
 }
 
-function serializeCloudManifest(value: unknown): Uint8Array {
+function serializeCloudManifest(value: unknown, projectName: string): Uint8Array {
   const manifest = sanitizeCloudManifest(value);
+  manifest.scene = projectName;
   const bytes = new TextEncoder().encode(JSON.stringify(manifest));
   if (bytes.byteLength === 0 || bytes.byteLength > 512 * 1024) {
     throw new Error("派生 manifest 文件大小无效。");
