@@ -1,7 +1,7 @@
 import { applyD1Migrations, env } from 'cloudflare:test'
 import type { D1Migration } from 'cloudflare:test'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { expireUploadIntents, processCleanupJobs, runCleanup } from './cleanup.js'
+import { expireUploadIntents, processCleanupJobs, pruneExpiredRateLimitWindows, runCleanup } from './cleanup.js'
 import { r2AssetKey } from './r2-storage.js'
 
 const testEnv = env as typeof env & { TEST_MIGRATIONS: D1Migration[] }
@@ -9,6 +9,19 @@ const testEnv = env as typeof env & { TEST_MIGRATIONS: D1Migration[] }
 beforeAll(async () => applyD1Migrations(env.DB, testEnv.TEST_MIGRATIONS))
 
 describe('scheduled cleanup and recovery', () => {
+  it('prunes expired, anonymized rate-limit windows', async () => {
+    const scope = `rate-test-${randomHex(8)}`
+    const hash = randomHex(32)
+    await env.DB.prepare(`INSERT INTO rate_limit_windows
+      (scope, key_hash, window_start, count, expires_at, updated_at)
+      VALUES (?, ?, 1, 1, 2, ?)`)
+      .bind(scope, hash, new Date(0).toISOString()).run()
+
+    expect(await pruneExpiredRateLimitWindows(env, new Date(3_000))).toBe(1)
+    expect(await env.DB.prepare('SELECT 1 AS present FROM rate_limit_windows WHERE scope = ? AND key_hash = ?')
+      .bind(scope, hash).first()).toBeNull()
+  })
+
   it('expires intents, queues exact staging keys, paginates, and is idempotent', async () => {
     const now = new Date('2026-09-10T00:00:00.000Z')
     const projectId = randomHex(16)

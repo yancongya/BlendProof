@@ -1,5 +1,6 @@
 import { assertPublicAssetContent, assertPublicProjectAsset, publicAssetContentTypes } from '../server/asset-policy.js'
 import type { PublicProjectAsset } from '../server/contracts.js'
+import { enforceRateLimit, rateLimitRules } from './rate-limit.js'
 import { R2ProjectStorage, r2AssetKey } from './r2-storage.js'
 
 export type UploadEnv = Env & { UPLOAD_SIGNING_SECRET: string }
@@ -31,6 +32,8 @@ type IntentRow = {
 }
 
 export async function initializeProject(request: Request, env: UploadEnv): Promise<Response> {
+  const limitError = await enforceRateLimit(request, env, rateLimitRules.projectCreate)
+  if (limitError) return limitError
   const body = await readJson<{ name?: unknown }>(request)
   if (!body || typeof body.name !== 'string' || !body.name.trim() || body.name.length > 256) {
     return jsonError('项目名称无效。', 400)
@@ -49,6 +52,11 @@ export async function createUploadIntent(request: Request, env: UploadEnv, proje
   if (!validSigningSecret(env)) return jsonError('上传签名服务未配置。', 503)
   const project = await authorizeOwner(request, env, projectId)
   if (project instanceof Response) return project
+  // The owner capability has already been verified; scope this limit to that
+  // capability and project so one owner cannot create unbounded intent rows.
+  const limitError = await enforceRateLimit(request, env, rateLimitRules.uploadIntent,
+    `${projectId}:${request.headers.get('x-blendproof-owner') ?? ''}`)
+  if (limitError) return limitError
   if (!['pending', 'uploading'].includes(project.status)) return jsonError('项目当前不能上传。', 409)
   const body = await readJson<{ idempotencyKey?: unknown; assets?: unknown }>(request)
   const assets = parseExpectedAssets(body?.assets)
@@ -128,7 +136,7 @@ export async function uploadAsset(request: Request, env: UploadEnv, projectId: s
   const requestType = (request.headers.get('content-type') ?? '').toLowerCase()
   if (requestType !== expected.contentType.toLowerCase()) return jsonError('资源 Content-Type 不匹配。', 415)
   try {
-    assertPublicAssetContent(asset, bytes, expected.contentType)
+    assertPublicAssetContent(asset, bytes, expected.contentType, { allowLocalSourceMetadata: false })
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : '资源内容无效。', 422)
   }

@@ -1,5 +1,6 @@
 import { publicAssetContentTypes } from '../server/asset-policy.js'
 import { scryptAsync } from '@noble/hashes/scrypt.js'
+import { enforceRateLimit, rateLimitRules } from './rate-limit.js'
 import type { UploadEnv } from './uploads.js'
 
 export type ShareEnv = UploadEnv & { SHARE_ACCESS_SECRET: string; SHARE_ACCESS_SECRET_PREVIOUS?: string }
@@ -141,6 +142,8 @@ async function accessShare(request: Request, env: ShareEnv, token: string): Prom
   if (found instanceof Response) return found
   const { share } = found
   if (!share.password_hash) return noContent(share)
+  const limitError = await enforceRateLimit(request, env, rateLimitRules.passwordAttempt, share.id)
+  if (limitError) return limitError
   const body = await readJson<Record<string, unknown>>(request)
   if (!body || Object.keys(body).some((key) => key !== 'password') || typeof body.password !== 'string' ||
     body.password.length < 4 || body.password.length > 200 || !await verifyPassword(body.password, share.password_hash)) {
@@ -167,7 +170,7 @@ async function loadShare(request: Request, env: ShareEnv, token: string): Promis
   const manifest = await readManifest(env, project)
   if (manifest === null) return shareError('分享模型不存在。', 404, share)
   const comments = await commentsFor(env, project.id)
-  return Response.json({ name: manifest.scene, modelUrl: `/api/shares/${token}/model.glb`,
+  return Response.json({ name: project.name, modelUrl: `/api/shares/${token}/model.glb`,
     manifest, comments: comments.map(toPublicComment), commentsPermission: share.comments_permission }, { headers: privateHeaders(share) })
 }
 
@@ -199,6 +202,8 @@ async function createGuestComment(request: Request, env: ShareEnv, token: string
   if (found instanceof Response) return found
   const { share, project } = found
   if (share.comments_permission !== 'comment') return shareError('该分享不允许访客添加评论。', 403, share)
+  const limitError = await enforceRateLimit(request, env, rateLimitRules.guestComment, share.id)
+  if (limitError) return limitError
   const draft = await readJson<Record<string, unknown>>(request)
   if (!isCommentDraft(draft)) return shareError('评论内容或锚点无效。', 400, share)
   const comment = await insertGuestComment(env, project.id, share.id, draft)

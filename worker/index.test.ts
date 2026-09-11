@@ -15,6 +15,7 @@ describe('BlendProof Worker local runtime', () => {
     expect(await response.json()).toEqual({ runtime: 'cloudflare-worker', d1: true, r2: true })
     const tables = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all<{ name: string }>()
     expect(tables.results.map((row) => row.name)).toContain('projects')
+    expect(tables.results.map((row) => row.name)).toContain('rate_limit_windows')
   })
 
   it.each([
@@ -29,6 +30,28 @@ describe('BlendProof Worker local runtime', () => {
     expect(response.status).toBe(415)
     expect(await databaseCounts()).toEqual(beforeCounts)
     expect((await env.ASSETS.list()).objects).toHaveLength(0)
+  })
+
+  it('rejects loopback-only source metadata at the cloud upload HTTP boundary', async () => {
+    const project = await pendingProject('Strict cloud manifest')
+    const manifest = new TextEncoder().encode(JSON.stringify({
+      scene: 'Safe title', objects: [], collections: [], export: { sourceBytes: 42 },
+    }))
+    const response = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/upload-intents`, {
+      method: 'POST', headers: ownerJson('http://127.0.0.1:5173', project.ownerCapability),
+      body: JSON.stringify({ idempotencyKey: 'strict-cloud-manifest-01', assets: [
+        { name: 'model.glb', contentType: 'model/gltf-binary', byteSize: validGlb().byteLength, sha256: await sha256(validGlb()) },
+        { name: 'manifest.json', contentType: 'application/json', byteSize: manifest.byteLength, sha256: await sha256(manifest) },
+      ] }),
+    })
+    const intent = await response.json<{ intentToken: string }>()
+    const upload = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/assets/manifest.json`, {
+      method: 'PUT', headers: { origin: 'http://127.0.0.1:5173', authorization: `Bearer ${intent.intentToken}`,
+        'content-type': 'application/json' }, body: manifest,
+    })
+    expect(upload.status).toBe(422)
+    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM project_assets WHERE project_id = ?')
+      .bind(project.id).first<{ count: number }>())?.count).toBe(0)
   })
 
   it('implements the same derived-asset storage contract on R2', async () => {
@@ -284,6 +307,69 @@ describe('BlendProof Worker local runtime', () => {
     expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM upload_intents WHERE project_id = ?')
       .bind(project.id).first<{ count: number }>())?.count).toBe(1)
   })
+
+  it('rate-limits creation, upload intents, password attempts, and guest comments with scoped retry windows', async () => {
+    const origin = 'http://127.0.0.1:5173'
+    const projectIp = '198.51.100.41'
+    const createResponses = await Promise.all(Array.from({ length: 6 }, (_, index) => SELF.fetch('https://blendproof.test/api/projects', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json', 'cf-connecting-ip': projectIp },
+      body: JSON.stringify({ name: `Rate project ${index}` }),
+    })))
+    expect(createResponses.map((response) => response.status)).toEqual([201, 201, 201, 201, 201, 429])
+    expectRetryAfter(createResponses[5])
+    expect((await SELF.fetch('https://blendproof.test/api/projects', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json', 'cf-connecting-ip': '198.51.100.42' }, body: '{"name":"Other network"}',
+    })).status).toBe(201)
+
+    const uploadProject = await pendingProject('Rate intent')
+    const uploadHeaders = { origin, 'content-type': 'application/json', 'x-blendproof-owner': uploadProject.ownerCapability,
+      'cf-connecting-ip': '198.51.100.43' }
+    const intentResponses = await Promise.all(Array.from({ length: 11 }, (_, index) => SELF.fetch(
+      `https://blendproof.test/api/projects/${uploadProject.id}/upload-intents`,
+      { method: 'POST', headers: { ...uploadHeaders, 'cf-connecting-ip': `198.51.100.${43 + index}` },
+        body: JSON.stringify({ idempotencyKey: `rate-intent-key-${String(index).padStart(4, '0')}` }) },
+    )))
+    expect(intentResponses.slice(0, 10).every((response) => response.status === 400)).toBe(true)
+    expect(intentResponses[10].status).toBe(429)
+    expectRetryAfter(intentResponses[10])
+
+    const passwordProject = await readyProject('Rate password')
+    const protectedResponse = await SELF.fetch(`https://blendproof.test/api/projects/${passwordProject.id}/shares`, {
+      method: 'POST', headers: ownerJson(origin, passwordProject.ownerCapability), body: JSON.stringify({ password: 'correct horse' }),
+    })
+    const protectedShare = await protectedResponse.json<{ token: string }>()
+    const passwordHeaders = { origin, 'content-type': 'application/json', 'cf-connecting-ip': '198.51.100.44' }
+    const passwordResponses = await Promise.all(Array.from({ length: 6 }, () => SELF.fetch(`https://blendproof.test/api/shares/${protectedShare.token}/access`, {
+      method: 'POST', headers: passwordHeaders, body: '{"password":"wrong password"}',
+    })))
+    expect(passwordResponses.slice(0, 5).every((response) => response.status === 403)).toBe(true)
+    expect(passwordResponses[5].status).toBe(429)
+    expectRetryAfter(passwordResponses[5])
+    expect((await SELF.fetch(`https://blendproof.test/api/shares/${protectedShare.token}/access`, {
+      method: 'POST', headers: { ...passwordHeaders, 'cf-connecting-ip': '198.51.100.45' }, body: '{"password":"correct horse"}',
+    })).status).toBe(204)
+
+    const commentProject = await readyProject('Rate comment')
+    const commentShareResponse = await SELF.fetch(`https://blendproof.test/api/projects/${commentProject.id}/shares`, {
+      method: 'POST', headers: ownerJson(origin, commentProject.ownerCapability), body: JSON.stringify({ commentsPermission: 'comment' }),
+    })
+    const commentShare = await commentShareResponse.json<{ token: string }>()
+    const commentHeaders = { origin, 'content-type': 'application/json', 'cf-connecting-ip': '198.51.100.46' }
+    const commentResponses = await Promise.all(Array.from({ length: 11 }, () => SELF.fetch(`https://blendproof.test/api/shares/${commentShare.token}/comments`, {
+      method: 'POST', headers: commentHeaders, body: JSON.stringify(commentDraft()),
+    })))
+    expect(commentResponses.slice(0, 10).every((response) => response.status === 201)).toBe(true)
+    expect(commentResponses[10].status).toBe(429)
+    expectRetryAfter(commentResponses[10])
+    expect((await SELF.fetch(`https://blendproof.test/api/shares/${commentShare.token}/comments`, {
+      method: 'POST', headers: { ...commentHeaders, 'cf-connecting-ip': '198.51.100.47' }, body: JSON.stringify(commentDraft()),
+    })).status).toBe(201)
+
+    const storedKey = await env.DB.prepare("SELECT key_hash FROM rate_limit_windows WHERE scope = 'project-create-ip' LIMIT 1")
+      .first<{ key_hash: string }>()
+    expect(storedKey?.key_hash).toMatch(/^[a-f0-9]{64}$/)
+    expect(storedKey?.key_hash).not.toBe(projectIp)
+  }, 30_000)
 
   it('serves password shares only through Worker, strips public DTO internals, and revokes old cookies immediately', async () => {
     const origin = 'http://127.0.0.1:5173'
@@ -541,6 +627,11 @@ function toHex(value: Uint8Array) {
 
 function ownerJson(origin: string, ownerCapability: string) {
   return { origin, 'content-type': 'application/json', 'x-blendproof-owner': ownerCapability }
+}
+
+function expectRetryAfter(response: Response) {
+  expect(response.headers.get('retry-after')).toMatch(/^[1-9][0-9]*$/)
+  expect(response.headers.get('cache-control')).toBe('private, no-store')
 }
 
 function commentDraft() {

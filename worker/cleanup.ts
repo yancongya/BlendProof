@@ -35,6 +35,7 @@ export type ProcessReport = {
 export type CleanupReport = {
   expiredIntents: ExpireReport
   jobs: ProcessReport
+  expiredRateLimitWindows: number
 }
 
 type ExpiredIntentRow = {
@@ -221,12 +222,21 @@ export async function processCleanupJobs(env: Env, options: CleanupOptions = {})
 export async function runCleanup(env: Env, options: CleanupOptions = {}): Promise<CleanupReport> {
   const expiredIntents = await expireUploadIntents(env, options)
   const jobs = await processCleanupJobs(env, options)
-  return { expiredIntents, jobs }
+  const expiredRateLimitWindows = await pruneExpiredRateLimitWindows(env, options.now)
+  return { expiredIntents, jobs, expiredRateLimitWindows }
 }
 
 /** Explicit scheduled-handler-friendly alias. */
 export async function scheduledCleanup(env: Env, options: CleanupOptions = {}): Promise<CleanupReport> {
   return runCleanup(env, options)
+}
+
+/** Remove bounded, expired fixed-window counters during the existing cron path. */
+export async function pruneExpiredRateLimitWindows(env: Pick<Env, 'DB'>, nowValue: Date | string = new Date()) {
+  const now = Math.floor(Date.parse(normalizeNow(nowValue)) / 1000)
+  const result = await env.DB.prepare(`DELETE FROM rate_limit_windows WHERE rowid IN
+    (SELECT rowid FROM rate_limit_windows WHERE expires_at <= ? ORDER BY expires_at LIMIT 500)`).bind(now).run()
+  return result.meta.changes
 }
 
 async function enqueueIntentCleanup(env: Env, intent: ExpiredIntentRow, now: string) {
