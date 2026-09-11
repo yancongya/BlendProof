@@ -38,7 +38,7 @@ import {
 } from "three";
 import { BlenderLogo } from "./components/BlenderLogo";
 import { UploaderPanel, type UploadStage } from "./components/UploaderPanel";
-import { blendProofClient, type OwnerProject } from "./api/blendProofClient";
+import { blendProofClient, type CloudOwnerProject, type OwnerProject, type ProjectTransport } from "./api/blendProofClient";
 import { ReviewAnnotations } from "./review/ReviewAnnotations";
 import { useReviewComments } from "./review/useReviewComments";
 import type {
@@ -59,7 +59,7 @@ type Manifest = {
   materials?: Array<unknown> | number | null;
   sourceBytes?: number;
   glbBytes?: number;
-  export?: { sourceBytes: number; glbBytes: number; objectCount: number };
+  export?: { sourceBytes?: number; glbBytes?: number; objectCount?: number };
 };
 type DisplayMode = "material" | "gray" | "wire";
 type CameraPreset =
@@ -93,6 +93,8 @@ export function App() {
     }
   });
   const [manifest, setManifest] = useState<Manifest | null>(null);
+  const [cloudProject, setCloudProject] = useState<CloudOwnerProject | null>(null);
+  const [publishTitle, setPublishTitle] = useState("");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState(
@@ -133,6 +135,9 @@ export function App() {
     return () => { active = false; };
   }, [project]);
   useEffect(() => {
+    if (manifest) setPublishTitle(manifest.scene || project?.name.replace(/\.blend$/i, "") || "");
+  }, [manifest, project?.id, project?.name]);
+  useEffect(() => {
     if (project) {
       localStorage.setItem("blendproof:last-project", JSON.stringify(project));
       setRecentProjects((current) => {
@@ -155,6 +160,7 @@ export function App() {
       setShareUrl(null);
       setShareId(null);
       setShareExpiresAt(null);
+      setCloudProject(null);
       setUploadStage("ready");
       setMessage("本机转换完成。");
     } catch (reason) {
@@ -165,31 +171,60 @@ export function App() {
     }
   }
   async function createShare() {
-    if (!project) return;
+    const target = cloudProject ?? project;
+    if (!target) return;
     try {
-      const share = await blendProofClient.createShare(project.id, project.ownerCapability, {
+      const transport: ProjectTransport = cloudProject ? "cloud" : "local";
+      const share = await blendProofClient.createShare(target.id, target.ownerCapability, {
         password: sharePassword || null,
         expiresAt: shareDays === "never" ? null : new Date(Date.now() + Number(shareDays) * 86_400_000).toISOString(),
         commentsPermission: sharePermission,
-      });
-      setShareUrl(share.shareUrl);
+      }, transport);
+      setShareUrl(cloudProject ? `${share.shareUrl}?source=cloud` : share.shareUrl);
       setShareId(share.id);
       setShareExpiresAt(share.expiresAt);
-      setMessage(sharePermission === "comment" ? "已建立可评论分享链接。" : "已建立本地只读分享链接。");
+      setMessage(sharePermission === "comment"
+        ? `已建立${cloudProject ? "云端" : "本地"}可评论分享链接。`
+        : `已建立${cloudProject ? "云端" : "本地"}只读分享链接。`);
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "无法建立分享链接。");
     }
   }
   async function revokeShare() {
-    if (!project || !shareId) return;
+    const target = cloudProject ?? project;
+    if (!target || !shareId) return;
     try {
-      await blendProofClient.revokeShare(project.id, project.ownerCapability, shareId);
+      await blendProofClient.revokeShare(target.id, target.ownerCapability, shareId, cloudProject ? "cloud" : "local");
       setShareUrl(null);
       setShareId(null);
       setShareExpiresAt(null);
       setMessage("分享已撤销。");
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "无法撤销分享。");
+    }
+  }
+  async function publishCloud() {
+    if (!project || !manifest) return;
+    setProcessing(true);
+    setUploadStage("uploading");
+    setMessage("正在将 GLB 与裁剪后的清单发布到云端快递柜。");
+    try {
+      const published = await blendProofClient.publishCloud({
+        name: publishTitle,
+        modelUrl: project.modelUrl,
+        manifestUrl: project.manifestUrl,
+      });
+      setCloudProject(published);
+      setShareUrl(null);
+      setShareId(null);
+      setShareExpiresAt(null);
+      setUploadStage("published");
+      setMessage("派生资产已发布到云端，可以创建审稿分享。");
+    } catch (reason) {
+      setUploadStage("ready");
+      setMessage(reason instanceof Error ? reason.message : "云端发布失败，可安全重试。");
+    } finally {
+      setProcessing(false);
     }
   }
   function pick(nextFile: File | null) {
@@ -212,7 +247,10 @@ export function App() {
     setShareUrl(null);
     setShareId(null);
     setShareExpiresAt(null);
-    setUploaderOpen(false);
+    setCloudProject(null);
+    setPublishTitle(nextProject.name.replace(/\.blend$/i, ""));
+    setUploadStage("ready");
+    setUploaderOpen(true);
     setMessage(`已切换到本地项目：${nextProject.name}`);
   }
   function toggle(name: string) {
@@ -258,11 +296,14 @@ export function App() {
           onConvert={() => void convert()}
           recentProjects={recentProjects}
           onProjectSelect={switchProject}
+          publishTitle={publishTitle}
+          onPublishTitle={setPublishTitle}
+          onPublish={() => void publishCloud()}
         />
       }
     >
       <button className="menu-item" disabled={!project} onClick={createShare}>
-        <Share2 size={13} /> 创建分享
+        <Share2 size={13} /> {cloudProject ? "创建云端分享" : "创建本地分享"}
       </button>
       <label className="share-setting">
         密码
@@ -297,6 +338,7 @@ export function App() {
 
 export function SharePage() {
   const token = window.location.pathname.split("/").filter(Boolean).at(-1);
+  const transport: ProjectTransport = new URLSearchParams(window.location.search).get("source") === "cloud" ? "cloud" : "local";
   const [share, setShare] = useState<{
     name: string;
     modelUrl: string;
@@ -313,7 +355,7 @@ export function SharePage() {
   const loadShare = useCallback(() => {
     if (!token) return setError("缺少分享标识。");
     setError(null);
-    blendProofClient.loadShare<Manifest>(token)
+    blendProofClient.loadShare<Manifest>(token, transport)
       .then((body) => {
         setPasswordRequired(false);
         setShare(body);
@@ -321,20 +363,20 @@ export function SharePage() {
       .catch((reason) =>
         setError(reason instanceof Error ? reason.message : "无法读取分享。"),
       );
-  }, [token]);
+  }, [token, transport]);
   useEffect(() => {
     if (!token) return setError("缺少分享标识。");
-    blendProofClient.shareStatus(token)
+    blendProofClient.shareStatus(token, transport)
       .then((body) => {
         if (body.passwordRequired) setPasswordRequired(true);
         else loadShare();
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : "无法读取分享。"));
-  }, [loadShare, token]);
+  }, [loadShare, token, transport]);
   async function unlockShare() {
     if (!token) return setError("缺少分享标识。");
     try {
-      await blendProofClient.unlockShare(token, password);
+      await blendProofClient.unlockShare(token, password, transport);
       loadShare();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "密码验证失败。");
@@ -342,7 +384,7 @@ export function SharePage() {
   }
   async function createGuestComment(draft: ReviewCommentDraft) {
     if (!token) throw new Error("缺少分享标识。");
-    const comment = await blendProofClient.createGuestComment(token, draft);
+    const comment = await blendProofClient.createGuestComment(token, draft, transport);
     setShare((current) => current ? { ...current, comments: [...current.comments, comment] } : current);
     return comment;
   }
@@ -358,7 +400,7 @@ export function SharePage() {
       onSelect={(name) => setSelected(name ? new Set([name]) : new Set())}
       onSelectMany={(names) => setSelected(new Set(names))}
       onToggle={() => {}}
-      message={share.commentsPermission === "comment" ? "访客可在模型表面添加批注。" : "只读分享。文件由本机 BlendProof 提供。"}
+      message={share.commentsPermission === "comment" ? "访客可在模型表面添加批注。" : transport === "cloud" ? "只读分享。文件由云端 BlendProof 提供。" : "只读分享。文件由本机 BlendProof 提供。"}
       modelUrl={share.modelUrl}
       readOnly
       canComment={share.commentsPermission === "comment"}

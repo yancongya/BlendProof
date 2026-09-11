@@ -275,10 +275,45 @@
 }
 .upload-progress {
   display: grid;
-  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  grid-template-columns: auto repeat(4, minmax(0, 1fr));
   align-items: center;
   gap: 7px;
 }
+.cloud-publish-card {
+  display: grid;
+  gap: 7px;
+  padding-top: 9px;
+  border-top: 1px solid #3d3d3d;
+}
+.cloud-publish-card label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: #999;
+  font-size: 10px;
+}
+.cloud-publish-card input {
+  min-width: 0;
+  border: 1px solid #4a4a4a;
+  border-radius: 3px;
+  background: #202020;
+  color: #ddd;
+  padding: 5px 7px;
+}
+.cloud-publish-card button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #b96008;
+  border-radius: 3px;
+  background: #b96008;
+  color: #fff;
+  padding: 7px;
+}
+.cloud-publish-card button:disabled { opacity: 0.55; }
+.cloud-publish-card small { color: #7f7f7f; font-size: 9px; }
 .upload-progress .uploader-section-label {
   margin: 0;
   white-space: nowrap;

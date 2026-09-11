@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 
-export type UploadStage = "idle" | "selected" | "converting" | "ready" | "error";
+export type UploadStage = "idle" | "selected" | "converting" | "ready" | "uploading" | "published" | "error";
 
 type ManifestLike = {
   scene?: string | null;
@@ -40,6 +40,9 @@ export function UploaderPanel({
   onConvert,
   recentProjects = [],
   onProjectSelect,
+  publishTitle = "",
+  onPublishTitle,
+  onPublish,
 }: {
   file: File | null;
   stage: UploadStage;
@@ -52,6 +55,9 @@ export function UploaderPanel({
   onConvert: () => void;
   recentProjects?: Array<{ id: string; name: string; modelUrl: string; manifestUrl: string; ownerCapability: string }>;
   onProjectSelect?: (project: { id: string; name: string; modelUrl: string; manifestUrl: string; ownerCapability: string }) => void;
+  publishTitle?: string;
+  onPublishTitle?: (title: string) => void;
+  onPublish?: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -185,18 +191,40 @@ export function UploaderPanel({
         <ProgressRow label="文件已选择" state={progressState(stage, "selected")} />
         <ProgressRow label="本机 Blender 转换" state={progressState(stage, "converting")} />
         <ProgressRow label="生成 Web 审阅资产" state={progressState(stage, "ready")} />
+        <ProgressRow label="发布云端快递柜" state={progressState(stage, "published")} />
       </section>
 
       <p className={`uploader-status uploader-status-${statusStage}`} role={statusStage === "error" ? "alert" : "status"}>
-        {statusStage === "error" ? <AlertTriangle size={13} /> : statusStage === "ready" ? <Check size={13} /> : null}
+        {statusStage === "error" ? <AlertTriangle size={13} /> : statusStage === "ready" || statusStage === "published" ? <Check size={13} /> : null}
         <span>{fileError ?? message}</span>
       </p>
 
-      {stage === "ready" && (
+      {(stage === "ready" || stage === "uploading" || stage === "published") && (
         <ManifestSummary manifest={manifest} />
       )}
 
-      {stage === "ready" && shareUrl && (
+      {(stage === "ready" || stage === "uploading" || stage === "published") && onPublish && onPublishTitle && (
+        <section className="cloud-publish-card" data-testid="cloud-publish-card">
+          <div className="uploader-section-label">云端发布</div>
+          <label>
+            审稿项目名称
+            <input
+              aria-label="云端审稿项目名称"
+              value={publishTitle}
+              maxLength={256}
+              disabled={stage === "uploading" || stage === "published"}
+              onChange={(event) => onPublishTitle(event.target.value)}
+            />
+          </label>
+          <button type="button" disabled={!manifest || !publishTitle.trim() || stage === "uploading" || stage === "published"} onClick={onPublish}>
+            {stage === "uploading" ? <LoaderCircle className="spin" size={13} /> : <UploadCloud size={13} />}
+            {stage === "uploading" ? "正在上传派生资产…" : stage === "published" ? "已发布到云端" : "发布 GLB 到云端"}
+          </button>
+          <small>只上传 GLB 与裁剪后的清单，原始 .blend 不会离开本机。</small>
+        </section>
+      )}
+
+      {(stage === "ready" || stage === "published") && shareUrl && (
         <section className="uploader-share-card" data-testid="uploader-share-status">
           <div className="uploader-section-label"><Link2 size={13} /> 分享状态</div>
           <strong>分享链接已建立</strong>
@@ -224,11 +252,13 @@ function ProgressRow({ label, state }: { label: string; state: "todo" | "active"
   );
 }
 
-function progressState(stage: UploadStage, milestone: "selected" | "converting" | "ready") {
+function progressState(stage: UploadStage, milestone: "selected" | "converting" | "ready" | "published") {
   if (stage === "error") return milestone === "selected" ? "done" : milestone === "converting" ? "error" : "todo";
   if (stage === "idle") return "todo";
   if (stage === "selected") return milestone === "selected" ? "done" : "todo";
   if (stage === "converting") return milestone === "selected" ? "done" : milestone === "converting" ? "active" : "todo";
+  if (stage === "ready") return milestone === "published" ? "todo" : "done";
+  if (stage === "uploading") return milestone === "published" ? "active" : "done";
   return "done";
 }
 
