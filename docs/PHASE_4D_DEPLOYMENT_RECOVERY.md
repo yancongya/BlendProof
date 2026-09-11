@@ -55,7 +55,7 @@
 
 ### 首位管理员种子化
 
-邀请码注册刻意不提供“第一个用户自动成为管理员”的公开后门。全新 D1 应由获授权操作员在隔离的 staging 环境先生成符合 `pbkdf2-sha256$100000$<salt>$<digest>` 格式的密码哈希，再通过受审计的一次性 D1 操作插入首位 `role='admin'` 用户；确认该账号能够登录并生成邀请码后，生产重复同一流程。明文密码、会话 token 和邀请码不得出现在 shell 历史、仓库、部署日志或本文中。正式上线前需要把该步骤固化为读取终端隐藏输入的运维脚本，并由第二人复核；在此之前不得开放生产注册。
+邀请码注册刻意不提供“第一个用户自动成为管理员”的公开后门。部署时将 `BOOTSTRAP_ADMIN_EMAIL`、`BOOTSTRAP_ADMIN_NAME` 配置为普通 Worker 变量，将至少 32 字符的随机 `BOOTSTRAP_ADMIN_TOKEN` 通过 Cloudflare Secret 注入。获授权操作员仅在空数据库上调用一次 `POST /api/auth/bootstrap-admin`，使用 Bearer bootstrap token，并在 JSON body 提交经隐藏输入读取的初始密码。接口采用条件插入，只要 `users` 已有任何记录便永久返回 409；初始化成功并验证管理员能生成邀请码后，立即删除 bootstrap secret。明文密码、token 和邀请码不得出现在 shell 历史、仓库、部署日志或本文中。
 
 ## 5. CSP、来源与缓存
 

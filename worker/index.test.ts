@@ -18,6 +18,26 @@ describe('BlendProof Worker local runtime', () => {
     expect(tables.results.map((row) => row.name)).toContain('rate_limit_windows')
   })
 
+  it('bootstraps exactly one deployment-configured administrator and then closes the endpoint', async () => {
+    const origin = 'http://localhost:5173'
+    const wrong = await SELF.fetch('https://blendproof.test/api/auth/bootstrap-admin', {
+      method: 'POST', headers: { origin, authorization: 'Bearer definitely-wrong-bootstrap-token-0001', 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'temporary admin password' }),
+    })
+    expect(wrong.status).toBe(403)
+    const created = await SELF.fetch('https://blendproof.test/api/auth/bootstrap-admin', {
+      method: 'POST', headers: { origin, authorization: 'Bearer blendproof-test-bootstrap-admin-token-0001', 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'temporary admin password' }),
+    })
+    expect(created.status).toBe(201)
+    expect(await created.json()).toMatchObject({ user: { email: 'bootstrap-admin@example.test', displayName: 'Bootstrap Admin', role: 'admin' } })
+    const repeated = await SELF.fetch('https://blendproof.test/api/auth/bootstrap-admin', {
+      method: 'POST', headers: { origin, authorization: 'Bearer blendproof-test-bootstrap-admin-token-0001', 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'another admin password' }),
+    })
+    expect(repeated.status).toBe(409)
+  })
+
   it('publishes privacy-safe public pool statistics', async () => {
     const response = await SELF.fetch('https://blendproof.test/api/public/stats')
     expect(response.status).toBe(200)
@@ -33,7 +53,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('runs invitation account registration, session, ownership and admin statistics as a closed Worker flow', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const now = new Date().toISOString()
     const adminId = randomHex(16)
     const adminToken = randomHex(32)
@@ -130,7 +150,7 @@ describe('BlendProof Worker local runtime', () => {
       scene: 'Safe title', objects: [], collections: [], export: { sourceBytes: 42 },
     }))
     const response = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/upload-intents`, {
-      method: 'POST', headers: ownerJson('http://127.0.0.1:5173', project.ownerCapability),
+      method: 'POST', headers: ownerJson('http://localhost:5173', project.ownerCapability),
       body: JSON.stringify({ idempotencyKey: 'strict-cloud-manifest-01', assets: [
         { name: 'model.glb', contentType: 'model/gltf-binary', byteSize: validGlb().byteLength, sha256: await sha256(validGlb()) },
         { name: 'manifest.json', contentType: 'application/json', byteSize: manifest.byteLength, sha256: await sha256(manifest) },
@@ -138,7 +158,7 @@ describe('BlendProof Worker local runtime', () => {
     })
     const intent = await response.json<{ intentToken: string }>()
     const upload = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/assets/manifest.json`, {
-      method: 'PUT', headers: { origin: 'http://127.0.0.1:5173', authorization: `Bearer ${intent.intentToken}`,
+      method: 'PUT', headers: { origin: 'http://localhost:5173', authorization: `Bearer ${intent.intentToken}`,
         'content-type': 'application/json' }, body: manifest,
     })
     expect(upload.status).toBe(422)
@@ -219,7 +239,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('runs initialize, authenticated derived uploads and finalize to ready', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const objectsBefore = (await env.ASSETS.list()).objects.length
     const initialize = await SELF.fetch('https://blendproof.test/api/projects', {
       method: 'POST',
@@ -308,7 +328,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('rejects wrong origin, owner, intent token and disguised blend content', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const objectsBefore = (await env.ASSETS.list()).objects.length
     const assetsBefore = (await env.DB.prepare('SELECT COUNT(*) AS count FROM project_assets').first<{ count: number }>())?.count ?? 0
     const denied = await SELF.fetch('https://blendproof.test/api/projects', {
@@ -344,7 +364,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('returns a stable conflict when an expired idempotency key is retried', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const created = await SELF.fetch('https://blendproof.test/api/projects', {
       method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: '{"name":"Expiry"}',
     })
@@ -376,7 +396,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('recovers the same upload intent under concurrent idempotent requests', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const created = await SELF.fetch('https://blendproof.test/api/projects', {
       method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: '{"name":"Concurrent"}',
     })
@@ -401,7 +421,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('rate-limits creation, upload intents, password attempts, and guest comments with scoped retry windows', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const projectIp = '198.51.100.41'
     const createResponses = await Promise.all(Array.from({ length: 6 }, (_, index) => SELF.fetch('https://blendproof.test/api/projects', {
       method: 'POST', headers: { origin, 'content-type': 'application/json', 'cf-connecting-ip': projectIp },
@@ -464,7 +484,7 @@ describe('BlendProof Worker local runtime', () => {
   }, 30_000)
 
   it('serves password shares only through Worker, strips public DTO internals, and revokes old cookies immediately', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const project = await readyProject('Password Share')
     const created = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/shares`, {
       method: 'POST', headers: ownerJson(origin, project.ownerCapability),
@@ -523,7 +543,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('allows ready owners to create and update comments while rejecting non-JSON mutations and unready shares', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const pending = await pendingProject('Pending')
     const denied = await SELF.fetch(`https://blendproof.test/api/projects/${pending.id}/shares`, {
       method: 'POST', headers: ownerJson(origin, pending.ownerCapability), body: JSON.stringify({}),
@@ -547,7 +567,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('keeps legacy project and share IDs routable for owner share and review operations', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const project = await readyProject('Legacy identifiers', 'legacy_project-2026')
     const created = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/shares`, {
       method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify({ commentsPermission: 'comment' }),
@@ -567,7 +587,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('accepts legacy Node scrypt password hashes without changing the public password route', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const project = await readyProject('Legacy scrypt')
     const token = randomHex(16)
     const salt = new Uint8Array(16).fill(7)
@@ -582,7 +602,7 @@ describe('BlendProof Worker local runtime', () => {
   }, 15_000)
 
   it('rejects a ready asset when its persisted ETag or content type diverges from R2', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const project = await readyProject('Integrity')
     const token = await createUnprotectedShare(project, origin)
     await env.DB.prepare("UPDATE project_assets SET etag = 'wrong-etag' WHERE project_id = ? AND asset_name = 'model.glb'")
@@ -600,7 +620,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('does not write guest read-only comments and rejects tampered, expired, cross-token, and rotates-old cookies', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const project = await readyProject('Cookie boundaries')
     const created = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/shares`, {
       method: 'POST', headers: ownerJson(origin, project.ownerCapability),
@@ -631,7 +651,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('atomically reserves the 5 GiB public pool before accepting concurrent upload intents', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const pool = await env.DB.prepare('SELECT capacity_bytes, ready_bytes, reserved_bytes FROM storage_pool WHERE id = 1')
       .first<{ capacity_bytes: number; ready_bytes: number; reserved_bytes: number }>()
     expect(pool).not.toBeNull()
@@ -662,7 +682,7 @@ describe('BlendProof Worker local runtime', () => {
   })
 
   it('defaults shares to 24 hours and rejects an expiry beyond 48 hours', async () => {
-    const origin = 'http://127.0.0.1:5173'
+    const origin = 'http://localhost:5173'
     const project = await readyProject('Bounded expiry')
     const before = Date.now()
     const defaultShare = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/shares`, {

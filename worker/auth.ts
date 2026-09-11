@@ -1,7 +1,11 @@
 import { enforceRateLimit, rateLimitRules } from './rate-limit.js'
 import type { UploadEnv } from './uploads.js'
 
-export type AuthEnv = UploadEnv
+export type AuthEnv = UploadEnv & {
+  BOOTSTRAP_ADMIN_EMAIL?: string
+  BOOTSTRAP_ADMIN_NAME?: string
+  BOOTSTRAP_ADMIN_TOKEN?: string
+}
 
 export type AuthUser = {
   id: string
@@ -25,6 +29,7 @@ const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
 /** Handles only account endpoints; null lets the Worker continue routing. */
 export async function handleAuthRequest(request: Request, env: AuthEnv, url: URL): Promise<Response | null> {
+  if (request.method === 'POST' && url.pathname === '/api/auth/bootstrap-admin') return bootstrapAdmin(request, env)
   if (request.method === 'POST' && url.pathname === '/api/auth/register') return register(request, env)
   if (request.method === 'POST' && url.pathname === '/api/auth/login') return login(request, env)
   if (request.method === 'POST' && url.pathname === '/api/auth/logout') return logout(request, env)
@@ -36,6 +41,35 @@ export async function handleAuthRequest(request: Request, env: AuthEnv, url: URL
   if (request.method === 'POST' && url.pathname === '/api/admin/invites') return createInvite(request, env)
   if (request.method === 'GET' && url.pathname === '/api/admin/stats') return adminStats(request, env)
   return null
+}
+
+async function bootstrapAdmin(request: Request, env: AuthEnv): Promise<Response> {
+  const originError = mutationOriginError(request, env)
+  if (originError) return originError
+  const configuredToken = env.BOOTSTRAP_ADMIN_TOKEN ?? ''
+  const suppliedToken = request.headers.get('authorization')?.match(/^Bearer ([A-Za-z0-9_-]{32,256})$/)?.[1] ?? ''
+  if (configuredToken.length < 32 || suppliedToken.length < 32 ||
+    !constantTimeEqual(await sha256Bytes(suppliedToken), await sha256Bytes(configuredToken))) return forbidden()
+  const existing = await env.DB.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>()
+  if ((existing?.count ?? 0) !== 0) return error('管理员初始化已经关闭。', 409)
+  const email = normalizeEmail(env.BOOTSTRAP_ADMIN_EMAIL)
+  const displayName = normalizeDisplayName(env.BOOTSTRAP_ADMIN_NAME)
+  const body = await readJson<Record<string, unknown>>(request)
+  const password = body && Object.keys(body).length === 1 && typeof body.password === 'string' ? body.password : ''
+  if (!email || !displayName || !validPassword(password)) return error('管理员初始化配置无效。', 503)
+  const now = new Date().toISOString()
+  const id = randomHex(16)
+  try {
+    await env.DB.prepare(`INSERT INTO users
+      (id, email, password_hash, display_name, role, invite_id, disabled_at, created_at, updated_at)
+      SELECT ?, ?, ?, ?, 'admin', NULL, NULL, ?, ? WHERE NOT EXISTS (SELECT 1 FROM users)`)
+      .bind(id, email, await hashPassword(password), displayName, now, now).run()
+  } catch {
+    return error('管理员初始化已经关闭。', 409)
+  }
+  const user = await userById(env, id)
+  if (!user) return error('管理员初始化已经关闭。', 409)
+  return sessionResponse(env, user, 201)
 }
 
 /** Returns no identity for absent, expired, revoked, or disabled sessions. */
@@ -200,6 +234,7 @@ function readJson<T>(request: Request) { return /^application\/json(?:;charset=u
 function randomHex(bytes: number) { const value = new Uint8Array(bytes); crypto.getRandomValues(value); return hex(value) }
 function hex(value: Uint8Array) { return [...value].map((item) => item.toString(16).padStart(2, '0')).join('') }
 async function sha256Text(value: string) { const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return hex(new Uint8Array(digest)) }
+async function sha256Bytes(value: string) { return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))) }
 async function hashPassword(password: string) { const salt = new Uint8Array(16); crypto.getRandomValues(salt); const derived = await pbkdf2(password, salt, 100_000); return `pbkdf2-sha256$100000$${hex(salt)}$${hex(derived)}` }
 async function verifyPassword(password: string, encoded: string) { const parts = encoded.split('$'); if (parts.length !== 4 || parts[0] !== 'pbkdf2-sha256' || parts[1] !== '100000' || !/^[a-f0-9]{32}$/.test(parts[2]) || !/^[a-f0-9]{64}$/.test(parts[3])) return false; return constantTimeEqual(await pbkdf2(password, fromHex(parts[2]), 100_000), fromHex(parts[3])) }
 async function pbkdf2(password: string, salt: Uint8Array, iterations: number) { const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']); return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: Uint8Array.from(salt), iterations }, key, 256)) }

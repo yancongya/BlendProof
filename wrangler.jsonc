@@ -21,6 +21,8 @@
     "crons": ["0 * * * *"]
   },
   "vars": {
-    "APP_ORIGIN": "http://127.0.0.1:5173"
+    "APP_ORIGIN": "http://localhost:5173",
+    "BOOTSTRAP_ADMIN_EMAIL": "admin@blendproof.local",
+    "BOOTSTRAP_ADMIN_NAME": "本地管理员"
   }
 }
