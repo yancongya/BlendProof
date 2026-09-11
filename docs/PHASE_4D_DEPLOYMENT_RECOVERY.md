@@ -53,6 +53,10 @@
 
 本机 bridge 的 `BLENDPROOF_PAIRING_CODE`/`VITE_LOCAL_BRIDGE_PAIRING_CODE` 只用于本机便利，不是云端 secret。生产配对码必须通过带外渠道交给可信上传者；桥仍使用一次性、短 TTL、绑定精确 Web Origin 的 nonce。不得把配对码放进公开前端 bundle、URL 或 Worker。
 
+### 首位管理员种子化
+
+邀请码注册刻意不提供“第一个用户自动成为管理员”的公开后门。全新 D1 应由获授权操作员在隔离的 staging 环境先生成符合 `pbkdf2-sha256$100000$<salt>$<digest>` 格式的密码哈希，再通过受审计的一次性 D1 操作插入首位 `role='admin'` 用户；确认该账号能够登录并生成邀请码后，生产重复同一流程。明文密码、会话 token 和邀请码不得出现在 shell 历史、仓库、部署日志或本文中。正式上线前需要把该步骤固化为读取终端隐藏输入的运维脚本，并由第二人复核；在此之前不得开放生产注册。
+
 ## 5. CSP、来源与缓存
 
 - [ ] 在 Web 静态响应设置严格 CSP，至少限制 `default-src 'self'`、`script-src 'self'`、`style-src 'self'`（按构建产物决定是否需要 nonce/hash）、`img-src 'self' blob: data:`、`connect-src 'self'`；生产不允许第三方脚本读取 owner 状态。

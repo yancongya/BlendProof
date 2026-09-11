@@ -58,6 +58,20 @@ export type PublicStats = {
   recommendedShareHours: number;
 };
 
+export type AccountUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: "user" | "admin";
+  createdAt: string;
+};
+
+export type AccountStats = {
+  usedBytes: number;
+  projectCount: number;
+  activeShareCount: number;
+};
+
 export type SharedProject<Manifest> = {
   name: string;
   modelUrl: string;
@@ -276,6 +290,36 @@ export class BlendProofClient {
 
   publicStats() {
     return this.workerJson<PublicStats>("/api/public/stats");
+  }
+
+  async currentUser() {
+    return (await this.workerJson<{ user: AccountUser }>("/api/me")).user;
+  }
+
+  async accountStats() {
+    return this.workerJson<AccountStats>("/api/me/stats");
+  }
+
+  async login(email: string, password: string) {
+    return (await this.workerJson<{ user: AccountUser }>("/api/auth/login", {
+      method: "POST", headers: jsonHeaders(), body: JSON.stringify({ email, password }),
+    })).user;
+  }
+
+  async register(input: { inviteCode: string; email: string; password: string; displayName: string }) {
+    return (await this.workerJson<{ user: AccountUser }>("/api/auth/register", {
+      method: "POST", headers: jsonHeaders(), body: JSON.stringify(input),
+    })).user;
+  }
+
+  logout() {
+    return this.workerVoid("/api/auth/logout", { method: "POST", headers: jsonHeaders() });
+  }
+
+  createInvite(expiresInHours = 168, maxUses = 1) {
+    return this.workerJson<{ code: string; expiresAt: string; maxUses: number }>("/api/admin/invites", {
+      method: "POST", headers: jsonHeaders(), body: JSON.stringify({ expiresInHours, maxUses }),
+    });
   }
 
   async listOwnerComments(projectId: string, ownerCapability: string, transport: ProjectTransport = "local") {

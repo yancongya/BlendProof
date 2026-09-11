@@ -17,7 +17,14 @@ import {
   SlidersHorizontal,
   Grid2X2,
   History,
+  HardDrive,
+  KeyRound,
+  Link2,
+  LogIn,
+  LogOut,
+  ShieldCheck,
   Trash2,
+  User,
 } from "lucide-react";
 import {
   Suspense,
@@ -40,7 +47,7 @@ import {
 } from "three";
 import { BlenderLogo } from "./components/BlenderLogo";
 import { UploaderPanel, type UploadStage } from "./components/UploaderPanel";
-import { blendProofClient, type CloudOwnerProject, type OwnerProject, type ProjectTransport, type PublicStats } from "./api/blendProofClient";
+import { blendProofClient, type AccountStats, type AccountUser, type CloudOwnerProject, type OwnerProject, type ProjectTransport, type PublicStats } from "./api/blendProofClient";
 import { ReviewAnnotations } from "./review/ReviewAnnotations";
 import { useReviewComments } from "./review/useReviewComments";
 import type {
@@ -114,6 +121,8 @@ export function App() {
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [homeOpen, setHomeOpen] = useState(false);
   const [publicStats, setPublicStats] = useState<PublicStats | null>(null);
+  const [account, setAccount] = useState<AccountUser | null>(null);
+  const [accountStats, setAccountStats] = useState<AccountStats | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
   const openUploader = useCallback(() => {
@@ -142,6 +151,13 @@ export function App() {
   }, [project]);
   useEffect(() => {
     blendProofClient.publicStats().then(setPublicStats).catch(() => setPublicStats(null));
+    blendProofClient.currentUser().then((user) => {
+      setAccount(user);
+      return blendProofClient.accountStats();
+    }).then(setAccountStats).catch(() => {
+      setAccount(null);
+      setAccountStats(null);
+    });
   }, [homeOpen]);
   useEffect(() => {
     if (manifest) setPublishTitle(manifest.scene || project?.name.replace(/\.blend$/i, "") || "");
@@ -313,11 +329,29 @@ export function App() {
       <StartPage
         recentProjects={recentProjects}
         stats={publicStats}
+        account={account}
+        accountStats={accountStats}
         onOpenFile={() => {
           setHomeOpen(false);
           openUploader();
         }}
         onProjectSelect={switchProject}
+        onLogin={async (email, password) => {
+          const user = await blendProofClient.login(email, password);
+          setAccount(user);
+          setAccountStats(await blendProofClient.accountStats());
+        }}
+        onRegister={async (input) => {
+          const user = await blendProofClient.register(input);
+          setAccount(user);
+          setAccountStats(await blendProofClient.accountStats());
+        }}
+        onLogout={async () => {
+          await blendProofClient.logout();
+          setAccount(null);
+          setAccountStats(null);
+        }}
+        onCreateInvite={(expiresInHours, maxUses) => blendProofClient.createInvite(expiresInHours, maxUses)}
       />
     );
   }
@@ -511,47 +545,90 @@ function Notice({ text }: { text: string }) {
 function StartPage({
   recentProjects,
   stats,
+  account,
+  accountStats,
   onOpenFile,
   onProjectSelect,
+  onLogin,
+  onRegister,
+  onLogout,
+  onCreateInvite,
 }: {
   recentProjects: Project[];
   stats: PublicStats | null;
+  account: AccountUser | null;
+  accountStats: AccountStats | null;
   onOpenFile: () => void;
   onProjectSelect: (project: Project) => void;
+  onLogin: (email: string, password: string) => Promise<void>;
+  onRegister: (input: { inviteCode: string; email: string; password: string; displayName: string }) => Promise<void>;
+  onLogout: () => Promise<void>;
+  onCreateInvite: (expiresInHours: number, maxUses: number) => Promise<{ code: string; expiresAt: string; maxUses: number }>;
 }) {
+  const [shareInput, setShareInput] = useState("");
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [inviteResult, setInviteResult] = useState<string | null>(null);
+  const [startTab, setStartTab] = useState<"start" | "recent" | "status" | "account">("start");
+
+  function openShare() {
+    const value = shareInput.trim();
+    const candidate = value.match(/^[a-f0-9]{32}$/) ? `/s/${value}` : value;
+    try {
+      const target = new URL(candidate, window.location.origin);
+      if (target.origin !== window.location.origin || !/^\/s\/[a-f0-9]{32}$/.test(target.pathname)) throw new Error();
+      window.location.assign(`${target.pathname}${target.search}`);
+    } catch {
+      setShareError("请输入本站的完整分享链接，或 32 位分享码。");
+    }
+  }
+
+  async function submitAccount(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAccountBusy(true);
+    setAccountError(null);
+    try {
+      if (authMode === "login") await onLogin(email, password);
+      else await onRegister({ inviteCode, email, password, displayName });
+      setAuthOpen(false);
+      setPassword("");
+    } catch (reason) {
+      setAccountError(reason instanceof Error ? reason.message : "账号操作失败。");
+    } finally {
+      setAccountBusy(false);
+    }
+  }
+
   return (
     <main className="blendproof-start-page" data-testid="start-page">
-      <section className="start-card">
-        <div className="start-brand"><BlenderLogo /><span>BlendProof</span></div>
-        <p className="start-eyebrow">WEB 3D REVIEW DESK</p>
-        <h1>开始一次清晰的审稿。</h1>
-        <p className="start-intro">在本机转换 Blender 工程，保留模型上下文，再把轻量预览交给协作者。</p>
-        <div className="start-stats" aria-label="公益存储池状态">
-          <span><strong>{stats ? formatBytes(stats.remainingBytes) : "—"}</strong><small>公益池可用 / 5 GB</small></span>
-          <span><strong>{stats?.projectCount ?? "—"}</strong><small>在线项目</small></span>
-          <span><strong>{stats?.activeShareCount ?? "—"}</strong><small>有效分享</small></span>
-          <span><strong>{stats?.userCount ?? "—"}</strong><small>已识别用户</small></span>
+      <section className="start-launcher">
+        <div className="start-splash">
+          <div className="start-splash-brand"><BlenderLogo /><span>BlendProof</span></div>
+          <span className="start-splash-version">Web 0.1</span>
+          <div className="start-splash-copy"><strong>Blender 工程的轻量审稿台</strong><span>本机转换 · 原始工程不上传</span></div>
         </div>
-        <p className="start-retention">建议 24 小时内完成审稿，云端派生资产最长保留 48 小时后自动清理。</p>
-        <button type="button" className="start-open-button" onClick={onOpenFile}>
-          <FolderOpen size={17} /> 打开 .blend 文件
-        </button>
-        <div className="start-divider"><span>最近项目</span></div>
-        {recentProjects.length ? (
-          <div className="start-recent-list">
-            {recentProjects.slice(0, 6).map((item) => (
-              <button type="button" className="start-recent-item" key={item.id} onClick={() => onProjectSelect(item)}>
-                <FileIcon />
-                <span><strong>{item.name}</strong><small>本地项目 · {item.id.slice(0, 6)}</small></span>
-                <ChevronDown size={14} className="start-recent-arrow" />
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="start-empty">还没有最近项目。打开一个 .blend 文件开始。</p>
-        )}
-        <p className="start-footnote">项目数据保存在本机。云端分享只发送派生的 Web 预览资产。</p>
+        <nav className="start-tabs" aria-label="启动页导航">
+          {([['start', '开始'], ['recent', '最近项目'], ['status', '平台状态'], ['account', '账号']] as const).map(([key, label]) => <button type="button" key={key} className={startTab === key ? "active" : ""} aria-selected={startTab === key} onClick={() => setStartTab(key)}>{label}</button>)}
+        </nav>
+        <div className="start-tab-body">
+          {startTab === "start" && <div className="start-actions-grid">
+            <section className="start-action-section"><h2>新建审稿</h2><button className="start-menu-action" type="button" onClick={onOpenFile}><FolderOpen /><span><strong>打开 .blend 文件</strong><small>在本机转换并生成 Web 预览</small></span></button><div className="start-privacy-note"><ShieldCheck size={15} /><span>原始 .blend 不会上传云端</span></div></section>
+            <section className="start-action-section"><h2>打开分享</h2><form className="start-share-entry" onSubmit={(event) => { event.preventDefault(); openShare(); }}><label htmlFor="start-share-code"><Link2 size={18} /><span><strong>审稿链接或分享码</strong><small>无需账号即可打开只读分享</small></span></label><div><input id="start-share-code" aria-label="分享链接或分享码" value={shareInput} onChange={(event) => { setShareInput(event.target.value); setShareError(null); }} placeholder="粘贴 /s/… 或 32 位分享码" /><button type="submit">打开</button></div>{shareError && <small role="alert">{shareError}</small>}</form></section>
+          </div>}
+          {startTab === "recent" && <section className="start-recent-panel"><div className="start-panel-heading"><span>最近打开的项目</span><button onClick={onOpenFile}>打开其他文件</button></div>{recentProjects.length ? <div className="start-recent-list">{recentProjects.slice(0, 8).map((item) => <button type="button" className="start-recent-item" key={item.id} onClick={() => onProjectSelect(item)}><FileIcon /><span><strong>{item.name}</strong><small>本机转换项目 · {item.id.slice(0, 6)}</small></span><ChevronDown size={14} className="start-recent-arrow" /></button>)}</div> : <p className="start-empty">还没有最近项目。请先打开一个 .blend 文件。</p>}</section>}
+          {startTab === "status" && <section className="start-system-panel"><div className="start-panel-heading"><span><HardDrive size={14} /> 公益存储池</span><i>运行中</i></div><div className="storage-reading"><strong>{stats ? formatBytes(stats.remainingBytes) : "—"}</strong><span>当前可用 / 5 GB</span></div><div className="storage-meter"><span style={{ width: `${stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}%` }} /></div><div className="start-stats" aria-label="平台状态"><span><strong>{stats?.projectCount ?? "—"}</strong><small>在线项目</small></span><span><strong>{stats?.activeShareCount ?? "—"}</strong><small>有效分享</small></span><span><strong>{stats?.userCount ?? "—"}</strong><small>注册用户</small></span></div><p className="start-retention">建议 24 小时内完成审稿；派生资产最长保留 48 小时，到期自动清理。</p></section>}
+          {startTab === "account" && <section className="start-user-panel"><div className="start-panel-heading"><span><User size={14} /> {account ? "我的账号" : "账号入口"}</span>{account?.role === "admin" && <i className="admin-badge"><ShieldCheck size={12} /> 管理员</i>}</div>{account ? <><div className="account-identity"><b>{account.displayName.slice(0, 1).toUpperCase()}</b><span><strong>{account.displayName}</strong><small>{account.email}</small></span><button className="account-logout" onClick={() => void onLogout()}><LogOut size={13} /> 退出</button></div><dl className="account-usage"><div><dt>个人占用</dt><dd>{accountStats ? formatBytes(accountStats.usedBytes) : "—"}</dd></div><div><dt>项目</dt><dd>{accountStats?.projectCount ?? "—"}</dd></div><div><dt>有效分享</dt><dd>{accountStats?.activeShareCount ?? "—"}</dd></div></dl>{account.role === "admin" && <div className="admin-controls"><strong>管理员控制</strong><button onClick={async () => { try { const result = await onCreateInvite(168, 1); setInviteResult(result.code); } catch (reason) { setAccountError(reason instanceof Error ? reason.message : "无法创建邀请码。"); } }}><KeyRound size={13} /> 生成 7 天一次性邀请码</button>{inviteResult && <code>{inviteResult}</code>}</div>}</> : <><p>登录后可以查看自己的项目、分享数量和空间占用。为了控制公益资源，注册需要管理员发放的邀请码。</p><div className="account-buttons"><button onClick={() => { setAuthMode("login"); setAuthOpen(true); }}><LogIn size={13} /> 登录</button><button onClick={() => { setAuthMode("register"); setAuthOpen(true); }}><KeyRound size={13} /> 使用邀请码注册</button></div></>}</section>}
+        </div>
+        <footer className="start-launcher-footer"><span>BlendProof 公益 3D 审稿</span><span>容量 5 GB · 最长保留 48 小时</span></footer>
       </section>
+      {authOpen && <div className="uploader-modal-backdrop account-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuthOpen(false); }}><form className="account-modal" role="dialog" aria-label={authMode === "login" ? "登录" : "邀请码注册"} onSubmit={submitAccount}><div className="account-modal-head"><strong>{authMode === "login" ? "登录 BlendProof" : "使用邀请码注册"}</strong><button type="button" aria-label="关闭账号面板" onClick={() => setAuthOpen(false)}>×</button></div><div className="account-tabs"><button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAccountError(null); }}>登录</button><button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setAccountError(null); }}>注册</button></div>{authMode === "register" && <><label>显示名称<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label><label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} required /></label></>}<label>邮箱<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>密码<input type="password" value={password} minLength={8} onChange={(event) => setPassword(event.target.value)} required /></label>{accountError && <p role="alert">{accountError}</p>}<button className="account-submit" disabled={accountBusy}>{accountBusy ? "处理中…" : authMode === "login" ? "登录" : "创建账号"}</button><small>注册只接受管理员发放的邀请码。</small></form></div>}
     </main>
   );
 }

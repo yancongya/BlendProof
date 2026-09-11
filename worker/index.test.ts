@@ -32,6 +32,84 @@ describe('BlendProof Worker local runtime', () => {
     expect(body).not.toHaveProperty('storageNamespace')
   })
 
+  it('runs invitation account registration, session, ownership and admin statistics as a closed Worker flow', async () => {
+    const origin = 'http://127.0.0.1:5173'
+    const now = new Date().toISOString()
+    const adminId = randomHex(16)
+    const adminToken = randomHex(32)
+    await env.DB.prepare(`INSERT INTO users
+      (id, email, password_hash, display_name, role, invite_id, disabled_at, created_at, updated_at)
+      VALUES (?, ?, ?, 'Platform admin', 'admin', NULL, NULL, ?, ?)`)
+      .bind(adminId, `admin-${adminId}@example.test`, await authPasswordHash('admin password'), now, now).run()
+    await env.DB.prepare(`INSERT INTO sessions (id, token_hash, user_id, expires_at, revoked_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, NULL, ?, ?)`)
+      .bind(randomHex(16), await sha256Text(adminToken), adminId, new Date(Date.now() + 60_000).toISOString(), now, now).run()
+
+    const inviteResponse = await SELF.fetch('https://blendproof.test/api/admin/invites', {
+      method: 'POST', headers: { origin, cookie: `bp_session=${adminToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ expiresInHours: 12, maxUses: 1 }),
+    })
+    expect(inviteResponse.status).toBe(201)
+    const invite = await inviteResponse.json<{ code: string; expiresAt: string; maxUses: number }>()
+    expect(invite).toMatchObject({ maxUses: 1 })
+    expect(invite.code).toMatch(/^BP-[A-F0-9]{24}$/)
+
+    const register = await SELF.fetch('https://blendproof.test/api/auth/register', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ inviteCode: invite.code, email: `member-${adminId}@example.test`, password: 'a real password', displayName: 'Member' }),
+    })
+    expect(register.status).toBe(201)
+    expect(register.headers.get('set-cookie')).toContain('HttpOnly')
+    expect(register.headers.get('set-cookie')).toContain('Secure')
+    expect(register.headers.get('set-cookie')).toContain('SameSite=Lax')
+    let memberCookie = (register.headers.get('set-cookie') ?? '').split(';', 1)[0]
+    const member = await register.json<{ user: { id: string; email: string; role: string } }>()
+    expect(member.user).toMatchObject({ email: `member-${adminId}@example.test`, role: 'user' })
+    const consumed = await env.DB.prepare('SELECT uses_count FROM invites WHERE code_hash = ?').bind(await sha256Text(invite.code)).first<{ uses_count: number }>()
+    expect(consumed?.uses_count).toBe(1)
+
+    const repeated = await SELF.fetch('https://blendproof.test/api/auth/register', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ inviteCode: invite.code, email: `second-${adminId}@example.test`, password: 'a real password', displayName: 'Second' }),
+    })
+    expect(repeated.status).toBe(400)
+    const rejectedLogin = await SELF.fetch('https://blendproof.test/api/auth/login', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: `member-${adminId}@example.test`, password: 'wrong password' }),
+    })
+    expect(rejectedLogin.status).toBe(401)
+    const login = await SELF.fetch('https://blendproof.test/api/auth/login', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: `member-${adminId}@example.test`, password: 'a real password' }),
+    })
+    expect(login.status).toBe(200)
+    memberCookie = (login.headers.get('set-cookie') ?? '').split(';', 1)[0]
+    const me = await SELF.fetch('https://blendproof.test/api/me', { headers: { cookie: memberCookie } })
+    expect(me.status).toBe(200)
+    expect(await me.json()).toMatchObject({ user: { id: member.user.id, displayName: 'Member' } })
+
+    const initialized = await SELF.fetch('https://blendproof.test/api/projects', {
+      method: 'POST', headers: { origin, cookie: memberCookie, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Account-bound project' }),
+    })
+    expect(initialized.status).toBe(201)
+    const project = await initialized.json<{ id: string }>()
+    expect((await env.DB.prepare('SELECT owner_id FROM projects WHERE id = ?').bind(project.id).first<{ owner_id: string }>())?.owner_id).toBe(member.user.id)
+    await env.DB.prepare("UPDATE projects SET status = 'ready' WHERE id = ?").bind(project.id).run()
+    expect(await (await SELF.fetch('https://blendproof.test/api/me/stats', { headers: { cookie: memberCookie } })).json())
+      .toMatchObject({ usedBytes: 0, projectCount: 1, activeShareCount: 0 })
+
+    const deniedAdmin = await SELF.fetch('https://blendproof.test/api/admin/stats', { headers: { cookie: memberCookie } })
+    expect(deniedAdmin.status).toBe(403)
+    const adminStats = await SELF.fetch('https://blendproof.test/api/admin/stats', { headers: { cookie: `bp_session=${adminToken}` } })
+    expect(adminStats.status).toBe(200)
+    expect(await adminStats.json()).toHaveProperty('capacityBytes', 5 * 1024 ** 3)
+
+    const loggedOut = await SELF.fetch('https://blendproof.test/api/auth/logout', { method: 'POST', headers: { origin, cookie: memberCookie } })
+    expect(loggedOut.status).toBe(204)
+    expect(loggedOut.headers.get('set-cookie')).toContain('Max-Age=0')
+    expect((await SELF.fetch('https://blendproof.test/api/me', { headers: { cookie: memberCookie } })).status).toBe(401)
+  }, 20_000)
+
   it.each([
     ['application/x-blender', 'BLENDER-secret-marker'],
     ['Application/X-Blender', 'BLENDER-secret-marker'],
@@ -710,6 +788,15 @@ function randomHex(bytes: number) {
 
 async function sha256Text(value: string) {
   return sha256(new TextEncoder().encode(value))
+}
+
+async function authPasswordHash(password: string) {
+  const salt = new Uint8Array(16).fill(9)
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
+  const derived = new Uint8Array(await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 100_000 }, key, 256,
+  ))
+  return `pbkdf2-sha256$100000$${toHex(salt)}$${toHex(derived)}`
 }
 
 async function databaseCounts() {

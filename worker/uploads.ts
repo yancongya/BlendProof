@@ -5,6 +5,8 @@ import { R2ProjectStorage, r2AssetKey } from './r2-storage.js'
 
 export type UploadEnv = Env & { UPLOAD_SIGNING_SECRET: string }
 
+export type ProjectOwnerIdentity = { id: string }
+
 type ExpectedAsset = {
   name: PublicProjectAsset
   contentType: string
@@ -31,7 +33,7 @@ type IntentRow = {
   expires_at: string
 }
 
-export async function initializeProject(request: Request, env: UploadEnv): Promise<Response> {
+export async function initializeProject(request: Request, env: UploadEnv, user: ProjectOwnerIdentity | null = null): Promise<Response> {
   const limitError = await enforceRateLimit(request, env, rateLimitRules.projectCreate)
   if (limitError) return limitError
   const body = await readJson<{ name?: unknown }>(request)
@@ -43,9 +45,9 @@ export async function initializeProject(request: Request, env: UploadEnv): Promi
   const now = new Date().toISOString()
   const expiresAt = new Date(Date.now() + 48 * 60 * 60_000).toISOString()
   await env.DB.prepare(`INSERT INTO projects
-    (id, name, owner_capability_hash, storage_namespace, status, asset_version, created_at, updated_at, expires_at)
-    VALUES (?, ?, ?, ?, 'pending', 1, ?, ?, ?)`)
-    .bind(id, body.name.trim(), await sha256Text(ownerCapability), randomHex(16), now, now, expiresAt).run()
+    (id, name, owner_id, owner_capability_hash, storage_namespace, status, asset_version, created_at, updated_at, expires_at)
+    VALUES (?, ?, ?, ?, ?, 'pending', 1, ?, ?, ?)`)
+    .bind(id, body.name.trim(), user?.id ?? null, await sha256Text(ownerCapability), randomHex(16), now, now, expiresAt).run()
   return Response.json({ id, name: body.name.trim(), ownerCapability, status: 'pending' }, { status: 201 })
 }
 

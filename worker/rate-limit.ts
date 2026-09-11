@@ -5,6 +5,8 @@
  */
 export const rateLimitRules = {
   projectCreate: { scope: 'project-create-ip', limit: 5, windowSeconds: 60 * 60, includeNetwork: true },
+  authRegister: { scope: 'auth-register-ip', limit: 5, windowSeconds: 60 * 60, includeNetwork: true },
+  authLogin: { scope: 'auth-login-ip', limit: 10, windowSeconds: 15 * 60, includeNetwork: true },
   uploadIntent: { scope: 'upload-intent-owner', limit: 10, windowSeconds: 10 * 60, includeNetwork: false },
   passwordAttempt: { scope: 'share-password-ip', limit: 5, windowSeconds: 15 * 60, includeNetwork: true },
   guestComment: { scope: 'share-comment-ip', limit: 10, windowSeconds: 60, includeNetwork: true },
