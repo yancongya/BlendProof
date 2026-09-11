@@ -188,10 +188,10 @@ export function UploaderPanel({
 
       <section className="upload-progress" aria-label="转换进度" data-testid="upload-progress">
         <div className="uploader-section-label">处理阶段</div>
-        <ProgressRow label="文件已选择" state={progressState(stage, "selected")} />
-        <ProgressRow label="本机 Blender 转换" state={progressState(stage, "converting")} />
-        <ProgressRow label="生成 Web 审阅资产" state={progressState(stage, "ready")} />
-        <ProgressRow label="发布云端快递柜" state={progressState(stage, "published")} />
+        <ProgressRow label="文件已选" title="文件已选择" state={progressState(stage, "selected")} />
+        <ProgressRow label="Blender 转换" title="本机 Blender 转换" state={progressState(stage, "converting")} />
+        <ProgressRow label="生成 Web 资产" title="生成 Web 审阅资产" state={progressState(stage, "ready")} />
+        <ProgressRow label="发布云端" title="发布云端快递柜" state={progressState(stage, "published")} />
       </section>
 
       <p className={`uploader-status uploader-status-${statusStage}`} role={statusStage === "error" || statusStage === "publish_error" ? "alert" : "status"}>
@@ -240,13 +240,13 @@ export function UploaderPanel({
   );
 }
 
-function ProgressRow({ label, state }: { label: string; state: "todo" | "active" | "done" | "error" }) {
+function ProgressRow({ label, title, state }: { label: string; title?: string; state: "todo" | "active" | "done" | "error" }) {
   return (
     <div className={`upload-progress-row upload-progress-${state}`}>
       <span className="upload-progress-marker">
         {state === "done" ? <Check size={11} /> : state === "active" ? <LoaderCircle className="spin" size={11} /> : state === "error" ? <AlertTriangle size={11} /> : null}
       </span>
-      <span>{label}</span>
+      <span title={title}>{label}</span>
       <small>{state === "done" ? "完成" : state === "active" ? "进行中" : state === "error" ? "失败" : "等待"}</small>
     </div>
   );

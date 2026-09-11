@@ -18,6 +18,20 @@ describe('BlendProof Worker local runtime', () => {
     expect(tables.results.map((row) => row.name)).toContain('rate_limit_windows')
   })
 
+  it('publishes privacy-safe public pool statistics', async () => {
+    const response = await SELF.fetch('https://blendproof.test/api/public/stats')
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('public, max-age=30')
+    const body = await response.json<Record<string, unknown>>()
+    expect(body).toMatchObject({
+      capacityBytes: 5 * 1024 ** 3,
+      retentionHours: 48,
+      recommendedShareHours: 24,
+    })
+    expect(body).not.toHaveProperty('ownerCapability')
+    expect(body).not.toHaveProperty('storageNamespace')
+  })
+
   it.each([
     ['application/x-blender', 'BLENDER-secret-marker'],
     ['Application/X-Blender', 'BLENDER-secret-marker'],
@@ -536,6 +550,55 @@ describe('BlendProof Worker local runtime', () => {
     const otherProject = await readyProject('Other cookie')
     const otherToken = await createPasswordShare(otherProject, origin, 'cookie secret')
     expect((await SELF.fetch(`https://blendproof.test/api/shares/${otherToken}`, { headers: { cookie } })).status).toBe(401)
+  })
+
+  it('atomically reserves the 5 GiB public pool before accepting concurrent upload intents', async () => {
+    const origin = 'http://127.0.0.1:5173'
+    const pool = await env.DB.prepare('SELECT capacity_bytes, ready_bytes, reserved_bytes FROM storage_pool WHERE id = 1')
+      .first<{ capacity_bytes: number; ready_bytes: number; reserved_bytes: number }>()
+    expect(pool).not.toBeNull()
+    const first = await pendingProject('Pool contender A')
+    const second = await pendingProject('Pool contender B')
+    const assets = [
+      { name: 'model.glb', contentType: 'model/gltf-binary', byteSize: 60, sha256: 'a'.repeat(64) },
+      { name: 'manifest.json', contentType: 'application/json', byteSize: 30, sha256: 'b'.repeat(64) },
+    ]
+    try {
+      await env.DB.prepare('UPDATE storage_pool SET ready_bytes = capacity_bytes - 100, reserved_bytes = 0 WHERE id = 1').run()
+      const responses = await Promise.all([first, second].map((project, index) => SELF.fetch(
+        `https://blendproof.test/api/projects/${project.id}/upload-intents`, {
+          method: 'POST', headers: ownerJson(origin, project.ownerCapability),
+          body: JSON.stringify({ idempotencyKey: `pool-race-intent-key-${index}`, assets }),
+        },
+      )))
+      expect(responses.map((response) => response.status).sort()).toEqual([201, 507])
+      const accounted = await env.DB.prepare('SELECT ready_bytes, reserved_bytes, capacity_bytes FROM storage_pool WHERE id = 1')
+        .first<{ ready_bytes: number; reserved_bytes: number; capacity_bytes: number }>()
+      expect((accounted?.ready_bytes ?? 0) + (accounted?.reserved_bytes ?? 0)).toBeLessThanOrEqual(accounted?.capacity_bytes ?? 0)
+      await env.DB.prepare("UPDATE project_storage_reservations SET status = 'released', updated_at = ? WHERE project_id IN (?, ?) AND status = 'reserved'")
+        .bind(new Date().toISOString(), first.id, second.id).run()
+    } finally {
+      await env.DB.prepare('UPDATE storage_pool SET ready_bytes = ?, reserved_bytes = ? WHERE id = 1')
+        .bind(pool!.ready_bytes, pool!.reserved_bytes).run()
+    }
+  })
+
+  it('defaults shares to 24 hours and rejects an expiry beyond 48 hours', async () => {
+    const origin = 'http://127.0.0.1:5173'
+    const project = await readyProject('Bounded expiry')
+    const before = Date.now()
+    const defaultShare = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/shares`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify({}),
+    })
+    expect(defaultShare.status).toBe(201)
+    const created = await defaultShare.json<{ expiresAt: string }>()
+    expect(Date.parse(created.expiresAt)).toBeGreaterThanOrEqual(before + 23 * 60 * 60_000)
+    expect(Date.parse(created.expiresAt)).toBeLessThanOrEqual(before + 25 * 60 * 60_000)
+    const tooLong = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/shares`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability),
+      body: JSON.stringify({ expiresAt: new Date(Date.now() + 49 * 60 * 60_000).toISOString() }),
+    })
+    expect(tooLong.status).toBe(400)
   })
 })
 

@@ -17,6 +17,9 @@
       "bucket_name": "blendproof-local"
     }
   ],
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
   "vars": {
     "APP_ORIGIN": "http://127.0.0.1:5173"
   }

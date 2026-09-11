@@ -47,6 +47,17 @@ export type CreatedShare = {
   commentsPermission: "read_only" | "comment";
 };
 
+export type PublicStats = {
+  capacityBytes: number;
+  usedBytes: number;
+  remainingBytes: number;
+  projectCount: number;
+  activeShareCount: number;
+  userCount: number;
+  retentionHours: number;
+  recommendedShareHours: number;
+};
+
 export type SharedProject<Manifest> = {
   name: string;
   modelUrl: string;
@@ -254,6 +265,17 @@ export class BlendProofClient {
       method: "DELETE",
       headers: { "x-blendproof-owner": ownerCapability },
     });
+  }
+
+  deleteLocalProject(projectId: string, ownerCapability: string) {
+    return this.bridgeVoid(`/api/local/projects/${encodeURIComponent(projectId)}`, {
+      method: "DELETE",
+      headers: { "x-blendproof-owner": ownerCapability },
+    });
+  }
+
+  publicStats() {
+    return this.workerJson<PublicStats>("/api/public/stats");
   }
 
   async listOwnerComments(projectId: string, ownerCapability: string, transport: ProjectTransport = "local") {

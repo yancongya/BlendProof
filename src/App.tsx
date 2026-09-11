@@ -16,6 +16,8 @@ import {
   Share2,
   SlidersHorizontal,
   Grid2X2,
+  History,
+  Trash2,
 } from "lucide-react";
 import {
   Suspense,
@@ -38,7 +40,7 @@ import {
 } from "three";
 import { BlenderLogo } from "./components/BlenderLogo";
 import { UploaderPanel, type UploadStage } from "./components/UploaderPanel";
-import { blendProofClient, type CloudOwnerProject, type OwnerProject, type ProjectTransport } from "./api/blendProofClient";
+import { blendProofClient, type CloudOwnerProject, type OwnerProject, type ProjectTransport, type PublicStats } from "./api/blendProofClient";
 import { ReviewAnnotations } from "./review/ReviewAnnotations";
 import { useReviewComments } from "./review/useReviewComments";
 import type {
@@ -107,8 +109,11 @@ export function App() {
   const [shareId, setShareId] = useState<string | null>(null);
   const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(null);
   const [sharePassword, setSharePassword] = useState("");
-  const [shareDays, setShareDays] = useState("7");
+  const [shareHours, setShareHours] = useState("24");
   const [sharePermission, setSharePermission] = useState<"read_only" | "comment">("read_only");
+  const [sharePanelOpen, setSharePanelOpen] = useState(false);
+  const [homeOpen, setHomeOpen] = useState(false);
+  const [publicStats, setPublicStats] = useState<PublicStats | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
   const openUploader = useCallback(() => {
@@ -136,6 +141,9 @@ export function App() {
     return () => { active = false; };
   }, [project]);
   useEffect(() => {
+    blendProofClient.publicStats().then(setPublicStats).catch(() => setPublicStats(null));
+  }, [homeOpen]);
+  useEffect(() => {
     if (manifest) setPublishTitle(manifest.scene || project?.name.replace(/\.blend$/i, "") || "");
   }, [manifest, project?.id, project?.name]);
   useEffect(() => {
@@ -151,6 +159,7 @@ export function App() {
   async function convert() {
     if (!file) return;
     setProcessing(true);
+    setHomeOpen(false);
     setUploadStage("converting");
     setMessage("正在调用本机 Blender 导出 GLB。");
     try {
@@ -178,7 +187,7 @@ export function App() {
       const transport: ProjectTransport = cloudProject ? "cloud" : "local";
       const share = await blendProofClient.createShare(target.id, target.ownerCapability, {
         password: sharePassword || null,
-        expiresAt: shareDays === "never" ? null : new Date(Date.now() + Number(shareDays) * 86_400_000).toISOString(),
+        expiresAt: new Date(Date.now() + Number(shareHours) * 3_600_000).toISOString(),
         commentsPermission: sharePermission,
       }, transport);
       setShareUrl(cloudProject ? `${share.shareUrl}?source=cloud` : share.shareUrl);
@@ -257,6 +266,7 @@ export function App() {
     }
   }
   function switchProject(nextProject: Project) {
+    setHomeOpen(false);
     setProject(nextProject);
     setManifest(null);
     setFile(null);
@@ -272,12 +282,44 @@ export function App() {
     setUploaderOpen(true);
     setMessage(`已切换到本地项目：${nextProject.name}`);
   }
+  async function deleteCurrentProject() {
+    if (!project || cloudProject) return;
+    if (!window.confirm(`确定删除本地项目“${project.name}”吗？此操作会移除转换文件和批注。`)) return;
+    try {
+      await blendProofClient.deleteLocalProject(project.id, project.ownerCapability);
+      const next = recentProjects.filter((item) => item.id !== project.id);
+      setRecentProjects(next);
+      localStorage.setItem("blendproof:recent-projects", JSON.stringify(next));
+      localStorage.removeItem("blendproof:last-project");
+      setProject(null);
+      setManifest(null);
+      setCloudProject(null);
+      setFile(null);
+      setHomeOpen(true);
+      setMessage("本地项目已删除。");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "无法删除本地项目。");
+    }
+  }
   function toggle(name: string) {
     setHidden((current) => {
       const next = new Set(current);
       next.has(name) ? next.delete(name) : next.add(name);
       return next;
     });
+  }
+  if (homeOpen) {
+    return (
+      <StartPage
+        recentProjects={recentProjects}
+        stats={publicStats}
+        onOpenFile={() => {
+          setHomeOpen(false);
+          openUploader();
+        }}
+        onProjectSelect={switchProject}
+      />
+    );
   }
   return (
     <BlenderWorkspace
@@ -302,6 +344,9 @@ export function App() {
       uploaderOpen={uploaderOpen}
       onOpenUploader={openUploader}
       onCloseUploader={closeUploader}
+      onHome={() => setHomeOpen(true)}
+      onDeleteProject={!cloudProject && project ? () => void deleteCurrentProject() : undefined}
+      onOpenFileMenu={() => setSharePanelOpen(false)}
       uploader={
         <UploaderPanel
           file={file}
@@ -321,36 +366,48 @@ export function App() {
         />
       }
     >
-      <button className="menu-item" disabled={!project} onClick={createShare}>
-        <Share2 size={13} /> {cloudProject ? "创建云端分享" : "创建本地分享"}
-      </button>
-      <label className="share-setting">
-        密码
-        <input aria-label="分享密码" type="password" value={sharePassword} placeholder="可选" onChange={(event) => setSharePassword(event.target.value)} />
-      </label>
-      <label className="share-setting">
-        有效期
-        <select aria-label="分享有效期" value={shareDays} onChange={(event) => setShareDays(event.target.value)}>
-          <option value="1">1 天</option><option value="7">7 天</option><option value="30">30 天</option><option value="never">不限</option>
-        </select>
-      </label>
-      <label className="share-setting">
-        权限
-        <select aria-label="分享评论权限" value={sharePermission} onChange={(event) => setSharePermission(event.target.value as "read_only" | "comment")}>
-          <option value="read_only">只读</option><option value="comment">可评论</option>
-        </select>
-      </label>
-      {shareUrl && (
-        <a
-          className="share-chip"
-          href={shareUrl}
-          target="_blank"
-          rel="noreferrer"
+      <div className="share-menu-wrap">
+        <button
+          type="button"
+          className="menu-item share-trigger"
+          disabled={!project}
+          aria-haspopup="dialog"
+          aria-expanded={sharePanelOpen}
+          onClick={() => setSharePanelOpen((current) => !current)}
         >
-          {sharePermission === "comment" ? "打开可评论分享" : "打开只读分享"}
-        </a>
-      )}
-      {shareId && <button className="menu-item" onClick={revokeShare}>撤销分享</button>}
+          <Share2 size={13} /> 分享
+        </button>
+        {sharePanelOpen && (
+          <form className="share-panel" role="dialog" aria-label="分享设置" onSubmit={(event) => { event.preventDefault(); void createShare(); }}>
+            <div className="share-panel-title"><Share2 size={14} /> 分享当前项目</div>
+            <label className="share-setting">
+              <span>密码</span>
+              <input aria-label="分享密码" type="password" value={sharePassword} placeholder="可选" onChange={(event) => setSharePassword(event.target.value)} />
+            </label>
+            <label className="share-setting">
+              <span>有效期</span>
+              <select aria-label="分享有效期" value={shareHours} onChange={(event) => setShareHours(event.target.value)}>
+                <option value="6">6 小时</option><option value="24">24 小时（推荐）</option><option value="48">48 小时（最长）</option>
+              </select>
+            </label>
+            <label className="share-setting">
+              <span>权限</span>
+              <select aria-label="分享评论权限" value={sharePermission} onChange={(event) => setSharePermission(event.target.value as "read_only" | "comment")}>
+                <option value="read_only">只读</option><option value="comment">可评论</option>
+              </select>
+            </label>
+            <button type="submit" className="share-panel-primary">
+              <Share2 size={13} /> {cloudProject ? "创建云端分享" : "创建本地分享"}
+            </button>
+            {shareUrl && (
+              <a className="share-panel-link" href={shareUrl} target="_blank" rel="noreferrer">
+                {sharePermission === "comment" ? "打开可评论分享" : "打开只读分享"}
+              </a>
+            )}
+            {shareId && <button type="button" className="share-panel-revoke" onClick={() => void revokeShare()}>撤销分享</button>}
+          </form>
+        )}
+      </div>
     </BlenderWorkspace>
   );
 }
@@ -450,6 +507,73 @@ function Notice({ text }: { text: string }) {
     </div>
   );
 }
+
+function StartPage({
+  recentProjects,
+  stats,
+  onOpenFile,
+  onProjectSelect,
+}: {
+  recentProjects: Project[];
+  stats: PublicStats | null;
+  onOpenFile: () => void;
+  onProjectSelect: (project: Project) => void;
+}) {
+  return (
+    <main className="blendproof-start-page" data-testid="start-page">
+      <section className="start-card">
+        <div className="start-brand"><BlenderLogo /><span>BlendProof</span></div>
+        <p className="start-eyebrow">WEB 3D REVIEW DESK</p>
+        <h1>开始一次清晰的审稿。</h1>
+        <p className="start-intro">在本机转换 Blender 工程，保留模型上下文，再把轻量预览交给协作者。</p>
+        <div className="start-stats" aria-label="公益存储池状态">
+          <span><strong>{stats ? formatBytes(stats.remainingBytes) : "—"}</strong><small>公益池可用 / 5 GB</small></span>
+          <span><strong>{stats?.projectCount ?? "—"}</strong><small>在线项目</small></span>
+          <span><strong>{stats?.activeShareCount ?? "—"}</strong><small>有效分享</small></span>
+          <span><strong>{stats?.userCount ?? "—"}</strong><small>已识别用户</small></span>
+        </div>
+        <p className="start-retention">建议 24 小时内完成审稿，云端派生资产最长保留 48 小时后自动清理。</p>
+        <button type="button" className="start-open-button" onClick={onOpenFile}>
+          <FolderOpen size={17} /> 打开 .blend 文件
+        </button>
+        <div className="start-divider"><span>最近项目</span></div>
+        {recentProjects.length ? (
+          <div className="start-recent-list">
+            {recentProjects.slice(0, 6).map((item) => (
+              <button type="button" className="start-recent-item" key={item.id} onClick={() => onProjectSelect(item)}>
+                <FileIcon />
+                <span><strong>{item.name}</strong><small>本地项目 · {item.id.slice(0, 6)}</small></span>
+                <ChevronDown size={14} className="start-recent-arrow" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="start-empty">还没有最近项目。打开一个 .blend 文件开始。</p>
+        )}
+        <p className="start-footnote">项目数据保存在本机。云端分享只发送派生的 Web 预览资产。</p>
+      </section>
+    </main>
+  );
+}
+
+function FileIcon() {
+  return <span className="start-file-icon"><Box size={15} /></span>;
+}
+
+function ClockIcon() {
+  return <History size={14} />;
+}
+
+function TrashIcon() {
+  return <Trash2 size={14} />;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${Math.max(0, bytes)} B`;
+}
+
 function BlenderWorkspace({
   title,
   manifest,
@@ -474,6 +598,9 @@ function BlenderWorkspace({
   uploaderOpen = false,
   onOpenUploader,
   onCloseUploader,
+  onHome,
+  onDeleteProject,
+  onOpenFileMenu,
   uploader,
   children,
 }: {
@@ -503,6 +630,9 @@ function BlenderWorkspace({
   uploaderOpen?: boolean;
   onOpenUploader?: () => void;
   onCloseUploader?: () => void;
+  onHome?: () => void;
+  onDeleteProject?: () => void;
+  onOpenFileMenu?: () => void;
   uploader?: ReactNode;
   children?: ReactNode;
 }) {
@@ -520,6 +650,7 @@ function BlenderWorkspace({
   const [commentBody, setCommentBody] = useState("");
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState<Vec3>([0, 0, 0]);
   const [reviewCameraRequest, setReviewCameraRequest] = useState<{
     camera: ReviewCameraState;
@@ -600,6 +731,22 @@ function BlenderWorkspace({
     const frame = requestAnimationFrame(() => uploaderCloseRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [onOpenUploader, uploaderOpen]);
+  useEffect(() => {
+    if (!fileMenuOpen) return;
+    const closeOnPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest(".file-menu-wrap")) setFileMenuOpen(false);
+    };
+    const closeOnKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFileMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnPointerDown);
+    document.addEventListener("keydown", closeOnKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnPointerDown);
+      document.removeEventListener("keydown", closeOnKeyDown);
+    };
+  }, [fileMenuOpen]);
   function handleUploaderDialogKeyDown(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -678,24 +825,47 @@ function BlenderWorkspace({
   return (
     <main className="blender-shell" data-testid="blendproof-app" data-readonly={readOnly}>
       <header className="blender-menubar">
-        <div className="brand-mark">
+        <button
+          type="button"
+          className="brand-mark"
+          aria-label="返回 BlendProof 启动页"
+          onClick={onHome}
+        >
           <BlenderLogo />
           <span>BlendProof</span>
-        </div>
+        </button>
         {uploader && onOpenUploader && (
-          <button
-            ref={uploaderTriggerRef}
-            type="button"
-            className="menu-item file-menu-trigger"
-            data-testid="open-uploader"
-            aria-haspopup="dialog"
-            aria-expanded={uploaderOpen}
-            aria-controls="uploader-dialog"
-            title="打开 Blender 文件"
-            onClick={onOpenUploader}
-          >
-            <FolderOpen size={13} /> 文件 / 打开 .blend
-          </button>
+          <div className="file-menu-wrap">
+            <button
+              ref={uploaderTriggerRef}
+              type="button"
+              className="menu-item file-menu-trigger"
+              data-testid="open-uploader"
+              aria-haspopup="menu"
+              aria-expanded={fileMenuOpen}
+              title="文件菜单"
+              onClick={() => setFileMenuOpen((current) => {
+                if (!current) onOpenFileMenu?.();
+                return !current;
+              })}
+            >
+              <FolderOpen size={13} /> 文件 <ChevronDown size={11} />
+            </button>
+            {fileMenuOpen && (
+              <div className="file-menu" role="menu" aria-label="文件菜单">
+                <button type="button" role="menuitem" onClick={() => { setFileMenuOpen(false); onOpenUploader(); }}>
+                  <FolderOpen size={14} /> 打开上传工作台
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setFileMenuOpen(false); onOpenUploader(); }}>
+                  <ClockIcon /> 最近项目
+                </button>
+                <div className="file-menu-separator" />
+                <button type="button" role="menuitem" disabled={!onDeleteProject} onClick={() => { setFileMenuOpen(false); onDeleteProject?.(); }}>
+                  <TrashIcon /> 删除当前本地项目
+                </button>
+              </div>
+            )}
+          </div>
         )}
         <div className="project-name">{title}</div>
         <div className="header-actions">
@@ -705,8 +875,8 @@ function BlenderWorkspace({
       <div className="blender-main">
         <section className="editor">
           <div className="editor-header">
-            <div className="editor-type">
-              <Box size={14} /> 3D 视图 <ChevronDown size={12} />
+            <div className="editor-type" aria-label="3D 视图">
+              <Box size={14} /> 3D 视图
             </div>
             {canComment && modelUrl && (
               <button

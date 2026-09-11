@@ -19,6 +19,7 @@ import { BRIDGE_NONCE_HEADER, LocalBridgePairing } from './local-pairing.js'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const storageRoot = process.env.BLENDPROOF_STORAGE_ROOT ?? path.join(root, 'storage', 'projects')
 const incomingRoot = process.env.BLENDPROOF_INCOMING_ROOT ?? path.join(path.dirname(storageRoot), 'incoming')
+const trashRoot = path.join(path.dirname(storageRoot), '.trash')
 const exportScript = path.join(root, 'server', 'blender', 'export_glb.py')
 const blenderCandidates = [
   process.env.BLENDER_BIN,
@@ -29,6 +30,8 @@ const blenderBin = blenderCandidates.find(existsSync)
 
 await mkdir(storageRoot, { recursive: true })
 await mkdir(incomingRoot, { recursive: true })
+await rm(trashRoot, { recursive: true, force: true })
+await mkdir(trashRoot, { recursive: true })
 const database = await openDatabase()
 const sqliteRepository = new BlendProofRepository(database)
 await migrateLegacy(storageRoot, sqliteRepository)
@@ -162,6 +165,36 @@ app.post('/api/local/projects/:projectId/shares', async (request, response) => {
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : '分享设置无效。' })
   }
+})
+
+app.delete('/api/local/projects/:projectId', async (request, response) => {
+  const { projectId } = request.params
+  if (!isProjectId(projectId)) {
+    response.status(400).json({ error: '项目标识无效。' })
+    return
+  }
+  if (!await repository.getProject(projectId)) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  if (!await requireOwner(request, response, projectId)) return
+  const projectPath = projectStorage.projectPath(projectId)
+  const trashPath = path.join(trashRoot, `${projectId}-${randomUUID().replaceAll('-', '')}`)
+  let staged = false
+  try {
+    await rename(projectPath, trashPath)
+    staged = true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  try {
+    await repository.deleteProject(projectId)
+  } catch (error) {
+    if (staged) await rename(trashPath, projectPath)
+    throw error
+  }
+  if (staged) await rm(trashPath, { recursive: true, force: true }).catch(() => undefined)
+  response.status(204).end()
 })
 
 app.delete('/api/local/projects/:projectId/shares/:shareId', async (request, response) => {

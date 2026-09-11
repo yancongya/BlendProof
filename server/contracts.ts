@@ -38,6 +38,7 @@ export interface ProjectStorage {
 export interface ReviewDatabase {
   registerProject(input: RegisterProjectInput): Promise<ProjectRegistration>
   getProject(projectId: string): Promise<ProjectRecord | null>
+  deleteProject(projectId: string): Promise<void>
   verifyOwnerCapability(projectId: string, capability: string): Promise<boolean>
   listComments(projectId: string): Promise<ReviewComment[]>
   createComment(projectId: string, draft: ReviewCommentDraft): Promise<ReviewComment>

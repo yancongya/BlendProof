@@ -34,8 +34,15 @@ export type ProcessReport = {
 
 export type CleanupReport = {
   expiredIntents: ExpireReport
+  expiredShares: ShareExpiryReport
   jobs: ProcessReport
   expiredRateLimitWindows: number
+}
+
+export type ShareExpiryReport = {
+  scanned: number
+  projectsQueued: number
+  enqueued: number
 }
 
 type ExpiredIntentRow = {
@@ -53,6 +60,8 @@ type IntentAssetRow = {
   asset_version: number
   status: string
 }
+
+type ProjectAssetRow = { object_key: string; asset_version: number | null }
 
 type CleanupJobRow = {
   id: string
@@ -114,6 +123,12 @@ export async function expireUploadIntents(env: Env, options: CleanupOptions = {}
       if (!changed.meta.changes) continue
 
       report.expired += 1
+      // A crashed or abandoned upload must release its entire declaration,
+      // including assets that never reached R2.  Repeating this CAS is safe.
+      await env.DB.prepare(`UPDATE project_storage_reservations
+        SET status = 'released', updated_at = ?
+        WHERE upload_intent_id = ? AND project_id = ? AND status = 'reserved'`)
+        .bind(now, intent.id, intent.project_id).run()
       const queued = await enqueueIntentCleanup(env, intent, now)
       report.enqueued += queued.enqueued
       report.skippedReady += queued.skippedReady
@@ -125,6 +140,88 @@ export async function expireUploadIntents(env: Env, options: CleanupOptions = {}
   }
 
   return report
+}
+
+/**
+ * Turn projects whose final share has expired into exact-key deletion work.
+ * Before the project hard deadline, the ready -> deleting CAS repeats the
+ * "no live share" predicate so a concurrent share wins. The 48-hour project
+ * deadline is absolute and intentionally overrides even a legacy long share.
+ */
+export async function expireSharesAndQueueProjects(env: Env, options: CleanupOptions = {}): Promise<ShareExpiryReport> {
+  const now = normalizeNow(options.now)
+  const maximum = normalizeBound(options.maxIntents ?? options.limit ?? DEFAULT_MAX_INTENTS, 0, MAX_BATCH_ITEMS)
+  const report: ShareExpiryReport = { scanned: 0, projectsQueued: 0, enqueued: 0 }
+
+  while (report.scanned < maximum) {
+    const project = await env.DB.prepare(`SELECT p.id AS project_id
+      FROM projects p
+      WHERE p.status = 'ready' AND (
+        p.expires_at <= ? OR (
+          EXISTS (
+          SELECT 1 FROM shares expired
+          WHERE expired.project_id = p.id AND expired.expires_at IS NOT NULL AND expired.expires_at <= ?
+          ) AND NOT EXISTS (
+            SELECT 1 FROM shares live
+            WHERE live.project_id = p.id AND live.revoked_at IS NULL
+              AND live.expires_at IS NOT NULL AND live.expires_at > ?
+          )
+        )
+      )
+      ORDER BY p.id LIMIT 1`).bind(now, now, now).first<{ project_id: string }>()
+    if (!project) break
+    report.scanned += 1
+
+    const claimed = await env.DB.prepare(`UPDATE projects
+      SET status = 'deleting', updated_at = ?
+      WHERE id = ? AND status = 'ready' AND (
+        expires_at <= ? OR (
+          EXISTS (SELECT 1 FROM shares expired
+            WHERE expired.project_id = projects.id AND expired.expires_at IS NOT NULL AND expired.expires_at <= ?)
+          AND NOT EXISTS (SELECT 1 FROM shares live
+            WHERE live.project_id = projects.id AND live.revoked_at IS NULL
+              AND live.expires_at IS NOT NULL AND live.expires_at > ?)
+        )
+      )`).bind(now, project.project_id, now, now, now).run()
+    if (!claimed.meta.changes) continue
+
+    const queued = await queueProjectDeletion(env, project.project_id, now)
+    report.projectsQueued += 1
+    report.enqueued += queued
+  }
+
+  // If a Worker stopped after the status CAS but before it wrote the ledger,
+  // recover it on the next scheduled run without relying on an in-memory job.
+  const deleting = await env.DB.prepare(`SELECT id FROM projects
+    WHERE status = 'deleting' AND deleted_at IS NULL ORDER BY updated_at ASC, id ASC LIMIT ?`)
+    .bind(Math.max(0, maximum - report.scanned)).all<{ id: string }>()
+  for (const project of deleting.results) {
+    report.enqueued += await queueProjectDeletion(env, project.id, now)
+  }
+  return report
+}
+
+async function queueProjectDeletion(env: Env, projectId: string, now: string) {
+  const assets = await env.DB.prepare(`SELECT object_key, asset_version FROM project_assets
+    WHERE project_id = ? AND status IN ('ready', 'deleting')`).bind(projectId).all<ProjectAssetRow>()
+  const statements: D1PreparedStatement[] = []
+  for (const asset of assets.results) {
+    statements.push(env.DB.prepare(`INSERT OR IGNORE INTO cleanup_jobs
+      (id, project_id, object_key, asset_version, kind, status, attempts, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'project', 'pending', 0, ?, ?)`)
+      .bind(randomHex(16), projectId, asset.object_key, asset.asset_version, now, now))
+  }
+  statements.push(
+    env.DB.prepare(`UPDATE project_assets SET status = 'deleting', updated_at = ?
+      WHERE project_id = ? AND status = 'ready'`).bind(now, projectId),
+    // No valid share remains after the status CAS.  Remove review content as
+    // part of expiry, while the persistent cleanup ledger retains retry state.
+    env.DB.prepare('DELETE FROM comments WHERE project_id = ?').bind(projectId),
+    env.DB.prepare('DELETE FROM shares WHERE project_id = ?').bind(projectId),
+  )
+  const results = statements.length ? await env.DB.batch(statements) : []
+  await completeProjectDeletion(env, projectId, now)
+  return results.slice(0, assets.results.length).reduce((total, result) => total + result.meta.changes, 0)
 }
 
 /**
@@ -198,7 +295,14 @@ export async function processCleanupJobs(env: Env, options: CleanupOptions = {})
 
         // Deliberately use the exact key from cleanup_jobs, never a prefix or list.
         await env.ASSETS.delete(job.object_key)
+        if (job.kind === 'project') {
+          await env.DB.prepare(`UPDATE project_assets SET status = 'deleted', updated_at = ?
+            WHERE project_id = ? AND object_key = ? AND status = 'deleting'`)
+            .bind(now, job.project_id, job.object_key).run()
+          await completeProjectDeletion(env, job.project_id, now)
+        }
         await markJobDone(env, job.id, now)
+        if (job.kind === 'project') await completeProjectDeletion(env, job.project_id, now)
         report.completed += 1
         report.deleted += 1
       } catch (error) {
@@ -221,9 +325,10 @@ export async function processCleanupJobs(env: Env, options: CleanupOptions = {})
 /** Run both halves in order; suitable as the body of a scheduled handler. */
 export async function runCleanup(env: Env, options: CleanupOptions = {}): Promise<CleanupReport> {
   const expiredIntents = await expireUploadIntents(env, options)
+  const expiredShares = await expireSharesAndQueueProjects(env, options)
   const jobs = await processCleanupJobs(env, options)
   const expiredRateLimitWindows = await pruneExpiredRateLimitWindows(env, options.now)
-  return { expiredIntents, jobs, expiredRateLimitWindows }
+  return { expiredIntents, expiredShares, jobs, expiredRateLimitWindows }
 }
 
 /** Explicit scheduled-handler-friendly alias. */
@@ -286,6 +391,26 @@ async function enqueueIntentCleanup(env: Env, intent: ExpiredIntentRow, now: str
 async function markJobDone(env: Env, id: string, now: string) {
   await env.DB.prepare(`UPDATE cleanup_jobs SET status = 'done', last_error = NULL, updated_at = ?
     WHERE id = ? AND status = 'running'`).bind(now, id).run()
+}
+
+async function completeProjectDeletion(env: Env, projectId: string, now: string) {
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE projects SET deleted_at = ?, updated_at = ?
+      WHERE id = ? AND status = 'deleting' AND deleted_at IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM project_assets asset
+        WHERE asset.project_id = projects.id AND asset.status != 'deleted'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM cleanup_jobs job
+        WHERE job.project_id = projects.id AND job.kind = 'project' AND job.status != 'done'
+      )`).bind(now, now, projectId),
+    env.DB.prepare(`UPDATE project_storage_reservations SET status = 'released', updated_at = ?
+      WHERE project_id = ? AND status = 'settled' AND EXISTS (
+        SELECT 1 FROM projects p WHERE p.id = project_storage_reservations.project_id
+          AND p.status = 'deleting' AND p.deleted_at IS NOT NULL
+      )`).bind(now, projectId),
+  ])
 }
 
 function parseAssetNames(raw: string): PublicProjectAsset[] {

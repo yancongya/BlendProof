@@ -41,10 +41,11 @@ export async function initializeProject(request: Request, env: UploadEnv): Promi
   const id = randomHex(16)
   const ownerCapability = randomHex(32)
   const now = new Date().toISOString()
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60_000).toISOString()
   await env.DB.prepare(`INSERT INTO projects
-    (id, name, owner_capability_hash, storage_namespace, status, asset_version, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'pending', 1, ?, ?)`)
-    .bind(id, body.name.trim(), await sha256Text(ownerCapability), randomHex(16), now, now).run()
+    (id, name, owner_capability_hash, storage_namespace, status, asset_version, created_at, updated_at, expires_at)
+    VALUES (?, ?, ?, ?, 'pending', 1, ?, ?, ?)`)
+    .bind(id, body.name.trim(), await sha256Text(ownerCapability), randomHex(16), now, now, expiresAt).run()
   return Response.json({ id, name: body.name.trim(), ownerCapability, status: 'pending' }, { status: 201 })
 }
 
@@ -65,6 +66,7 @@ export async function createUploadIntent(request: Request, env: UploadEnv, proje
   }
 
   const expectedJson = JSON.stringify(assets)
+  const reservedBytes = assets.reduce((total, asset) => total + asset.byteSize, 0)
   const existing = await env.DB.prepare(`SELECT id, project_id, intent_token_hash, asset_version,
     staging_namespace, expected_assets_json, status, expires_at FROM upload_intents
     WHERE project_id = ? AND idempotency_key = ?`)
@@ -101,16 +103,25 @@ export async function createUploadIntent(request: Request, env: UploadEnv, proje
         VALUES (?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?, ?)`)
         .bind(id, projectId, body.idempotencyKey, await sha256Text(intentToken), version, randomHex(16),
           expectedJson, expiresAt, now, now),
+      // The insert trigger checks and books the global pool within this D1
+      // transaction, so concurrent requests cannot both spend the same bytes.
+      env.DB.prepare(`INSERT INTO project_storage_reservations
+        (upload_intent_id, project_id, byte_size, status, created_at, updated_at)
+        VALUES (?, ?, ?, 'reserved', ?, ?)`)
+        .bind(id, projectId, reservedBytes, now, now),
       env.DB.prepare(`UPDATE projects SET status = 'uploading', updated_at = ?
         WHERE id = ? AND asset_version = ? AND status IN ('pending', 'uploading')`).bind(now, projectId, version),
     ])
-  } catch {
+  } catch (error) {
     const winner = await env.DB.prepare(`SELECT id, project_id, intent_token_hash, asset_version,
       staging_namespace, expected_assets_json, status, expires_at FROM upload_intents
       WHERE project_id = ? AND idempotency_key = ?`).bind(projectId, body.idempotencyKey).first<IntentRow>()
     if (winner && winner.status === 'uploading' && Date.parse(winner.expires_at) > Date.now()) {
       if (winner.expected_assets_json !== expectedJson) return jsonError('幂等键对应的资源清单不同。', 409)
       return uploadIntentResponse(projectId, winner, await deriveIntentToken(env, winner.id), 200)
+    }
+    if (errorMessage(error).includes('storage pool capacity exceeded')) {
+      return jsonError('公益存储池已满，暂时无法创建上传。', 507)
     }
     return jsonError('项目已有进行中的上传或状态已更新。', 409)
   }
@@ -217,24 +228,36 @@ export async function finalizeUpload(request: Request, env: UploadEnv, projectId
     }
   }
   const now = new Date().toISOString()
-  let results: D1Result[]
   try {
-    results = await env.DB.batch([
-      env.DB.prepare(`UPDATE projects SET status = 'ready', updated_at = ?
-        WHERE id = ? AND status = 'uploading' AND asset_version = ?`).bind(now, projectId, intent.asset_version),
+    await env.DB.batch([
       env.DB.prepare(`UPDATE upload_intents SET status = 'finalized', updated_at = ?
         WHERE id = ? AND status = 'uploading'`).bind(now, intent.id),
+      env.DB.prepare(`UPDATE project_storage_reservations SET status = 'settled', updated_at = ?
+        WHERE upload_intent_id = ? AND project_id = ? AND status = 'reserved'`)
+        .bind(now, intent.id, projectId),
       ...rows.results.map((row) => env.DB.prepare(`UPDATE project_assets SET status = 'ready', updated_at = ?
         WHERE project_id = ? AND upload_intent_id = ? AND asset_name = ? AND status = 'staging' AND etag = ?`)
         .bind(now, projectId, intent.id, row.asset_name, row.etag)),
       ...rows.results.map((row) => env.DB.prepare(`UPDATE cleanup_jobs SET status = 'done', updated_at = ?
         WHERE kind = 'staging' AND object_key = ? AND status IN ('pending', 'failed')`).bind(now, row.object_key)),
+      // Keep this last: the migration guard aborts the whole batch unless the
+      // intent and reservation transitions above actually won their CAS.
+      env.DB.prepare(`UPDATE projects SET status = 'ready', updated_at = ?
+        WHERE id = ? AND status = 'uploading' AND asset_version = ?`).bind(now, projectId, intent.asset_version),
     ])
   } catch {
     return jsonError('项目状态冲突。', 409)
   }
-  if (results[0].meta.changes !== 1 || results[1].meta.changes !== 1 ||
-    results.slice(2, 2 + rows.results.length).some((result) => result.meta.changes !== 1)) {
+  // D1 reports trigger-side writes differently between local Miniflare and
+  // production, so verify the persisted terminal state instead of treating a
+  // zero `changes` metadata value as a failed transaction.
+  const completed = await env.DB.prepare(`SELECT 1 AS present FROM projects p
+    JOIN upload_intents ui ON ui.id = ? AND ui.project_id = p.id AND ui.status = 'finalized'
+    JOIN project_storage_reservations reservation
+      ON reservation.upload_intent_id = ui.id AND reservation.status = 'settled'
+    WHERE p.id = ? AND p.status = 'ready' AND p.asset_version = ui.asset_version`)
+    .bind(intent.id, projectId).first<{ present: number }>()
+  if (!completed) {
     return jsonError('项目状态冲突。', 409)
   }
   return Response.json({ id: projectId, status: 'ready' })
@@ -312,6 +335,10 @@ function validSigningSecret(env: UploadEnv) {
   return typeof env.UPLOAD_SIGNING_SECRET === 'string' && env.UPLOAD_SIGNING_SECRET.length >= 32
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 async function deriveIntentToken(env: UploadEnv, intentId: string) {
   const key = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(env.UPLOAD_SIGNING_SECRET),
@@ -343,6 +370,9 @@ async function expireIntentAndAdvance(env: UploadEnv, project: ProjectRow, inten
     env.DB.prepare(`UPDATE projects SET status = 'pending', asset_version = asset_version + 1, updated_at = ?
       WHERE id = ? AND asset_version = ? AND status IN ('pending', 'uploading')`)
       .bind(now, project.id, intent.asset_version),
+    env.DB.prepare(`UPDATE project_storage_reservations SET status = 'released', updated_at = ?
+      WHERE upload_intent_id = ? AND project_id = ? AND status = 'reserved'`)
+      .bind(now, intent.id, project.id),
   ])
   if (results[1].meta.changes !== 1) return
   project.asset_version += 1

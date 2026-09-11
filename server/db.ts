@@ -407,6 +407,12 @@ export class BlendProofRepository {
     return row ? toProject(row) : null
   }
 
+  deleteProject(projectId: string): void {
+    withTransaction(this.database, () => {
+      this.database.prepare('DELETE FROM projects WHERE id = ?').run(projectId)
+    })
+  }
+
   verifyOwnerCapability(projectId: string, capability: string): boolean {
     if (!capability) return false
     const row = this.database.prepare(

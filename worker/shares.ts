@@ -5,7 +5,7 @@ import type { UploadEnv } from './uploads.js'
 
 export type ShareEnv = UploadEnv & { SHARE_ACCESS_SECRET: string; SHARE_ACCESS_SECRET_PREVIOUS?: string }
 
-type ProjectRow = { id: string; name: string; owner_capability_hash: string; storage_namespace: string; status: string; asset_version: number }
+type ProjectRow = { id: string; name: string; owner_capability_hash: string; storage_namespace: string; status: string; asset_version: number; expires_at: string | null }
 type ShareRow = {
   id: string; project_id: string; password_hash: string | null; expires_at: string | null
   comments_permission: 'read_only' | 'comment'; revoked_at: string | null; created_at: string; updated_at: string
@@ -16,6 +16,9 @@ type CommentRow = {
   author_type: 'owner' | 'guest'; created_at: string; updated_at: string
 }
 type ReadyAssetRow = { object_key: string; content_type: string; byte_size: number; etag: string | null }
+
+const DEFAULT_SHARE_TTL_MS = 24 * 60 * 60_000
+const MAX_SHARE_TTL_MS = 48 * 60 * 60_000
 
 /** Returns null when the request does not belong to the share/review surface. */
 export async function handleShareRequest(request: Request, env: ShareEnv, url: URL): Promise<Response | null> {
@@ -65,14 +68,20 @@ async function createShare(request: Request, env: ShareEnv, projectId: string): 
   if (project.status !== 'ready') return error('项目尚未准备好分享。', 409)
   const body = await readJson<Record<string, unknown>>(request)
   if (!body) return error('分享设置无效。', 400)
+  if (Object.keys(body).some((key) => !['password', 'expiresAt', 'commentsPermission'].includes(key))) return error('分享设置无效。', 400)
   const permission = body.commentsPermission ?? 'read_only'
   if (permission !== 'read_only' && permission !== 'comment') return error('评论权限无效。', 400)
-  let expiresAt: string | null = body.expiresAt === undefined || body.expiresAt === null || body.expiresAt === '' ? null : String(body.expiresAt)
-  if (expiresAt !== null || body.expiresAt !== undefined) {
-    if (expiresAt !== null && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now())) return error('分享有效期无效。', 400)
-    if (expiresAt !== null) expiresAt = new Date(expiresAt).toISOString()
+  const nowMs = Date.now()
+  const requestedExpiry = body.expiresAt === undefined || body.expiresAt === null || body.expiresAt === ''
+    ? nowMs + DEFAULT_SHARE_TTL_MS
+    : Date.parse(String(body.expiresAt))
+  if (!Number.isFinite(requestedExpiry) || requestedExpiry <= nowMs || requestedExpiry > nowMs + MAX_SHARE_TTL_MS) {
+    return error('分享有效期必须在未来 48 小时内；默认保留 24 小时。', 400)
   }
-  if (Object.keys(body).some((key) => !['password', 'expiresAt', 'commentsPermission'].includes(key))) return error('分享设置无效。', 400)
+  if (project.expires_at && requestedExpiry > Date.parse(project.expires_at)) {
+    return error('分享有效期不能超过该项目的 48 小时保留上限。', 400)
+  }
+  const expiresAt = new Date(requestedExpiry).toISOString()
   const password = body.password === undefined || body.password === null || body.password === '' ? null : body.password
   if (password !== null && (typeof password !== 'string' || password.length < 4 || password.length > 200)) {
     return error('分享密码需要 4 到 200 个字符。', 400)
@@ -81,11 +90,15 @@ async function createShare(request: Request, env: ShareEnv, projectId: string): 
   const token = randomHex(16)
   const id = randomHex(16)
   const now = new Date().toISOString()
-  await env.DB.prepare(`INSERT INTO shares
-    (id, project_id, token_hash, password_hash, expires_at, comments_permission, revoked_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`)
-    .bind(id, projectId, await sha256Text(token), password === null ? null : await hashPassword(password),
-      expiresAt, permission, now, now).run()
+  try {
+    await env.DB.prepare(`INSERT INTO shares
+      (id, project_id, token_hash, password_hash, expires_at, comments_permission, revoked_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`)
+      .bind(id, projectId, await sha256Text(token), password === null ? null : await hashPassword(password),
+        expiresAt, permission, now, now).run()
+  } catch {
+    return error('项目当前不能创建分享。', 409)
+  }
   return Response.json({ id, token, shareUrl: `/s/${token}`, passwordProtected: password !== null,
     expiresAt, commentsPermission: permission }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } })
 }
@@ -217,8 +230,8 @@ async function resolveShare(env: ShareEnv, token: string, passwordRequired: bool
     WHERE s.token_hash = ? AND p.status = 'ready'`).bind(await sha256Text(token)).first<ShareRow>()
   if (!row || row.revoked_at) return error('分享链接不存在或已失效。', 404)
   if (row.expires_at !== null && Date.parse(row.expires_at) <= Date.now()) return shareError('分享链接已过期。', 410, row)
-  const project = await env.DB.prepare("SELECT id, name, owner_capability_hash, storage_namespace, status, asset_version FROM projects WHERE id = ? AND status = 'ready'")
-    .bind(row.project_id).first<ProjectRow>()
+  const project = await env.DB.prepare("SELECT id, name, owner_capability_hash, storage_namespace, status, asset_version, expires_at FROM projects WHERE id = ? AND status = 'ready' AND (expires_at IS NULL OR expires_at > ?)")
+    .bind(row.project_id, new Date().toISOString()).first<ProjectRow>()
   if (!project) return error('分享链接不存在或已失效。', 404)
   if (row.password_hash && !validShareSecret(env)) return shareError('分享访问服务未配置。', 503, row)
   if (passwordRequired && row.password_hash && (!request || !await hasAccessCookie(request, env, token))) {
@@ -335,7 +348,7 @@ function parseJson(value: string) { return JSON.parse(value) as unknown }
 async function authorizeOwner(request: Request, env: ShareEnv, projectId: string): Promise<ProjectRow | Response> {
   const capability = request.headers.get('x-blendproof-owner')
   if (!capability) return error('缺少所有者凭据。', 401)
-  const project = await env.DB.prepare('SELECT id, name, owner_capability_hash, storage_namespace, status, asset_version FROM projects WHERE id = ?')
+  const project = await env.DB.prepare('SELECT id, name, owner_capability_hash, storage_namespace, status, asset_version, expires_at FROM projects WHERE id = ?')
     .bind(projectId).first<ProjectRow>()
   if (!project || project.owner_capability_hash !== await sha256Text(capability)) return error('所有者凭据无效。', 403)
   return project

@@ -13,6 +13,7 @@ export class LocalReviewDatabase implements ReviewDatabase {
 
   async registerProject(input: RegisterProjectInput) { return this.repository.registerProject(input) }
   async getProject(projectId: string) { return this.repository.getProject(projectId) }
+  async deleteProject(projectId: string) { this.repository.deleteProject(projectId) }
   async verifyOwnerCapability(projectId: string, capability: string) {
     return this.repository.verifyOwnerCapability(projectId, capability)
   }

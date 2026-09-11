@@ -160,6 +160,98 @@ describe('scheduled cleanup and recovery', () => {
       ORDER BY id`).bind(...ids).all<{ status: string }>()
     expect(statuses.results.filter((row) => row.status === 'uploading')).toHaveLength(1)
   })
+
+  it('deletes an expired project only after its final share expires, using exact-key ledger retries', async () => {
+    const now = new Date('2026-09-12T00:00:00.000Z')
+    const projectId = randomHex(16)
+    const namespace = randomHex(16)
+    const intentId = randomHex(16)
+    const tokenHash = randomHex(32)
+    const createdAt = new Date(now.getTime() - 2 * 24 * 60 * 60_000).toISOString()
+    const modelKey = r2AssetKey(namespace, 1, 'model.glb')
+    const manifestKey = r2AssetKey(namespace, 1, 'manifest.json')
+    await insertProject(projectId, namespace, 'ready', now, createdAt)
+    await insertIntent(intentId, projectId, 'finalized', now, createdAt, [])
+    for (const [name, key, type] of [
+      ['model.glb', modelKey, 'model/gltf-binary'],
+      ['manifest.json', manifestKey, 'application/json'],
+    ] as const) {
+      await env.DB.prepare(`INSERT INTO project_assets
+        (id, project_id, upload_intent_id, asset_version, asset_name, object_key, content_type,
+         byte_size, sha256, etag, status, created_at, updated_at)
+        VALUES (?, ?, ?, 1, ?, ?, ?, 3, ?, 'etag', 'ready', ?, ?)`)
+        .bind(randomHex(16), projectId, intentId, name, key, type, 'a'.repeat(64), createdAt, createdAt).run()
+      await env.ASSETS.put(key, new Uint8Array([1, 2, 3]))
+    }
+    await env.DB.prepare(`INSERT INTO shares
+      (id, project_id, token_hash, password_hash, expires_at, comments_permission, revoked_at, created_at, updated_at)
+      VALUES (?, ?, ?, NULL, ?, 'read_only', NULL, ?, ?)`)
+      .bind(randomHex(16), projectId, tokenHash, new Date(now.getTime() - 1).toISOString(), createdAt, createdAt).run()
+    await env.DB.prepare(`INSERT INTO comments
+      (id, project_id, object_name, position_json, normal_json, camera_json, body, author_name, status, author_type, created_at, updated_at)
+      VALUES (?, ?, NULL, '[]', '[]', '{}', 'expired', 'owner', 'open', 'owner', ?, ?)`)
+      .bind(randomHex(16), projectId, createdAt, createdAt).run()
+
+    const report = await runCleanup(env, { now, maxIntents: 10, maxJobs: 10 })
+    expect(report.expiredShares).toMatchObject({ scanned: 1, projectsQueued: 1, enqueued: 2 })
+    expect(report.jobs.deleted).toBeGreaterThanOrEqual(2)
+    expect(await env.ASSETS.head(modelKey)).toBeNull()
+    expect(await env.ASSETS.head(manifestKey)).toBeNull()
+    expect(await env.DB.prepare('SELECT deleted_at FROM projects WHERE id = ?').bind(projectId).first<{ deleted_at: string | null }>())
+      .toMatchObject({ deleted_at: now.toISOString() })
+    expect((await env.DB.prepare("SELECT COUNT(*) AS count FROM project_assets WHERE project_id = ? AND status = 'deleted'")
+      .bind(projectId).first<{ count: number }>())?.count).toBe(2)
+    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM shares WHERE project_id = ?').bind(projectId).first<{ count: number }>())?.count).toBe(0)
+    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM comments WHERE project_id = ?').bind(projectId).first<{ count: number }>())?.count).toBe(0)
+  })
+
+  it('deletes a project at the 48-hour hard limit even when no share was created', async () => {
+    const now = new Date('2026-09-12T00:00:00.000Z')
+    const projectId = randomHex(16)
+    const namespace = randomHex(16)
+    const intentId = randomHex(16)
+    const createdAt = new Date(now.getTime() - 49 * 60 * 60_000).toISOString()
+    const key = r2AssetKey(namespace, 1, 'model.glb')
+    await insertProject(projectId, namespace, 'ready', now, createdAt)
+    await env.DB.prepare('UPDATE projects SET expires_at = ? WHERE id = ?').bind(
+      new Date(now.getTime() - 60 * 60_000).toISOString(), projectId,
+    ).run()
+    await insertIntent(intentId, projectId, 'finalized', now, createdAt, [])
+    await env.DB.prepare(`INSERT INTO project_assets
+      (id, project_id, upload_intent_id, asset_version, asset_name, object_key, content_type,
+       byte_size, sha256, etag, status, created_at, updated_at)
+      VALUES (?, ?, ?, 1, 'model.glb', ?, 'model/gltf-binary', 3, ?, 'etag', 'ready', ?, ?)`).bind(
+      randomHex(16), projectId, intentId, key, 'a'.repeat(64), createdAt, createdAt,
+    ).run()
+    await env.ASSETS.put(key, new Uint8Array([1, 2, 3]))
+
+    const report = await runCleanup(env, { now, maxIntents: 10, maxJobs: 10 })
+    expect(report.expiredShares.projectsQueued).toBe(1)
+    expect(await env.ASSETS.head(key)).toBeNull()
+    expect((await env.DB.prepare('SELECT status, deleted_at FROM projects WHERE id = ?').bind(projectId)
+      .first<{ status: string; deleted_at: string | null }>())).toMatchObject({ status: 'deleting', deleted_at: now.toISOString() })
+  })
+
+  it('lets the 48-hour project deadline override a legacy share that expires later', async () => {
+    const now = new Date('2026-09-12T00:00:00.000Z')
+    const projectId = randomHex(16)
+    await insertProject(projectId, randomHex(16), 'ready', now, new Date(now.getTime() - 49 * 60 * 60_000).toISOString())
+    await env.DB.prepare('UPDATE projects SET expires_at = ? WHERE id = ?')
+      .bind(new Date(now.getTime() - 1).toISOString(), projectId).run()
+    await env.DB.prepare(`INSERT INTO shares
+      (id, project_id, token_hash, password_hash, expires_at, comments_permission, revoked_at, created_at, updated_at)
+      VALUES (?, ?, ?, NULL, ?, 'read_only', NULL, ?, ?)`).bind(
+      randomHex(16), projectId, randomHex(32), new Date(now.getTime() + 7 * 24 * 60 * 60_000).toISOString(),
+      now.toISOString(), now.toISOString(),
+    ).run()
+
+    const report = await runCleanup(env, { now, maxIntents: 10, maxJobs: 10 })
+    expect(report.expiredShares.projectsQueued).toBe(1)
+    expect((await env.DB.prepare('SELECT deleted_at FROM projects WHERE id = ?').bind(projectId)
+      .first<{ deleted_at: string | null }>())?.deleted_at).toBe(now.toISOString())
+    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM shares WHERE project_id = ?').bind(projectId)
+      .first<{ count: number }>())?.count).toBe(0)
+  })
 })
 
 async function insertProject(id: string, namespace: string, status: string, now: Date, timestamp: string) {

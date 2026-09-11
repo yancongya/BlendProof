@@ -369,4 +369,19 @@ describe("阶段 2 评论 API", () => {
     const expiredRead = await request(`/api/local/shares/${String(expired.body.token)}`);
     assert.equal(expiredRead.response.status, 410);
   });
+
+  test("删除本地项目必须持有 owner capability，并同时移除派生文件", async () => {
+    const denied = await bridgeFetch(`/api/local/projects/${secondProjectId}`, {
+      method: "DELETE",
+      headers: { "x-blendproof-owner": ownerCapability },
+    });
+    assert.equal(denied.status, 403);
+
+    const deleted = await bridgeFetch(`/api/local/projects/${secondProjectId}`, {
+      method: "DELETE",
+      headers: { "x-blendproof-owner": secondOwnerCapability },
+    });
+    assert.equal(deleted.status, 204);
+    assert.equal((await bridgeFetch(`/api/local/projects/${secondProjectId}/assets/model.glb`)).status, 404);
+  });
 });
