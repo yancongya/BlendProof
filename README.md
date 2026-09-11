@@ -10,7 +10,7 @@ Blender 风格的 Web 3D 审稿工具。原始 `.blend` 只在本机交给 Blend
 4. 同一 Web 的 `/s/<token>` 路由读取分享模型，不另建第二套 Viewer。
 5. 本地开发使用 SQLite/文件系统，云端适配 Cloudflare Workers、D1 和私有 R2。
 
-没有打开项目时，Viewer 默认展示内置的 Suzanne 猴头 GLB；它由开发测试文件离线导出，原始 `.blend` 不进入前端构建。默认模型只用于演示查看与选择，不创建无归属批注。
+没有打开项目时，Viewer 默认展示内置的 Suzanne 猴头 GLB；它由开发测试文件离线导出，原始 `.blend` 不进入前端构建。该模型作为平台管理员维护的永久只读公开示例，可通过 `/s/suzanne` 访问，演示口令为 `tycon`；它不占用户配额、不进入 48 小时清理，也不创建无归属批注。此口令是公开演示提示，并非账号凭据或安全边界。
 
 本地阶段最终验收范围与证据见 [`docs/LOCAL_MILESTONE_ACCEPTANCE.md`](docs/LOCAL_MILESTONE_ACCEPTANCE.md)。
 
@@ -34,6 +34,18 @@ Cloudflare 部署时配置：
 - Cloudflare Secret：`BOOTSTRAP_ADMIN_TOKEN`，至少 32 字符
 
 仅当 `users` 为空时，获授权操作员可以调用一次 `POST /api/auth/bootstrap-admin`，以 Bearer token 鉴权并在 JSON body 提交初始密码。创建成功后接口会永久关闭，随后必须删除 `BOOTSTRAP_ADMIN_TOKEN`。不要把管理员密码或 token 写进 `wrangler.jsonc`、Git、命令历史或部署日志。完整上线边界见 [Phase 4D 部署与恢复清单](docs/PHASE_4D_DEPLOYMENT_RECOVERY.md)。
+
+## Cloudflare 上线前替换项
+
+`wrangler.jsonc` 当前保留本地 Miniflare 名称与占位资源 ID，不能直接作为生产配置发布。正式上线前需：
+
+1. 把 Worker、D1 与 R2 名称和 D1 `database_id` 替换为目标账号中的真实资源。
+2. 把 `APP_ORIGIN` 改为最终 HTTPS Origin，并保持无尾斜杠的完全匹配。
+3. 通过 Wrangler Secret 配置 `SHARE_ACCESS_SECRET`、`SESSION_SECRET` 与一次性的 `BOOTSTRAP_ADMIN_TOKEN`，不得写入配置文件。
+4. 先执行 D1 migrations，再构建 Web；Worker Static Assets 会托管 `dist/`，`/api/*` 优先进入 Worker，`/s/*` 回退到 SPA。
+5. 管理员初始化成功后立即删除 bootstrap secret，再完成双浏览器分享、密码、评论、撤销、到期与 cron 清理验收。
+
+真实资源创建、Secret 写入、远程 migration 和首次生产发布仍需明确授权。
 
 ## 运行
 

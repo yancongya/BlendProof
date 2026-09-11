@@ -97,6 +97,9 @@ const DEFAULT_MONKEY_MANIFEST: Manifest = {
   materials: ["Material"],
   export: { glbBytes: 69708, objectCount: 1 },
 };
+const DEMO_SHARE_TOKEN = "suzanne";
+const DEMO_SHARE_URL = `/s/${DEMO_SHARE_TOKEN}`;
+const DEMO_SHARE_PASSWORD = "tycon";
 
 function formatShareExpiry(expiresAt: string | null) {
   if (!expiresAt) return "不限时";
@@ -145,10 +148,14 @@ function ReceiverShareCard({
   permission,
   expiresAt,
   transport,
+  publisher,
+  sourceLabel,
 }: {
   permission: "read_only" | "comment";
   expiresAt: string | null;
   transport: ProjectTransport;
+  publisher?: string;
+  sourceLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -159,10 +166,10 @@ function ReceiverShareCard({
       {open && (
         <section className="share-credential-card receiver-card" aria-label="接收方审稿凭证">
           <header><span>审稿通行证</span><b>访问有效</b></header>
-          <p>此页面只读取派生的 Web 模型，不包含原始 Blender 工程。</p>
+          <p>{publisher ? `${publisher}发布的永久公开示例。` : "此页面只读取派生的 Web 模型，不包含原始 Blender 工程。"}</p>
           <dl>
             <div><dt>权限</dt><dd>{permission === "comment" ? "查看与批注" : "仅查看"}</dd></div>
-            <div><dt>来源</dt><dd>{transport === "cloud" ? "云端快递柜" : "本机分享"}</dd></div>
+            <div><dt>来源</dt><dd>{sourceLabel ?? (transport === "cloud" ? "云端快递柜" : "本机分享")}</dd></div>
             <div><dt>到期</dt><dd>{formatShareExpiry(expiresAt)}</dd></div>
           </dl>
         </section>
@@ -421,7 +428,7 @@ export function App() {
       <>
       <BlenderWorkspace
         title={project?.name ?? file?.name ?? "Suzanne 演示"} manifest={workspaceManifest} hidden={hidden} selected={selected}
-        shareStatus={shareUrl ? { expiresAt: shareExpiresAt, permission: sharePermission } : null}
+        shareStatus={shareUrl ? { expiresAt: shareExpiresAt, permission: sharePermission } : !project ? { expiresAt: null, permission: "read_only" } : null}
         onSelect={(name) => setSelected(name ? new Set([name]) : new Set())} onSelectMany={(names) => setSelected(new Set(names))}
         onToggle={toggle} message={message} modelUrl={workspaceModelUrl} readOnly={false} canComment={Boolean(project)}
         displayMode={displayMode} onDisplayMode={setDisplayMode} cameraPreset={cameraPreset} onCameraPreset={setCameraPreset}
@@ -462,7 +469,7 @@ export function App() {
   return (
     <BlenderWorkspace
       title={project?.name ?? file?.name ?? "Suzanne 演示"}
-      shareStatus={shareUrl ? { expiresAt: shareExpiresAt, permission: sharePermission } : null}
+      shareStatus={shareUrl ? { expiresAt: shareExpiresAt, permission: sharePermission } : !project ? { expiresAt: null, permission: "read_only" } : null}
       manifest={workspaceManifest}
       hidden={hidden}
       selected={selected}
@@ -512,7 +519,6 @@ export function App() {
         <button
           type="button"
           className="menu-item share-trigger"
-          disabled={!project}
           aria-haspopup="dialog"
           aria-expanded={sharePanelOpen}
           onClick={() => setSharePanelOpen((current) => !current)}
@@ -521,6 +527,17 @@ export function App() {
         </button>
         {sharePanelOpen && (
           <form className="share-panel" role="dialog" aria-label="分享设置" onSubmit={(event) => { event.preventDefault(); void createShare(); }}>
+            {!project ? <>
+              <div className="share-panel-title"><Share2 size={14} /> 管理员公开示例</div>
+              <p className="demo-share-note">Suzanne 由平台管理员长期公开，不占用用户空间，也不会随普通项目自动清理。</p>
+              <SenderShareCard
+                url={DEMO_SHARE_URL}
+                expiresAt={null}
+                permission="read_only"
+                protectedByPassword
+              />
+              <p className="demo-share-password">访问密码 <code>{DEMO_SHARE_PASSWORD}</code></p>
+            </> : <>
             <div className="share-panel-title"><Share2 size={14} /> 分享当前项目</div>
             <label className="share-setting">
               <span>密码</span>
@@ -550,6 +567,7 @@ export function App() {
               />
             )}
             {shareId && <button type="button" className="share-panel-revoke" onClick={() => void revokeShare()}>撤销分享</button>}
+            </>}
           </form>
         )}
       </div>
@@ -560,6 +578,7 @@ export function App() {
 export function SharePage() {
   const token = window.location.pathname.split("/").filter(Boolean).at(-1);
   const transport: ProjectTransport = new URLSearchParams(window.location.search).get("source") === "cloud" ? "cloud" : "local";
+  const isDemoShare = token === DEMO_SHARE_TOKEN;
   const [share, setShare] = useState<{
     name: string;
     modelUrl: string;
@@ -567,14 +586,22 @@ export function SharePage() {
     comments: ReviewComment[];
     commentsPermission: "read_only" | "comment";
     expiresAt: string | null;
-  } | null>(null);
+  } | null>(() => isDemoShare ? {
+    name: DEFAULT_MONKEY_MANIFEST.scene,
+    modelUrl: "/default-monkey.glb",
+    manifest: DEFAULT_MONKEY_MANIFEST,
+    comments: [],
+    commentsPermission: "read_only",
+    expiresAt: null,
+  } : null);
   const [error, setError] = useState<string | null>(null);
-  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [passwordRequired, setPasswordRequired] = useState(isDemoShare);
   const [password, setPassword] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
   const loadShare = useCallback(() => {
+    if (isDemoShare) return;
     if (!token) return setError("缺少分享标识。");
     setError(null);
     blendProofClient.loadShare<Manifest>(token, transport)
@@ -585,8 +612,9 @@ export function SharePage() {
       .catch((reason) =>
         setError(reason instanceof Error ? reason.message : "无法读取分享。"),
       );
-  }, [token, transport]);
+  }, [isDemoShare, token, transport]);
   useEffect(() => {
+    if (isDemoShare) return;
     if (!token) return setError("缺少分享标识。");
     blendProofClient.shareStatus(token, transport)
       .then((body) => {
@@ -594,8 +622,17 @@ export function SharePage() {
         else loadShare();
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : "无法读取分享。"));
-  }, [loadShare, token, transport]);
+  }, [isDemoShare, loadShare, token, transport]);
   async function unlockShare() {
+    if (isDemoShare) {
+      if (password !== DEMO_SHARE_PASSWORD) {
+        setError("分享密码不正确。");
+        return;
+      }
+      setError(null);
+      setPasswordRequired(false);
+      return;
+    }
     if (!token) return setError("缺少分享标识。");
     try {
       await blendProofClient.unlockShare(token, password, transport);
@@ -622,7 +659,13 @@ export function SharePage() {
       onSelect={(name) => setSelected(name ? new Set([name]) : new Set())}
       onSelectMany={(names) => setSelected(new Set(names))}
       onToggle={() => {}}
-      message={share.commentsPermission === "comment" ? "访客可在模型表面添加批注。" : transport === "cloud" ? "只读分享。文件由云端 BlendProof 提供。" : "只读分享。文件由本机 BlendProof 提供。"}
+      message={isDemoShare
+        ? "管理员永久公开示例 · 只读 · 不限时。"
+        : share.commentsPermission === "comment"
+          ? "访客可在模型表面添加批注。"
+          : transport === "cloud"
+            ? "只读分享。文件由云端 BlendProof 提供。"
+            : "只读分享。文件由本机 BlendProof 提供。"}
       modelUrl={share.modelUrl}
       readOnly
       canComment={share.commentsPermission === "comment"}
@@ -635,7 +678,13 @@ export function SharePage() {
       reviewError={null}
       onCreateComment={share.commentsPermission === "comment" ? createGuestComment : undefined}
     >
-      <ReceiverShareCard permission={share.commentsPermission} expiresAt={share.expiresAt} transport={transport} />
+      <ReceiverShareCard
+        permission={share.commentsPermission}
+        expiresAt={share.expiresAt}
+        transport={transport}
+        publisher={isDemoShare ? "平台管理员" : undefined}
+        sourceLabel={isDemoShare ? "平台内置资产" : undefined}
+      />
     </BlenderWorkspace>
   );
 }

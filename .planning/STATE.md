@@ -3,7 +3,7 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: In progress
-Last activity: 2026-09-11 - 本地 Viewer、审稿与分享闭环完成最终回归验收；Phase 4D 等待真实 Cloudflare 授权
+Last activity: 2026-09-12 - 管理员永久 Suzanne 示例分享与部署前收紧完成；Phase 4D 等待真实 Cloudflare 授权
 
 Progress: ████▉ 99%
 
@@ -28,6 +28,7 @@ Progress: ████▉ 99%
 - 首位管理员支持部署变量邮箱/名称 + Secret token 的一次性空库 bootstrap；本地已建立管理员、上传者、审稿者三个临时账号验证角色界面，生产仍须删除 bootstrap secret 后才开放。
 - Welcome 改为覆盖 Viewer 的可关闭模态层；管理员页已接成员用量/停用、邀请码列表/新增/撤销，以及 5 GiB/48h 硬上限内的平台阈值设置。
 - 空工作区已使用用户提供的 Suzanne 工程离线导出的 68 KB GLB 作为默认模型；源 `.blend` 不进构建。注册用户继续通过可评论分享参与审稿，暂不扩张为正式审批状态机。
+- Suzanne 同时作为管理员永久只读公开示例，固定入口 `/s/suzanne`、公开演示口令 `tycon`；静态派生资产不计入普通用户配额和 48 小时清理。
 - 分享面板已形成发送方审稿凭证卡，分享 Viewer 使用同源接收方通行证卡；两端显示权限与到期，接收方另显示资产来源。匿名 `/api/me` 作为正常状态返回空身份，不再制造控制台 401 噪声。
 - 文件菜单已改为无裁切的左侧展开及“最近项目”悬停二级菜单；“对象模式”占位已替换为控制网格/轴线的叠加层开关，网格对比度增强。中文 multipart 文件名在 bridge 归一化为 UTF-8。
 - Phase 4 需要真实 Cloudflare 资源授权；本地 Miniflare 验收不能替代线上部署验收。

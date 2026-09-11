@@ -4,7 +4,7 @@
 
 - 一个 Web 同时承担上传工作台和 `/s/<token>` 分享读取，必须复用同一 Viewer。
 - `.blend` 只进入本机 bridge；Worker/R2 永远不得接收原始工程。云端仅允许 `model.glb`、裁剪后的 `manifest.json` 和可选 `thumbnail.webp`。
-- 空工作区默认加载 `public/default-monkey.glb`；该演示模型不可产生无项目归属的批注，且不得把其源 `.blend` 复制进 `public` 或构建产物。
+- 空工作区默认加载 `public/default-monkey.glb`；该演示模型是平台管理员维护的永久只读示例，固定入口 `/s/suzanne`、公开演示口令 `tycon`，不计入用户配额或 48 小时清理。它不可产生无项目归属的批注，且不得把其源 `.blend` 复制进 `public` 或构建产物。
 - Viewer 操作以 Blender 为基线：中键旋转、Shift+中键平移、滚轮缩放、空白取消选择、框选、`/` 独显、文件相机和 Blender 式显示模式。
 - 首页维持 Blender Welcome 风格的单启动面板与 Tab，不把功能重新拆成互相重复的页面或多卡片 Dashboard。
 
