@@ -42,8 +42,9 @@
     }
   },
   "vars": {
-    "APP_ORIGIN": "https://blendproof.itycon.cn",
-    "BOOTSTRAP_ADMIN_EMAIL": "admin@itycon.cn",
-    "BOOTSTRAP_ADMIN_NAME": "BlendProof 管理员"
+    "APP_ORIGIN": "https://blendproof.itycon.cn"
+    // BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_NAME 不写入仓库，改由 Cloudflare
+    // 控制台的 Worker 变量配置。它们是空库一次性 bootstrap 的输入，接口在
+    // 首位管理员创建成功后即永久关闭，因此仓库无需保留其值。
   }
 }

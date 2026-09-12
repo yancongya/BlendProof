@@ -1,6 +1,6 @@
 # Phase 4D 部署与恢复清单
 
-> 本文同时是操作清单和生产记录。2026-09-12 经用户授权，已在 Cloudflare 账户创建 `blendproof-production` D1 与私有 R2，部署 `blendproof` Worker 到 `https://blendproof.itycon.cn`，并启用每小时 cron。D1 ID 由 `wrangler.jsonc` 管理，密钥只保存在 Cloudflare Secret 与 NAS `已隐去`。
+> 本文同时是操作清单和生产记录。2026-09-12 经用户授权，已在 Cloudflare 账户创建 `blendproof-production` D1 与私有 R2，部署 `blendproof` Worker 到 `https://blendproof.itycon.cn`，并启用每小时 cron。D1 ID 由 `wrangler.jsonc` 管理；所有密钥仅保存在 Cloudflare Secret 中，不落仓库。
 
 ## 2026-09-12 部署记录
 
@@ -8,7 +8,7 @@
 - R2：`blendproof-production`，保持私有，仅 Worker 通过 `ASSETS` binding 访问。
 - Worker：`blendproof`，自定义域 `blendproof.itycon.cn`，cron `0 * * * *`。
 - Secrets：`UPLOAD_SIGNING_SECRET` 与 `SHARE_ACCESS_SECRET` 已注入；`BOOTSTRAP_ADMIN_TOKEN` 在初始化后已删除。
-- 管理员：`admin@itycon.cn`，密码保存为 NAS `已隐去` 别名 `已隐去`。
+- 管理员：已创建并完成登录验证。账号凭据与存放位置不记录在仓库中。
 - 已验收 `/api/health`、`/api/public/stats`、D1 migration/管理员记录、生产首页及 `/s/suzanne` + `tycon`。
 - 待验收：管理员登录、真实 `.blend` 发布、跨浏览器评论/撤销/过期/清理。
 
