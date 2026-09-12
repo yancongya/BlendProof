@@ -1283,6 +1283,11 @@
 .storage-meter { height: 5px; overflow: hidden; border-radius: 2px; background: #141414; }
 .storage-meter span { display: block; height: 100%; min-width: 2px; background: #e47c16; }
 .start-system-panel .start-stats { grid-template-columns: repeat(3, 1fr); margin: 15px 0 10px; }
+.start-lifetime-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0 0 10px; overflow: hidden; border: 1px solid #363636; border-radius: 2px; background: #363636; }
+.start-lifetime-stats span { display: grid; gap: 3px; padding: 9px 10px; background: #202020; }
+.start-lifetime-stats small { color: #777; font-size: 9px; }
+.start-lifetime-stats strong { color: #d8d8d8; font-size: 13px; font-weight: 550; }
+.start-lifetime-stats em { overflow: hidden; color: #777; font-size: 8px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 .start-site-notice { display: grid; gap: 5px; margin-top: 18px; padding-top: 11px; border-top: 1px solid #363636; color: #727272; font-size: 9px; line-height: 1.55; }
 .start-site-notice p { margin: 0; }
 .start-site-notice p:nth-child(2) { color: #b28760; }

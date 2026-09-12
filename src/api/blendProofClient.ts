@@ -56,6 +56,12 @@ export type PublicStats = {
   userCount: number;
   retentionHours: number;
   recommendedShareHours: number;
+  launchedAt: string;
+  processedFileCount: number;
+  processedAssetCount: number;
+  processedBytes: number;
+  cleanedFileCount: number;
+  cleanedBytes: number;
 };
 
 export type AccountUser = {

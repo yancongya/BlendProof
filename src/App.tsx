@@ -250,7 +250,7 @@ export function App() {
   const [shareHours, setShareHours] = useState("24");
   const [sharePermission, setSharePermission] = useState<"read_only" | "comment">("read_only");
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
-  const [homeOpen, setHomeOpen] = useState(false);
+  const [homeOpen, setHomeOpen] = useState(true);
   const [publicStats, setPublicStats] = useState<PublicStats | null>(null);
   const [account, setAccount] = useState<AccountUser | null>(null);
   const [accountStats, setAccountStats] = useState<AccountStats | null>(null);
@@ -282,14 +282,25 @@ export function App() {
     return () => { active = false; };
   }, [project]);
   useEffect(() => {
-    blendProofClient.publicStats().then(setPublicStats).catch(() => setPublicStats(null));
+    let active = true;
+    const refreshPublicStats = () => blendProofClient.publicStats()
+      .then((next) => { if (active) setPublicStats(next); })
+      .catch(() => { if (active) setPublicStats(null); });
+    void refreshPublicStats();
+    const interval = homeOpen ? window.setInterval(refreshPublicStats, 30_000) : undefined;
     blendProofClient.currentUser().then(async (user) => {
+      if (!active) return null;
       setAccount(user);
       return user ? blendProofClient.accountStats() : null;
-    }).then(setAccountStats).catch(() => {
+    }).then((next) => { if (active) setAccountStats(next); }).catch(() => {
+      if (!active) return;
       setAccount(null);
       setAccountStats(null);
     });
+    return () => {
+      active = false;
+      if (interval !== undefined) window.clearInterval(interval);
+    };
   }, [homeOpen]);
   useEffect(() => {
     if (manifest) setPublishTitle(manifest.scene || project?.name.replace(/\.blend$/i, "") || "");
@@ -794,6 +805,11 @@ function StartPage({
   const [accountBusy, setAccountBusy] = useState(false);
   const [startTab, setStartTab] = useState<"start" | "recent" | "status" | "account">("start");
   const [legalDocument, setLegalDocument] = useState<"privacy" | "terms" | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = window.setInterval(() => setClock(Date.now()), 1_000);
+    return () => window.clearInterval(interval);
+  }, []);
   const responseTime = useMemo(() => {
     const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
     const elapsed = navigation ? navigation.responseEnd - navigation.requestStart : 0;
@@ -846,7 +862,15 @@ function StartPage({
             <section className="start-action-section"><h2>打开分享</h2><form className="start-share-entry" onSubmit={(event) => { event.preventDefault(); openShare(); }}><label htmlFor="start-share-code"><Link2 size={18} /><span><strong>审稿链接或分享码</strong><small>无需账号即可打开只读分享</small></span></label><div><input id="start-share-code" aria-label="分享链接或分享码" value={shareInput} onChange={(event) => { setShareInput(event.target.value); setShareError(null); }} placeholder="粘贴 /s/… 或 32 位分享码" /><button type="submit">打开</button></div>{shareError && <small role="alert">{shareError}</small>}</form></section>
           </div>}
           {startTab === "recent" && <section className="start-recent-panel"><div className="start-panel-heading"><span>最近打开的项目</span><button onClick={onOpenFile}>打开其他文件</button></div>{recentProjects.length ? <div className="start-recent-list">{recentProjects.slice(0, 8).map((item) => <button type="button" className="start-recent-item" key={item.id} onClick={() => onProjectSelect(item)}><FileIcon /><span><strong>{item.name}</strong><small>本机转换项目 · {item.id.slice(0, 6)}</small></span><ChevronDown size={14} className="start-recent-arrow" /></button>)}</div> : <p className="start-empty">还没有最近项目。请先打开一个 .blend 文件。</p>}</section>}
-          {startTab === "status" && <section className="start-system-panel"><div className="start-panel-heading"><span><HardDrive size={14} /> 公益存储池</span><i>运行中</i></div><div className="storage-reading"><strong>{stats ? formatBytes(stats.remainingBytes) : "—"}</strong><span>当前可用 / {stats ? formatBytes(stats.capacityBytes) : "—"}</span></div><div className="storage-meter" role="progressbar" aria-label="公益存储池已用容量" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}><span style={{ width: `${stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}%` }} /></div><div className="start-stats" aria-label="平台状态"><span><strong>{stats?.projectCount ?? "—"}</strong><small>在线项目</small></span><span><strong>{stats?.activeShareCount ?? "—"}</strong><small>有效分享</small></span><span><strong>{stats?.userCount ?? "—"}</strong><small>注册用户</small></span></div><p className="start-retention">建议 24 小时内完成审稿；分享最长 {stats?.retentionHours ?? 48} 小时，派生资产到期自动清理。</p><div className="start-site-notice"><p>{responseTime} ms · Gzip 启用。用户提交内容仅代表其作者，不代表 BlendProof 立场。联系：<a href="mailto:admin@itycon.cn">admin@itycon.cn</a></p><p>禁止上传色情、暴力、恐怖主义、违法或侵犯他人权益的文件。</p><p>© 2026 BlendProof. All rights reserved. <button type="button" onClick={() => setLegalDocument("privacy")}>隐私政策</button><span>·</span><button type="button" onClick={() => setLegalDocument("terms")}>服务条款</button></p></div></section>}
+          {startTab === "status" && <section className="start-system-panel">
+            <div className="start-panel-heading"><span><HardDrive size={14} /> 公益存储池</span><i>已运行 {stats ? formatDuration(clock - Date.parse(stats.launchedAt)) : "—"}</i></div>
+            <div className="storage-reading"><strong>{stats ? formatBytes(stats.remainingBytes) : "—"}</strong><span>当前可用 / {stats ? formatBytes(stats.capacityBytes) : "—"}</span></div>
+            <div className="storage-meter" role="progressbar" aria-label="公益存储池已用容量" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}><span style={{ width: `${stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}%` }} /></div>
+            <div className="start-stats" aria-label="平台状态"><span><strong>{stats?.projectCount ?? "—"}</strong><small>在线项目</small></span><span><strong>{stats?.activeShareCount ?? "—"}</strong><small>有效分享</small></span><span><strong>{stats?.userCount ?? "—"}</strong><small>注册用户</small></span></div>
+            <div className="start-lifetime-stats" aria-label="累计处理统计"><span><small>累计处理</small><strong>{stats?.processedFileCount ?? "—"} 份</strong><em>{stats ? `${stats.processedAssetCount} 个派生资产` : "—"}</em></span><span><small>处理总量</small><strong>{stats ? formatBytes(stats.processedBytes) : "—"}</strong><em>成功发布的 Web 资产</em></span><span><small>已自动清理</small><strong>{stats?.cleanedFileCount ?? "—"} 个</strong><em>{stats ? formatBytes(stats.cleanedBytes) : "—"}</em></span></div>
+            <p className="start-retention">建议 24 小时内完成审稿；分享最长 {stats?.retentionHours ?? 48} 小时，派生资产到期自动清理。</p>
+            <div className="start-site-notice"><p>{responseTime} ms · Gzip 启用。用户提交内容仅代表其作者，不代表 BlendProof 立场。联系：<a href="mailto:admin@itycon.cn">admin@itycon.cn</a></p><p>禁止上传色情、暴力、恐怖主义、违法或侵犯他人权益的文件。</p><p>© 2026 BlendProof. All rights reserved. <button type="button" onClick={() => setLegalDocument("privacy")}>隐私政策</button><span>·</span><button type="button" onClick={() => setLegalDocument("terms")}>服务条款</button></p></div>
+          </section>}
           {startTab === "account" && <section className="start-user-panel"><div className="start-panel-heading"><span><User size={14} /> {account ? "我的账号" : "账号入口"}</span>{account?.role === "admin" && <i className="admin-badge"><ShieldCheck size={12} /> 管理员</i>}</div>{account ? <><div className="account-identity"><b>{account.displayName.slice(0, 1).toUpperCase()}</b><span><strong>{account.displayName}</strong><small>{account.email}</small></span><button className="account-logout" onClick={() => void onLogout()}><LogOut size={13} /> 退出</button></div><dl className="account-usage"><div><dt>个人占用</dt><dd>{accountStats ? formatBytes(accountStats.usedBytes) : "—"}</dd></div><div><dt>项目</dt><dd>{accountStats?.projectCount ?? "—"}</dd></div><div><dt>有效分享</dt><dd>{accountStats?.activeShareCount ?? "—"}</dd></div></dl>{account.role === "admin" && <AdminConsole accountId={account.id} onCreateInvite={onCreateInvite} />}</> : <><p>登录后可以查看自己的项目、分享数量和空间占用。为了控制公益资源，注册需要管理员发放的邀请码。</p><div className="account-buttons"><button onClick={() => { setAuthMode("login"); setAuthOpen(true); }}><LogIn size={13} /> 登录</button><button onClick={() => { setAuthMode("register"); setAuthOpen(true); }}><KeyRound size={13} /> 使用邀请码注册</button></div></>}</section>}
         </div>
         <footer className="start-launcher-footer"><span>BlendProof 公益 3D 审稿</span><span>容量 {stats ? formatBytes(stats.capacityBytes) : "—"} · 最长分享 {stats?.retentionHours ?? 48} 小时</span></footer>
@@ -901,6 +925,16 @@ function formatBytes(bytes: number) {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
   if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${Math.max(0, bytes)} B`;
+}
+
+function formatDuration(milliseconds: number) {
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return "—";
+  const seconds = Math.floor(milliseconds / 1000);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor(seconds % 86400 / 3600);
+  const minutes = Math.floor(seconds % 3600 / 60);
+  const remainingSeconds = seconds % 60;
+  return days > 0 ? `${days} 天 ${hours} 时 ${minutes} 分` : `${hours} 时 ${minutes} 分 ${remainingSeconds} 秒`;
 }
 
 function PanelResizeHandle({

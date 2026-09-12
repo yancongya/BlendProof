@@ -54,6 +54,8 @@ describe('scheduled cleanup and recovery', () => {
     expect(await env.ASSETS.head(modelKey)).toBeNull()
     expect(await env.ASSETS.head(manifestKey)).toBeNull()
     expect((await env.DB.prepare('SELECT status FROM upload_intents WHERE id = ?').bind(intentId).first<{ status: string }>())?.status).toBe('expired')
+    expect(await env.DB.prepare('SELECT cleaned_asset_count, cleaned_bytes FROM platform_lifetime_metrics WHERE id = 1')
+      .first()).toMatchObject({ cleaned_asset_count: 1, cleaned_bytes: 3 })
 
     const second = await runCleanup(env, { now, pageSize: 1, maxIntents: 10, maxJobs: 10 })
     expect(second.expiredIntents.expired).toBe(0)

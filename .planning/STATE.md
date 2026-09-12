@@ -36,6 +36,7 @@ Progress: ████▉ 99%
 - 生产 Worker、D1、私有 R2、每小时 cron 与自定义域 `blendproof.itycon.cn` 已部署；8 个 migration、健康检查、5 GiB/48h 公开指标和 Suzanne 密码分享已线上验收。
 - 生产首位管理员为 `admin@itycon.cn`；登录密码及 Worker 密钥只保存在 NAS `已隐去` 稳定别名中，一次性 bootstrap Secret 已从 Worker 删除。
 - 尚需在真实浏览器中完成管理员登录、本机 `.blend` 转换后发布、第二浏览器评论与过期清理的端到端验收。
+- `0009_platform_lifetime_metrics.sql` 已上线；根页刷新默认打开欢迎封面，状态 Tab 每秒更新运行时长、每 30 秒同步容量与累计处理/清理文件和字节统计。
 
 ## Session Continuity
 

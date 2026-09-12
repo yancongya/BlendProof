@@ -290,11 +290,18 @@ export async function publicStats(env: AuthEnv) {
     WHERE revoked_at IS NULL AND expires_at > ?`).bind(now).first<{ share_count: number }>()
   const settings = await env.DB.prepare('SELECT capacity_bytes, max_share_hours FROM platform_settings WHERE id = 1')
     .first<{ capacity_bytes: number; max_share_hours: number }>()
+  const lifetime = await env.DB.prepare(`SELECT launched_at, processed_project_count, processed_asset_count,
+    processed_bytes, cleaned_asset_count, cleaned_bytes FROM platform_lifetime_metrics WHERE id = 1`)
+    .first<{ launched_at: string; processed_project_count: number; processed_asset_count: number;
+      processed_bytes: number; cleaned_asset_count: number; cleaned_bytes: number }>()
   const capacityBytes = settings?.capacity_bytes ?? pool?.capacity_bytes ?? 5 * 1024 ** 3
   const usedBytes = (pool?.ready_bytes ?? 0) + (pool?.reserved_bytes ?? 0)
   return { capacityBytes, usedBytes, remainingBytes: Math.max(0, capacityBytes - usedBytes),
     projectCount: counts?.project_count ?? 0, activeShareCount: shares?.share_count ?? 0,
-    userCount: users?.user_count ?? 0, retentionHours: settings?.max_share_hours ?? 48, recommendedShareHours: 24 }
+    userCount: users?.user_count ?? 0, retentionHours: settings?.max_share_hours ?? 48, recommendedShareHours: 24,
+    launchedAt: lifetime?.launched_at ?? now, processedFileCount: lifetime?.processed_project_count ?? 0,
+    processedAssetCount: lifetime?.processed_asset_count ?? 0, processedBytes: lifetime?.processed_bytes ?? 0,
+    cleanedFileCount: lifetime?.cleaned_asset_count ?? 0, cleanedBytes: lifetime?.cleaned_bytes ?? 0 }
 }
 
 async function sessionResponse(env: AuthEnv, user: AuthUser, status: number) {

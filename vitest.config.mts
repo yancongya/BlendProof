@@ -10,6 +10,7 @@ export default defineConfig({
       miniflare: {
         bindings: {
           TEST_MIGRATIONS: migrations,
+          APP_ORIGIN: 'http://localhost:5173',
           UPLOAD_SIGNING_SECRET: 'blendproof-test-upload-signing-secret-0001',
           SHARE_ACCESS_SECRET: 'blendproof-test-share-access-secret-0001',
           SHARE_ACCESS_SECRET_PREVIOUS: 'blendproof-test-share-access-secret-previous-1',

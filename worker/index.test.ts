@@ -47,7 +47,13 @@ describe('BlendProof Worker local runtime', () => {
       capacityBytes: 5 * 1024 ** 3,
       retentionHours: 48,
       recommendedShareHours: 24,
+      processedFileCount: 0,
+      processedAssetCount: 0,
+      processedBytes: 0,
+      cleanedFileCount: 0,
+      cleanedBytes: 0,
     })
+    expect(Date.parse(String(body.launchedAt))).not.toBeNaN()
     expect(body).not.toHaveProperty('ownerCapability')
     expect(body).not.toHaveProperty('storageNamespace')
   })

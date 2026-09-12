@@ -295,10 +295,10 @@ export async function processCleanupJobs(env: Env, options: CleanupOptions = {})
 
         // Deliberately use the exact key from cleanup_jobs, never a prefix or list.
         await env.ASSETS.delete(job.object_key)
+        await env.DB.prepare(`UPDATE project_assets SET status = 'deleted', updated_at = ?
+          WHERE project_id = ? AND object_key = ? AND status IN ('staging', 'deleting')`)
+          .bind(now, job.project_id, job.object_key).run()
         if (job.kind === 'project') {
-          await env.DB.prepare(`UPDATE project_assets SET status = 'deleted', updated_at = ?
-            WHERE project_id = ? AND object_key = ? AND status = 'deleting'`)
-            .bind(now, job.project_id, job.object_key).run()
           await completeProjectDeletion(env, job.project_id, now)
         }
         await markJobDone(env, job.id, now)
