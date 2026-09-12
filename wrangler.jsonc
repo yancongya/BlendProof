@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "blendproof-api-local",
+  "name": "blendproof",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-09-09",
   "assets": {
@@ -11,20 +11,26 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "blendproof-local",
-      "database_id": "local",
+      "database_name": "blendproof-production",
+      "database_id": "84e3858e-0a7e-4199-8ac1-40e7339c1474",
       "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [
     {
       "binding": "ASSETS",
-      "bucket_name": "blendproof-local"
+      "bucket_name": "blendproof-production"
     }
   ],
   "triggers": {
     "crons": ["0 * * * *"]
   },
+  "routes": [
+    {
+      "pattern": "blendproof.itycon.cn",
+      "custom_domain": true
+    }
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
@@ -36,8 +42,8 @@
     }
   },
   "vars": {
-    "APP_ORIGIN": "http://localhost:5173",
-    "BOOTSTRAP_ADMIN_EMAIL": "admin@blendproof.local",
-    "BOOTSTRAP_ADMIN_NAME": "本地管理员"
+    "APP_ORIGIN": "https://blendproof.itycon.cn",
+    "BOOTSTRAP_ADMIN_EMAIL": "admin@itycon.cn",
+    "BOOTSTRAP_ADMIN_NAME": "BlendProof 管理员"
   }
 }

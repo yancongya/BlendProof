@@ -2,8 +2,8 @@
 
 Phase: 4 of 4（云端替换）
 Plan: 04-01
-Status: In progress
-Last activity: 2026-09-12 - 管理员永久 Suzanne 示例分享与部署前收紧完成；Phase 4D 等待真实 Cloudflare 授权
+Status: Production deployed; end-to-end upload acceptance pending
+Last activity: 2026-09-12 - Cloudflare D1/R2/Worker 与 `blendproof.itycon.cn` 已上线，首位管理员已安全初始化
 
 Progress: ████▉ 99%
 
@@ -33,7 +33,9 @@ Progress: ████▉ 99%
 - 平台状态 Tab 已加入响应/Gzip、内容责任、禁止色情/暴力/恐怖主义/违法侵权内容、`admin@itycon.cn` 联系方式及可点击打开的隐私政策/服务条款；协议明确原始 `.blend` 仅本机处理、派生资产最长 48 小时并自动清理。
 - Viewer 已支持 Outliner 对象搜索、键盘聚焦/小键盘 `.`，以及分享 URL `#view=...` fragment 对相机、显示模式、隐藏/选中对象的恢复。
 - 文件菜单已改为无裁切的左侧展开及“最近项目”悬停二级菜单；“对象模式”占位已替换为控制网格/轴线的叠加层开关，网格对比度增强。中文 multipart 文件名在 bridge 归一化为 UTF-8。
-- Phase 4 需要真实 Cloudflare 资源授权；本地 Miniflare 验收不能替代线上部署验收。
+- 生产 Worker、D1、私有 R2、每小时 cron 与自定义域 `blendproof.itycon.cn` 已部署；8 个 migration、健康检查、5 GiB/48h 公开指标和 Suzanne 密码分享已线上验收。
+- 生产首位管理员为 `admin@itycon.cn`；登录密码及 Worker 密钥只保存在 NAS `已隐去` 稳定别名中，一次性 bootstrap Secret 已从 Worker 删除。
+- 尚需在真实浏览器中完成管理员登录、本机 `.blend` 转换后发布、第二浏览器评论与过期清理的端到端验收。
 
 ## Session Continuity
 

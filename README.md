@@ -2,6 +2,8 @@
 
 Blender 风格的 Web 3D 审稿工具。原始 `.blend` 只在本机交给 Blender 转换；用户确认发布后，云端只接收经过裁剪的 GLB、manifest 和可选缩略图。
 
+生产入口：[https://blendproof.itycon.cn](https://blendproof.itycon.cn)
+
 ## 当前闭环
 
 1. 在网页中选择 `.blend`。
