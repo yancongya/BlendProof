@@ -1,91 +1,335 @@
-# BlendProof
+<a id="readme-top"></a>
 
-Blender 风格的 Web 3D 审稿工具。原始 `.blend` 只在本机交给 Blender 转换；用户确认发布后，云端只接收经过裁剪的 GLB、manifest 和可选缩略图。
+<br />
+<div align="center">
+  <img src="public/blendproof-splash-v1.png" alt="BlendProof" width="640">
+  <h3 align="center">BlendProof</h3>
+  <p align="center">
+    Blender-grade 3D review in the browser — the original .blend never leaves your machine.
+    <br />
+    <a href="https://blendproof.itycon.cn"><strong>Open the live site »</strong></a>
+    ·
+    <a href="#usage">Quick start</a>
+    ·
+    <a href="docs/LOCAL_MILESTONE_ACCEPTANCE.md">Acceptance record</a>
+  </p>
+</div>
 
-生产入口：[https://blendproof.itycon.cn](https://blendproof.itycon.cn)
+**English** · [简体中文](README.zh.md)
 
-## 当前闭环
+> [!NOTE]
+> Phase 4 (cloud replacement) is complete and deployed to `blendproof.itycon.cn`. End-to-end acceptance in a real browser — admin login, publishing a real `.blend`, and cross-browser comment/expiry/cleanup — is still pending. Details in [`docs/PHASE_4D_DEPLOYMENT_RECOVERY.md`](docs/PHASE_4D_DEPLOYMENT_RECOVERY.md).
 
-1. 在网页中选择 `.blend`。
-2. 本机 Blender 在后台导出 `model.glb` 和 `manifest.json`。
-3. 浏览器加载 GLB，支持轨道查看与按对象开关可见性。
-4. 同一 Web 的 `/s/<token>` 路由读取分享模型，不另建第二套 Viewer。
-5. 本地开发使用 SQLite/文件系统，云端适配 Cloudflare Workers、D1 和私有 R2。
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#about">About</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#development">Development</a></li>
+    <li><a href="#api">API</a></li>
+    <li><a href="#deployment">Deployment</a></li>
+    <li><a href="#retention-and-quotas">Retention and Quotas</a></li>
+    <li><a href="#known-limitations">Known Limitations</a></li>
+    <li><a href="#faq">FAQ</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
+  </ol>
+</details>
 
-没有打开项目时，Viewer 默认展示内置的 Suzanne 猴头 GLB；它由开发测试文件离线导出，原始 `.blend` 不进入前端构建。该模型作为平台管理员维护的永久只读公开示例，可通过 `/s/suzanne` 访问，演示口令为 `tycon`；它不占用户配额、不进入 48 小时清理，也不创建无归属批注。此口令是公开演示提示，并非账号凭据或安全边界。
+## About
 
-本地阶段最终验收范围与证据见 [`docs/LOCAL_MILESTONE_ACCEPTANCE.md`](docs/LOCAL_MILESTONE_ACCEPTANCE.md)。
+BlendProof is a web 3D review tool with a Blender-style shell. A `.blend` file is converted to GLB by a Blender process on your own machine; only the trimmed `model.glb`, a cropped `manifest.json`, and an optional `thumbnail.webp` are ever allowed to reach the cloud. Reviewers open a link, inspect the model in the same viewer the uploader used, and annotate directly on surfaces.
 
-## 产品与账号约定
+**Why:**
 
-- 首页是 Blender Welcome 风格的单一启动面板，通过“开始 / 最近项目 / 平台状态 / 账号”Tab 切换；不要重新拆成多张 Dashboard 卡片。
-- 公益存储池业务上限为 5 GiB；推荐 24 小时内完成审稿，云端派生资产最长保留 48 小时并由定时任务自动清理。
-- 账号角色只保留 `admin` 和 `user`。上传者、创建者和审稿者不设永久角色；审稿者能否评论由每条分享的“只读 / 可评论”权限决定。
-- 已注册用户可以作为项目创建者发起审稿，也可以通过可评论分享参与审稿。当前不增加“批准/驳回/多级审批”工作流；批注及 open/resolved 状态是现阶段的轻量审稿闭环。
-- 注册必须使用管理员创建的邀请码。普通用户只能查看自己的项目、有效分享和空间占用；管理员在同一账号页面额外看到平台控制与邀请码功能。
-- 管理员可创建多个邀请码；每个邀请码独立设置有效期和最大使用次数，并可主动撤销。默认 UI 是 7 天、1 次使用，不是“每个管理员只能有一个邀请码”。
-- 管理员可查看成员的空间/项目占用、停用普通成员，并在 5 GiB 与 48 小时硬上限内调低平台存储阈值和最长分享时间。
-- 创建分享后显示发送方审稿凭证卡（分享码、权限、到期、密码状态与复制入口）；接收方在同一 Viewer 顶栏查看通行证卡（权限、来源与到期）。
-- 启动页“平台状态”Tab 底部提供响应/Gzip、内容责任、联系方式、禁止内容提示，以及可点击打开的《隐私政策》和《服务条款》协议窗口；联系邮箱为 `admin@itycon.cn`。
-- 根页每次加载默认打开 Blender 风格欢迎封面；平台状态实时显示 D1 持久化的运行时长、累计处理文件/派生资产、处理字节和已清理资产/字节。
-- Viewer Outliner 支持对象名称/类型搜索、键盘选择与聚焦（小键盘 `.`），分享链接可将相机、显示模式、隐藏对象和选中对象写入 `#view=...` URL fragment，打开后恢复该视角。
-- 本地 D1 可建立管理员、上传者、审稿者测试账号，但临时密码和 bootstrap token 只保存在忽略提交的 `.dev.vars` 或当前测试记录中，不写入仓库。
+- **The source never leaves your machine.** `.blend` files only go to a loopback bridge. The Worker rejects them with HTTP 415 — this is enforced in code, not by convention.
+- **Reviewers do not need Blender.** A single link opens the model with camera state, display mode, and hidden objects restored from the URL fragment.
+- **No infrastructure bill.** Cloudflare Workers, D1, and private R2 back a 5 GiB public pool with automatic 48-hour cleanup.
 
-## 首位管理员
+The uploader and the `/s/<token>` share route are the same application and the same viewer component — there is no second front end to keep in sync.
 
-Cloudflare 部署时配置：
+Product and account conventions — home page layout, roles, invite codes, and retention policy — are collected in [`docs/PRODUCT_CONVENTIONS.md`](docs/PRODUCT_CONVENTIONS.md).
 
-- 普通变量：`BOOTSTRAP_ADMIN_EMAIL`、`BOOTSTRAP_ADMIN_NAME`
-- Cloudflare Secret：`BOOTSTRAP_ADMIN_TOKEN`，至少 32 字符
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-仅当 `users` 为空时，获授权操作员可以调用一次 `POST /api/auth/bootstrap-admin`，以 Bearer token 鉴权并在 JSON body 提交初始密码。创建成功后接口会永久关闭，随后必须删除 `BOOTSTRAP_ADMIN_TOKEN`。不要把管理员密码或 token 写进 `wrangler.jsonc`、Git、命令历史或部署日志。完整上线边界见 [Phase 4D 部署与恢复清单](docs/PHASE_4D_DEPLOYMENT_RECOVERY.md)。
+## Features
 
-## Cloudflare 上线前替换项
+- **Blender-style navigation** — middle-drag orbit, Shift+middle-drag pan, wheel zoom, box select, blank-space deselect, `/` to isolate, wireframe/shaded/material modes, and file cameras.
+- **Outliner** — search objects by name or type, select and frame with the keyboard (numpad `.`).
+- **Review annotations** — surface-anchored comments, numbered pins, edit/resolve/reopen, and stable camera replay on the persisted state.
+- **Controlled sharing** — `/s/<token>` with read-only or comment permission, optional password, expiry, and revocation. `#view=...` restores the sender's camera, display mode, hidden objects, and selection.
+- **Accounts** — invite-code registration, `admin` / `user` roles, and per-user space accounting.
+- **Admin console** — member usage and deactivation, invite creation/revocation, and platform thresholds inside the 5 GiB / 48-hour ceilings.
+- **Platform status** — persisted uptime, cumulative files/bytes processed, and cleanup counters, refreshed live on the home page.
+- **Permanent demo** — `/s/suzanne` serves a read-only example model with the public demo passphrase `tycon`; it counts against no quota and is exempt from cleanup.
 
-`wrangler.jsonc` 当前保留本地 Miniflare 名称与占位资源 ID，不能直接作为生产配置发布。正式上线前需：
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-1. 把 Worker、D1 与 R2 名称和 D1 `database_id` 替换为目标账号中的真实资源。
-2. 把 `APP_ORIGIN` 改为最终 HTTPS Origin，并保持无尾斜杠的完全匹配。
-3. 通过 Wrangler Secret 配置 `SHARE_ACCESS_SECRET`、`SESSION_SECRET` 与一次性的 `BOOTSTRAP_ADMIN_TOKEN`，不得写入配置文件。
-4. 先执行 D1 migrations，再构建 Web；Worker Static Assets 会托管 `dist/`，`/api/*` 优先进入 Worker，`/s/*` 回退到 SPA。
-5. 管理员初始化成功后立即删除 bootstrap secret，再完成双浏览器分享、密码、评论、撤销、到期与 cron 清理验收。
+## Architecture
 
-真实资源创建、Secret 写入、远程 migration 和首次生产发布仍需明确授权。
+Three layers, with the trust boundary drawn at the loopback bridge.
 
-## 运行
+| Layer | Stack | Location | Responsibility |
+|---|---|---|---|
+| Web | React 19, `@react-three/fiber`, `@react-three/drei`, three.js, Vite, TypeScript | `src/` | Upload workspace, Blender-style viewer, outliner, annotations, share UI |
+| Local bridge | Express 5, `multer`, `node:sqlite` | `server/` | Accepts `.blend` on loopback, drives Blender headless, exports GLB + manifest, serves the local development API |
+| Cloud | Cloudflare Workers, D1, private R2, hourly cron | `worker/` | Auth, invite codes, upload intents, quota ledger, shares, comments, scheduled cleanup |
 
-```bash
+**Publish flow:**
+
+1. The browser hands the `.blend` file to the local bridge on loopback.
+2. Blender runs headless and writes `model.glb` plus `manifest.json` into `storage/projects/<project-id>/`.
+3. The viewer loads the GLB and the uploader reviews it.
+4. On publish, the Worker issues an upload intent and the browser PUTs only `model.glb`, the cropped `manifest.json`, and an optional `thumbnail.webp`.
+5. D1 reserves quota, then settles it on finalize; a share token is created.
+6. Reviewers open `/s/<token>` and the same viewer component reads the derived assets.
+
+**Key invariants:**
+
+- The Worker never accepts or stores a `.blend`, `multipart/form-data`, or `application/x-blender` body — see `worker/index.ts:23`.
+- Mutating routes require an `Origin` header that exactly matches `APP_ORIGIN`; see `worker/index.ts:56`.
+- Public responses are recursively scanned so owner capabilities, tokens, password hashes, storage namespaces, and R2 object keys never leak.
+- R2 stays private; it is reachable only through the Worker's `ASSETS` binding.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Getting Started
+
+### Prerequisites
+
+- **Node.js >= 22.12.0** — required by `package.json` because the local database uses `node:sqlite`.
+- **Blender** — installed locally. The default lookup targets the Steam install on macOS; override with `BLENDER_BIN`.
+- **macOS** — the `.blend` conversion path and default Blender paths are currently macOS-only.
+
+### Installation
+
+```sh
 npm install
 npm run dev
 ```
 
-打开 `http://localhost:5173`。本机 Blender bridge 使用 `8788`，本地 Cloudflare Worker 使用 `8787`。需要同时验证云端适配器时另开终端运行：
+Open `http://localhost:5173`. Three ports are involved:
 
-```bash
-npm run worker:dev
-```
+| Port | Process |
+|---|---|
+| 5173 | Vite web app |
+| 8788 | Local Blender bridge |
+| 8787 | Local Cloudflare Worker (`npm run worker:dev`, optional) |
 
-默认优先使用 Steam Blender；如需指定其他版本：
+`npm run dev` injects a fixed local pairing code so the browser can reach the bridge. To point at a specific Blender build:
 
-```bash
+```sh
 BLENDER_BIN="/Applications/Blender.app/Contents/MacOS/Blender" npm run dev:server
 ```
 
-## 本地数据
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- 上传后的原始文件、GLB 和 manifest 位于 `storage/projects/<项目 ID>/`。
-- Wrangler 的本地 D1/R2 状态位于 `.wrangler/`；这里只是开发数据，不能当生产备份。
-- `test-assets/` 只用于开发验证，不参与项目运行时存储。
+## Usage
 
-## 创建与验证简易测试场景
+1. Start the dev server and open `http://localhost:5173`.
+2. Select a `.blend` file. The bridge converts it in the background; the browser loads the resulting GLB.
+3. Inspect the model — orbit, isolate objects, switch camera and display mode.
+4. Add review comments on the model surface, then resolve or reopen them.
+5. Create a share, copy the link, and open it in a second browser to verify read-only or comment access.
 
-```bash
+To generate a dependency-free scene for testing (two meshes, ground, light, camera — no Geometry Nodes):
+
+```sh
 npm run create:test-blend
 ```
 
-这会创建 `test-assets/simple-review-scene.blend`，其中包含两个网格、地面、灯光和相机，不依赖 Geometry Nodes。导入后点击“创建本地测试分享”，再在同一个站点打开生成的 `/s/<token>` 链接，即可验证客户侧的只读加载。
+This writes `test-assets/simple-review-scene.blend`. Import it, click "create local test share", then open the generated `/s/<token>` link to verify the client-side read-only load.
 
-## 已验证的测试边界
+<details>
+  <summary>npm scripts</summary>
 
-`test-assets/zhuzhiliao_geometry_nodes_substep_core.blend` 可以成功完成导出及网页加载。
-该文件的 Simulation Zone 在 Blender 后台模式不能求值，因而部分 Stub 网格会被原生 glTF 导出器省略。产品下一阶段应把这类告警提取为转换报告，并提供前台 Blender 导出或“已烘焙模型”作为替代路径。
+| Script | Purpose |
+|---|---|
+| `npm run dev` | Run the web app and the local bridge together |
+| `npm run dev:web` | Vite only, bound to `127.0.0.1` |
+| `npm run dev:server` | Local Express bridge only (`tsx watch`) |
+| `npm run build` | Type-check and build the web bundle into `dist/` |
+| `npm run start` | Run the local bridge without watch mode |
+| `npm run create:test-blend` | Generate the simple review scene |
+| `npm run create:viewer-fixtures` | Generate the three viewer acceptance fixtures |
+| `npm run check` | Type-check the web and server sources |
+| `npm run check:worker` | Type-check the Worker against `tsconfig.worker.json` |
+| `npm run test:backend` | Local backend test suite via `node:test` |
+| `npm run test:worker` | Worker test suite via Vitest + `@cloudflare/vitest-plugin` |
+| `npm run worker:dev` | Run the Worker locally against Miniflare |
+| `npm run worker:dry-run` | Build the Worker bundle into `dist-worker/` |
+| `npm run worker:types` | Regenerate `worker-configuration.d.ts` |
+
+</details>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Development
+
+**Where things live:**
+
+```
+blendproof/
+├── src/            React web app: viewer, outliner, annotations, upload workspace
+├── server/         Local Express bridge, Blender export scripts, SQLite layer
+│   └── blender/    Headless export and fixture-generation Python
+├── worker/         Cloudflare Worker: auth, uploads, shares, rate limits, cleanup
+├── migrations/     D1 schema, 0001 through 0009
+├── tests/          Local backend tests (node:test)
+├── docs/           Long-form design, acceptance, and deployment records
+├── public/         Default demo GLB, manifest, and splash art
+├── test-assets/    Development fixtures; excluded from runtime storage
+└── storage/        Local project data (git-ignored)
+```
+
+**Quality gates.** Run at minimum:
+
+```sh
+npm run check
+npm run check:worker
+npm run test:backend
+npm run test:worker
+```
+
+Run `npm run build` before shipping web changes and `npm run worker:dry-run` when touching the Worker. Confirm the dry-run bundle contains no `.blend`, `.dev.vars`, local database, or `storage/` content.
+
+**Working conventions** are recorded in [`AGENTS.md`](AGENTS.md): stable product boundaries, the requirement that the Worker enforces authorization rather than the UI, and the rule that real Cloudflare resources, DNS, secrets, and remote migrations require explicit approval. Long-term state lives in [`.planning/STATE.md`](.planning/STATE.md).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## API
+
+The Worker serves `/api/*` ahead of static assets; everything else falls back to the SPA.
+
+<details>
+  <summary>Worker routes</summary>
+
+**Public**
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | Runtime probe: reports Worker, D1, and R2 bindings |
+| `GET` | `/api/public/stats` | Public platform metrics (cached 30s) |
+| `GET` | `/api/me` | Current identity; anonymous callers get an empty identity |
+| `GET` | `/api/me/stats` | Own space and project usage |
+| `POST` | `/api/auth/bootstrap-admin` | One-time admin seed; disabled permanently after first success |
+| `POST` | `/api/auth/register` | Invite-code registration |
+| `POST` | `/api/auth/login` | Password login |
+| `POST` | `/api/auth/logout` | Session teardown |
+
+**Projects and uploads**
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/projects` | Create a project; rejects `.blend` bodies with 415 |
+| `POST` | `/api/projects/:id/upload-intents` | Reserve quota and issue a signed upload intent |
+| `PUT` | `/api/projects/:id/assets/:asset` | Upload `model.glb`, `manifest.json`, or `thumbnail.webp` |
+| `POST` | `/api/projects/:id/finalize` | Settle the quota reservation |
+
+**Shares and comments**
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/projects/:id/shares` | Create a share |
+| `DELETE` | `/api/projects/:id/shares/:token` | Revoke a share |
+| `GET` | `/api/projects/:id/comments` | Owner-side comment list |
+| `PATCH`/`DELETE` | `/api/projects/:id/comments/:commentId` | Owner-side edit or delete |
+| `POST` | `/api/shares/:token/access` | Unlock a password-protected share |
+| `GET` | `/api/shares/:token/status` | Share metadata and expiry |
+| `GET` | `/api/shares/:token/:asset` | Read `model.glb` or `manifest.json` |
+| `GET`/`POST` | `/api/shares/:token/comments` | Guest read or post comments (comment permission required) |
+
+**Admin**
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET`/`POST` | `/api/admin/invites` | List or create invite codes |
+| `DELETE` | `/api/admin/invites/:id` | Revoke an invite code |
+| `GET` | `/api/admin/users` | Member list with usage |
+| `POST` | `/api/admin/users/:id/disable` | Deactivate a member |
+| `GET`/`PATCH` | `/api/admin/settings` | Read or lower platform thresholds |
+| `GET` | `/api/admin/stats` | Platform-wide statistics |
+
+</details>
+
+The review data contract is specified in [`docs/REVIEW_CONTRACT.md`](docs/REVIEW_CONTRACT.md).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Deployment
+
+The production Worker, D1 database, private R2 bucket, hourly cron, and custom domain `blendproof.itycon.cn` are live. `wrangler.jsonc` holds the real resource IDs, so it is no longer a placeholder config.
+
+```sh
+npm run build                 # emit dist/ for Worker static assets
+npx wrangler d1 migrations apply <database> --remote
+npx wrangler deploy
+```
+
+Order matters: apply D1 migrations before deploying, and confirm `APP_ORIGIN` matches the live HTTPS origin exactly, with no trailing slash. Secrets (`UPLOAD_SIGNING_SECRET`, `SHARE_ACCESS_SECRET`, and the one-time `BOOTSTRAP_ADMIN_TOKEN`) are set through Wrangler secrets and never committed.
+
+The authorization gates, secret handling, migration sequence, two-browser acceptance checklist, and rollback runbook are in [`docs/PHASE_4D_DEPLOYMENT_RECOVERY.md`](docs/PHASE_4D_DEPLOYMENT_RECOVERY.md).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Retention and Quotas
+
+| Limit | Value |
+|---|---|
+| Public pool capacity | 5 GiB |
+| Maximum project retention | 48 hours (even without a share) |
+| Default share lifetime | 24 hours |
+| Cleanup schedule | Hourly cron, `0 * * * *` |
+
+D1 acts as the atomic quota ledger: reservations happen at upload intent, settlement at finalize, and release on failure or expiry. The cron job deletes by exact R2 key and retries unfinished ledger entries. The `/s/suzanne` demo model is exempt from both quota and cleanup.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Known Limitations
+
+- **Geometry Nodes simulation zones.** `test-assets/zhuzhiliao_geometry_nodes_substep_core.blend` exports and loads successfully, but its Simulation Zone cannot be evaluated in Blender's background mode, so the native glTF exporter omits some stub meshes. The next step is to surface these warnings as a conversion report and offer a headless-bake or "already baked" path.
+- **Production acceptance is incomplete.** Admin login, a real `.blend` publish, and cross-browser comment/expiry/cleanup have not yet been verified against the live environment.
+- **`node:sqlite` is experimental.** It works on Node 22 but emits an `ExperimentalWarning`; the runtime version is pinned and the D1 adapter boundary is kept intact.
+- **macOS only.** The Blender bridge and default binary lookup currently target macOS.
+- **Local pairing codes are for development.** The fixed code in `npm run dev` is a local convenience; production still needs an out-of-band pairing entry point.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## FAQ
+
+**Does the server ever see my `.blend` file?**
+No. The file goes only to the loopback bridge. The Worker returns HTTP 415 for `.blend`, `multipart/form-data`, and `application/x-blender` bodies, and publishing sends only the derived GLB, cropped manifest, and optional thumbnail.
+
+**Do reviewers need Blender installed?**
+No. They need a browser and the share link. Blender is only required on the machine that converts and publishes.
+
+**How long does a share stay alive?**
+24 hours by default. Projects are hard-capped at 48 hours regardless of sharing, and an hourly cron deletes expired derived assets.
+
+**What is `/s/suzanne`?**
+A permanent read-only demo model with the public passphrase `tycon`. It is exempt from quota and cleanup and cannot accumulate unowned annotations.
+
+**Why do I need a Node version so new?**
+`>= 22.12.0` is required for `node:sqlite`, which the local bridge uses as its development database.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Contributing
+
+BlendProof is a private repository with no remote configured, so it does not accept external pull requests. Contributions happen in-tree: follow the boundaries in [`AGENTS.md`](AGENTS.md), run the quality gates above, and verify UI changes in a real browser rather than relying on a successful build.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## License
+
+UNLICENSED — all rights reserved. This is a private project with no `LICENSE` file; nothing here grants permission to use, copy, modify, or distribute it.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
