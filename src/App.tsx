@@ -14,6 +14,7 @@ import {
   Lightbulb,
   MessageSquarePlus,
   Palette,
+  Search,
   Settings2,
   Share2,
   SlidersHorizontal,
@@ -88,6 +89,13 @@ type ActiveShareStatus = {
   expiresAt: string | null;
   permission: "read_only" | "comment";
 };
+type SharedViewState = {
+  version: 1;
+  camera: ReviewCameraState;
+  displayMode: DisplayMode;
+  hidden: string[];
+  selected: string[];
+};
 const DEFAULT_MONKEY_MANIFEST: Manifest = {
   scene: "Suzanne 演示",
   camera: null,
@@ -111,6 +119,32 @@ function formatShareExpiry(expiresAt: string | null) {
   }).format(new Date(expiresAt));
 }
 
+function encodeSharedView(state: SharedViewState) {
+  return `#view=${encodeURIComponent(JSON.stringify(state))}`;
+}
+
+function isFiniteTuple(value: unknown, length: number): value is number[] {
+  return Array.isArray(value) && value.length === length && value.every((item) => typeof item === "number" && Number.isFinite(item));
+}
+
+function readSharedView(): SharedViewState | null {
+  const raw = new URLSearchParams(window.location.hash.slice(1)).get("view");
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as Partial<SharedViewState>;
+    const camera = value.camera;
+    const validNames = (items: unknown) => Array.isArray(items) && items.length <= 10000 &&
+      items.every((item) => typeof item === "string" && item.length <= 256);
+    if (value.version !== 1 || !camera || !["perspective", "orthographic"].includes(camera.projection) ||
+      !isFiniteTuple(camera.position, 3) || !isFiniteTuple(camera.quaternion, 4) || !isFiniteTuple(camera.target, 3) ||
+      !["material", "gray", "wire"].includes(value.displayMode ?? "") ||
+      !validNames(value.hidden) || !validNames(value.selected)) return null;
+    return value as SharedViewState;
+  } catch {
+    return null;
+  }
+}
+
 function SenderShareCard({
   url,
   expiresAt,
@@ -126,7 +160,7 @@ function SenderShareCard({
   return (
     <section className="share-credential-card sender-card" aria-label="发送方分享凭证">
       <header><span>审稿凭证</span><b>已就绪</b></header>
-      <div className="share-credential-code">{url.split("/s/").at(-1)?.split("?")[0] ?? url}</div>
+      <div className="share-credential-code">{url.split("/s/").at(-1)?.split(/[?#]/)[0] ?? url}</div>
       <dl>
         <div><dt>权限</dt><dd>{permission === "comment" ? "可评论" : "只读"}</dd></div>
         <div><dt>到期</dt><dd>{formatShareExpiry(expiresAt)}</dd></div>
@@ -222,6 +256,7 @@ export function App() {
   const [accountStats, setAccountStats] = useState<AccountStats | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
+  const [currentCamera, setCurrentCamera] = useState<ReviewCameraState | null>(null);
   const openUploader = useCallback(() => {
     // Opening the file panel is always a fresh selection flow; the active Viewer project stays intact.
     setFile(null);
@@ -303,7 +338,15 @@ export function App() {
         expiresAt: new Date(Date.now() + Number(shareHours) * 3_600_000).toISOString(),
         commentsPermission: sharePermission,
       }, transport);
-      setShareUrl(cloudProject ? `${share.shareUrl}?source=cloud` : share.shareUrl);
+      const baseUrl = cloudProject ? `${share.shareUrl}?source=cloud` : share.shareUrl;
+      const view = currentCamera ? encodeSharedView({
+        version: 1,
+        camera: currentCamera,
+        displayMode,
+        hidden: [...hidden],
+        selected: [...selected],
+      }) : "";
+      setShareUrl(`${baseUrl}${view}`);
       setShareId(share.id);
       setShareExpiresAt(share.expiresAt);
       setMessage(sharePermission === "comment"
@@ -433,6 +476,7 @@ export function App() {
         onToggle={toggle} message={message} modelUrl={workspaceModelUrl} readOnly={false} canComment={Boolean(project)}
         displayMode={displayMode} onDisplayMode={setDisplayMode} cameraPreset={cameraPreset} onCameraPreset={setCameraPreset}
         comments={reviews.comments} reviewError={reviews.error} onCreateComment={reviews.create} onUpdateComment={reviews.update}
+        onViewStateChange={setCurrentCamera}
         onOpenUploader={openUploader} onHome={() => setHomeOpen(true)} recentProjects={recentProjects} onProjectSelect={switchProject}
       />
       <StartPage
@@ -488,6 +532,7 @@ export function App() {
       reviewError={reviews.error}
       onCreateComment={reviews.create}
       onUpdateComment={reviews.update}
+      onViewStateChange={setCurrentCamera}
       uploaderOpen={uploaderOpen}
       onOpenUploader={openUploader}
       onCloseUploader={closeUploader}
@@ -577,6 +622,7 @@ export function App() {
 
 export function SharePage() {
   const token = window.location.pathname.split("/").filter(Boolean).at(-1);
+  const sharedView = useMemo(readSharedView, []);
   const transport: ProjectTransport = new URLSearchParams(window.location.search).get("source") === "cloud" ? "cloud" : "local";
   const isDemoShare = token === DEMO_SHARE_TOKEN;
   const [share, setShare] = useState<{
@@ -597,9 +643,16 @@ export function SharePage() {
   const [error, setError] = useState<string | null>(null);
   const [passwordRequired, setPasswordRequired] = useState(isDemoShare);
   const [password, setPassword] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(sharedView?.selected ?? []));
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(sharedView?.hidden ?? []));
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(sharedView?.displayMode ?? "material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
+  const restoredSharedSelectionRef = useRef(false);
+  useEffect(() => {
+    if (passwordRequired || !share || !sharedView || restoredSharedSelectionRef.current) return;
+    restoredSharedSelectionRef.current = true;
+    setSelected(new Set(sharedView.selected));
+  }, [passwordRequired, share, sharedView]);
   const loadShare = useCallback(() => {
     if (isDemoShare) return;
     if (!token) return setError("缺少分享标识。");
@@ -654,11 +707,11 @@ export function SharePage() {
     <BlenderWorkspace
       title={share.manifest.scene}
       manifest={share.manifest}
-      hidden={new Set()}
+      hidden={hidden}
       selected={selected}
       onSelect={(name) => setSelected(name ? new Set([name]) : new Set())}
       onSelectMany={(names) => setSelected(new Set(names))}
-      onToggle={() => {}}
+      onToggle={(name) => setHidden((current) => { const next = new Set(current); next.has(name) ? next.delete(name) : next.add(name); return next; })}
       message={isDemoShare
         ? "管理员永久公开示例 · 只读 · 不限时。"
         : share.commentsPermission === "comment"
@@ -674,6 +727,7 @@ export function SharePage() {
       onDisplayMode={setDisplayMode}
       cameraPreset={cameraPreset}
       onCameraPreset={setCameraPreset}
+      initialCamera={sharedView?.camera ?? null}
       comments={share.comments}
       reviewError={null}
       onCreateComment={share.commentsPermission === "comment" ? createGuestComment : undefined}
@@ -739,14 +793,20 @@ function StartPage({
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
   const [startTab, setStartTab] = useState<"start" | "recent" | "status" | "account">("start");
+  const [legalDocument, setLegalDocument] = useState<"privacy" | "terms" | null>(null);
+  const responseTime = useMemo(() => {
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const elapsed = navigation ? navigation.responseEnd - navigation.requestStart : 0;
+    return Math.max(1, Math.round(elapsed || performance.now()));
+  }, []);
 
   function openShare() {
     const value = shareInput.trim();
     const candidate = value.match(/^[a-f0-9]{32}$/) ? `/s/${value}` : value;
     try {
       const target = new URL(candidate, window.location.origin);
-      if (target.origin !== window.location.origin || !/^\/s\/[a-f0-9]{32}$/.test(target.pathname)) throw new Error();
-      window.location.assign(`${target.pathname}${target.search}`);
+      if (target.origin !== window.location.origin || !/^\/s\/(?:[a-f0-9]{32}|suzanne)$/.test(target.pathname)) throw new Error();
+      window.location.assign(`${target.pathname}${target.search}${target.hash}`);
     } catch {
       setShareError("请输入本站的完整分享链接，或 32 位分享码。");
     }
@@ -777,23 +837,29 @@ function StartPage({
           <span className="start-splash-version">Web 0.1</span>
           <div className="start-splash-copy"><strong>Blender 工程的轻量审稿台</strong><span>本机转换 · 原始工程不上传</span></div>
         </div>
-        <nav className="start-tabs" aria-label="启动页导航">
-          {([['start', '开始'], ['recent', '最近项目'], ['status', '平台状态'], ['account', '账号']] as const).map(([key, label]) => <button type="button" key={key} className={startTab === key ? "active" : ""} aria-selected={startTab === key} onClick={() => setStartTab(key)}>{label}</button>)}
+        <nav className="start-tabs" role="tablist" aria-label="启动页导航">
+          {([['start', '开始'], ['recent', '最近项目'], ['status', '平台状态'], ['account', '账号']] as const).map(([key, label]) => <button type="button" role="tab" id={`start-tab-${key}`} aria-controls="start-tabpanel" key={key} className={startTab === key ? "active" : ""} aria-selected={startTab === key} onClick={() => setStartTab(key)}>{label}</button>)}
         </nav>
-        <div className="start-tab-body">
+        <div className="start-tab-body" id="start-tabpanel" role="tabpanel" aria-labelledby={`start-tab-${startTab}`} tabIndex={0}>
           {startTab === "start" && <div className="start-actions-grid">
             <section className="start-action-section"><h2>新建审稿</h2><button className="start-menu-action" type="button" onClick={onOpenFile}><FolderOpen /><span><strong>打开 .blend 文件</strong><small>在本机转换并生成 Web 预览</small></span></button><div className="start-privacy-note"><ShieldCheck size={15} /><span>原始 .blend 不会上传云端</span></div></section>
             <section className="start-action-section"><h2>打开分享</h2><form className="start-share-entry" onSubmit={(event) => { event.preventDefault(); openShare(); }}><label htmlFor="start-share-code"><Link2 size={18} /><span><strong>审稿链接或分享码</strong><small>无需账号即可打开只读分享</small></span></label><div><input id="start-share-code" aria-label="分享链接或分享码" value={shareInput} onChange={(event) => { setShareInput(event.target.value); setShareError(null); }} placeholder="粘贴 /s/… 或 32 位分享码" /><button type="submit">打开</button></div>{shareError && <small role="alert">{shareError}</small>}</form></section>
           </div>}
           {startTab === "recent" && <section className="start-recent-panel"><div className="start-panel-heading"><span>最近打开的项目</span><button onClick={onOpenFile}>打开其他文件</button></div>{recentProjects.length ? <div className="start-recent-list">{recentProjects.slice(0, 8).map((item) => <button type="button" className="start-recent-item" key={item.id} onClick={() => onProjectSelect(item)}><FileIcon /><span><strong>{item.name}</strong><small>本机转换项目 · {item.id.slice(0, 6)}</small></span><ChevronDown size={14} className="start-recent-arrow" /></button>)}</div> : <p className="start-empty">还没有最近项目。请先打开一个 .blend 文件。</p>}</section>}
-          {startTab === "status" && <section className="start-system-panel"><div className="start-panel-heading"><span><HardDrive size={14} /> 公益存储池</span><i>运行中</i></div><div className="storage-reading"><strong>{stats ? formatBytes(stats.remainingBytes) : "—"}</strong><span>当前可用 / {stats ? formatBytes(stats.capacityBytes) : "—"}</span></div><div className="storage-meter"><span style={{ width: `${stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}%` }} /></div><div className="start-stats" aria-label="平台状态"><span><strong>{stats?.projectCount ?? "—"}</strong><small>在线项目</small></span><span><strong>{stats?.activeShareCount ?? "—"}</strong><small>有效分享</small></span><span><strong>{stats?.userCount ?? "—"}</strong><small>注册用户</small></span></div><p className="start-retention">建议 24 小时内完成审稿；分享最长 {stats?.retentionHours ?? 48} 小时，派生资产到期自动清理。</p></section>}
+          {startTab === "status" && <section className="start-system-panel"><div className="start-panel-heading"><span><HardDrive size={14} /> 公益存储池</span><i>运行中</i></div><div className="storage-reading"><strong>{stats ? formatBytes(stats.remainingBytes) : "—"}</strong><span>当前可用 / {stats ? formatBytes(stats.capacityBytes) : "—"}</span></div><div className="storage-meter" role="progressbar" aria-label="公益存储池已用容量" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}><span style={{ width: `${stats ? Math.min(100, stats.usedBytes / stats.capacityBytes * 100) : 0}%` }} /></div><div className="start-stats" aria-label="平台状态"><span><strong>{stats?.projectCount ?? "—"}</strong><small>在线项目</small></span><span><strong>{stats?.activeShareCount ?? "—"}</strong><small>有效分享</small></span><span><strong>{stats?.userCount ?? "—"}</strong><small>注册用户</small></span></div><p className="start-retention">建议 24 小时内完成审稿；分享最长 {stats?.retentionHours ?? 48} 小时，派生资产到期自动清理。</p><div className="start-site-notice"><p>{responseTime} ms · Gzip 启用。用户提交内容仅代表其作者，不代表 BlendProof 立场。联系：<a href="mailto:admin@itycon.cn">admin@itycon.cn</a></p><p>禁止上传色情、暴力、恐怖主义、违法或侵犯他人权益的文件。</p><p>© 2026 BlendProof. All rights reserved. <button type="button" onClick={() => setLegalDocument("privacy")}>隐私政策</button><span>·</span><button type="button" onClick={() => setLegalDocument("terms")}>服务条款</button></p></div></section>}
           {startTab === "account" && <section className="start-user-panel"><div className="start-panel-heading"><span><User size={14} /> {account ? "我的账号" : "账号入口"}</span>{account?.role === "admin" && <i className="admin-badge"><ShieldCheck size={12} /> 管理员</i>}</div>{account ? <><div className="account-identity"><b>{account.displayName.slice(0, 1).toUpperCase()}</b><span><strong>{account.displayName}</strong><small>{account.email}</small></span><button className="account-logout" onClick={() => void onLogout()}><LogOut size={13} /> 退出</button></div><dl className="account-usage"><div><dt>个人占用</dt><dd>{accountStats ? formatBytes(accountStats.usedBytes) : "—"}</dd></div><div><dt>项目</dt><dd>{accountStats?.projectCount ?? "—"}</dd></div><div><dt>有效分享</dt><dd>{accountStats?.activeShareCount ?? "—"}</dd></div></dl>{account.role === "admin" && <AdminConsole accountId={account.id} onCreateInvite={onCreateInvite} />}</> : <><p>登录后可以查看自己的项目、分享数量和空间占用。为了控制公益资源，注册需要管理员发放的邀请码。</p><div className="account-buttons"><button onClick={() => { setAuthMode("login"); setAuthOpen(true); }}><LogIn size={13} /> 登录</button><button onClick={() => { setAuthMode("register"); setAuthOpen(true); }}><KeyRound size={13} /> 使用邀请码注册</button></div></>}</section>}
         </div>
         <footer className="start-launcher-footer"><span>BlendProof 公益 3D 审稿</span><span>容量 {stats ? formatBytes(stats.capacityBytes) : "—"} · 最长分享 {stats?.retentionHours ?? 48} 小时</span></footer>
       </section>
       {authOpen && <div className="uploader-modal-backdrop account-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuthOpen(false); }}><form className="account-modal" role="dialog" aria-label={authMode === "login" ? "登录" : "邀请码注册"} onSubmit={submitAccount}><div className="account-modal-head"><strong>{authMode === "login" ? "登录 BlendProof" : "使用邀请码注册"}</strong><button type="button" aria-label="关闭账号面板" onClick={() => setAuthOpen(false)}>×</button></div><div className="account-tabs"><button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAccountError(null); }}>登录</button><button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setAccountError(null); }}>注册</button></div>{authMode === "register" && <><label>显示名称<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label><label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} required /></label></>}<label>邮箱<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>密码<input type="password" value={password} minLength={8} onChange={(event) => setPassword(event.target.value)} required /></label>{accountError && <p role="alert">{accountError}</p>}<button className="account-submit" disabled={accountBusy}>{accountBusy ? "处理中…" : authMode === "login" ? "登录" : "创建账号"}</button><small>注册只接受管理员发放的邀请码。</small></form></div>}
+      {legalDocument && <LegalDocument kind={legalDocument} onClose={() => setLegalDocument(null)} />}
     </main>
   );
+}
+
+function LegalDocument({ kind, onClose }: { kind: "privacy" | "terms"; onClose: () => void }) {
+  const privacy = kind === "privacy";
+  return <div className="uploader-modal-backdrop legal-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><article className="legal-modal" role="dialog" aria-modal="true" aria-label={privacy ? "隐私政策" : "服务条款"}><header className="account-modal-head"><strong>BlendProof {privacy ? "隐私政策" : "服务条款"}</strong><button type="button" aria-label="关闭协议" onClick={onClose}>×</button></header>{privacy ? <div className="legal-copy"><p>生效日期：2026 年 9 月 12 日</p><h2>数据处理范围</h2><p>原始 .blend 文件仅在您的本机 Blender bridge 中读取和转换，不会上传至 BlendProof 云端。您确认发布后，云端仅保存用于审阅的轻量 GLB、裁剪后的 manifest、可选缩略图、分享设置和批注。</p><h2>账号与日志</h2><p>邀请码注册会处理邮箱、显示名称、账号角色、会话与邀请码使用记录。为保障安全、容量控制和故障排查，服务会保留必要的访问、发布、分享和清理日志。</p><h2>保留与删除</h2><p>普通审阅资产默认建议在 24 小时内使用，最长保留时间受平台配置限制（默认不超过 48 小时），到期后自动清理。管理员维护的公开演示模型不适用该临时保留规则。</p><h2>联系</h2><p>如需隐私相关协助，请联系 <a href="mailto:admin@itycon.cn">admin@itycon.cn</a>。</p></div> : <div className="legal-copy"><p>生效日期：2026 年 9 月 12 日</p><h2>服务定位</h2><p>BlendProof 是轻量 3D 审阅工具，不替代 Blender、专业归档、备份或法律存证服务。分享访问者应依分享人设置的权限使用审阅内容。</p><h2>允许与禁止</h2><p>您须确保拥有上传、转换、发布和分享内容的必要权利。严禁上传或传播色情、暴力、恐怖主义、违法、侵权、恶意程序或其他可能危害他人的文件与内容。</p><h2>账号与邀请码</h2><p>注册仅可使用管理员发放的邀请码。您应妥善保管账号和分享密码；管理员可基于安全、容量或违规情况撤销邀请码、停用账号或清理相关审阅资产。</p><h2>免责声明</h2><p>用户提交、评论和分享的内容仅代表其作者，不代表 BlendProof 立场。平台在法律允许的范围内按现状提供服务，不保证临时审阅资产的永久保存或所有格式的转换结果。</p></div>}<footer><button type="button" onClick={onClose}>我已了解</button></footer></article></div>;
 }
 
 function AdminConsole({ accountId, onCreateInvite }: { accountId: string; onCreateInvite: (expiresInHours: number, maxUses: number) => Promise<{ code: string }> }) {
@@ -917,6 +983,8 @@ function BlenderWorkspace({
   reviewError,
   onCreateComment,
   onUpdateComment,
+  initialCamera = null,
+  onViewStateChange,
   uploaderOpen = false,
   onOpenUploader,
   onCloseUploader,
@@ -952,6 +1020,8 @@ function BlenderWorkspace({
     commentId: string,
     patch: Pick<Partial<ReviewComment>, "body" | "status">,
   ) => Promise<ReviewComment>;
+  initialCamera?: ReviewCameraState | null;
+  onViewStateChange?: (camera: ReviewCameraState) => void;
   uploaderOpen?: boolean;
   onOpenUploader?: () => void;
   onCloseUploader?: () => void;
@@ -983,6 +1053,8 @@ function BlenderWorkspace({
   const [propertyHeight, setPropertyHeight] = useState(132);
   const [summaryHeight, setSummaryHeight] = useState(180);
   const [overlaysVisible, setOverlaysVisible] = useState(true);
+  const [outlinerQuery, setOutlinerQuery] = useState("");
+  const [focusRequest, setFocusRequest] = useState<{ names: string[]; nonce: number } | null>(null);
   const [reviewCameraRequest, setReviewCameraRequest] = useState<{
     camera: ReviewCameraState;
     nonce: number;
@@ -991,6 +1063,7 @@ function BlenderWorkspace({
   const uploaderCloseRef = useRef<HTMLButtonElement>(null);
   const uploaderDialogRef = useRef<HTMLElement>(null);
   const uploaderWasOpenRef = useRef(false);
+  const restoredInitialCameraRef = useRef<string | null>(null);
   const collectCameras = useCallback(
     (cameras: ThreeCamera[]) => setFileCameras(cameras),
     [],
@@ -1022,6 +1095,17 @@ function BlenderWorkspace({
     setReviewCameraRequest(null);
   }, [modelUrl]);
   useEffect(() => {
+    if (!initialCamera || !sceneRoot || restoredInitialCameraRef.current === modelUrl) return;
+    restoredInitialCameraRef.current = modelUrl ?? "default";
+    setReviewCameraRequest({ camera: initialCamera, nonce: Date.now() });
+  }, [initialCamera, modelUrl, sceneRoot]);
+  const filteredObjects = useMemo(() => {
+    const query = outlinerQuery.trim().toLocaleLowerCase();
+    if (!query) return manifest?.objects ?? [];
+    return (manifest?.objects ?? []).filter((object) =>
+      object.name.toLocaleLowerCase().includes(query) || object.type.toLocaleLowerCase().includes(query));
+  }, [manifest?.objects, outlinerQuery]);
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches("input, textarea, select, [contenteditable='true']"))
@@ -1032,6 +1116,11 @@ function BlenderWorkspace({
       ) {
         event.preventDefault();
         toggleIsolation();
+        return;
+      }
+      if ((event.key === "." || event.code === "NumpadDecimal") && selected.size > 0) {
+        event.preventDefault();
+        setFocusRequest({ names: [...selected], nonce: Date.now() });
         return;
       }
       const preset =
@@ -1370,6 +1459,8 @@ function BlenderWorkspace({
                   scene={sceneRoot}
                   onTargetChange={setNavigationTarget}
                   reviewCameraRequest={reviewCameraRequest}
+                  focusRequest={focusRequest}
+                  onViewStateChange={onViewStateChange}
                 />
                 {!annotationMode && (
                   <BoxSelectionController
@@ -1423,17 +1514,39 @@ function BlenderWorkspace({
               <span>
                 <Layers size={13} /> 场景集合
               </span>
+              <button
+                type="button"
+                className="outliner-focus"
+                disabled={selected.size === 0}
+                title="聚焦选中对象（小键盘 .）"
+                aria-label="聚焦选中对象"
+                onClick={() => setFocusRequest({ names: [...selected], nonce: Date.now() })}
+              ><Focus size={12} /></button>
             </header>
+            <label className="outliner-search">
+              <Search size={12} />
+              <input value={outlinerQuery} onChange={(event) => setOutlinerQuery(event.target.value)} placeholder="搜索对象" aria-label="搜索场景对象" />
+              {outlinerQuery && <button type="button" aria-label="清除对象搜索" onClick={() => setOutlinerQuery("")}><X size={11} /></button>}
+            </label>
             <div className="tree-root">
               <span>⌄</span>
               <strong>{manifest?.scene ?? "Scene Collection"}</strong>
             </div>
             <div className="tree-children">
-              {manifest?.objects.map((object) => (
+              {filteredObjects.map((object) => (
                 <div
                   className={`tree-row ${selected.has(object.name) ? "selected" : ""}`}
                   key={object.name}
+                  role="treeitem"
+                  tabIndex={0}
+                  aria-selected={selected.has(object.name)}
                   onClick={() => onSelect(object.name)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelect(object.name);
+                    }
+                  }}
                 >
                   <span className="tree-icon">
                     {object.type === "CAMERA" ? (
@@ -1446,6 +1559,8 @@ function BlenderWorkspace({
                   </span>
                   <span>{object.name}</span>
                   <button
+                    type="button"
+                    aria-label={`${hidden.has(object.name) ? "显示" : "隐藏"} ${object.name}`}
                     className="eye"
                     disabled={readOnly}
                     onClick={(event) => {
@@ -1471,6 +1586,7 @@ function BlenderWorkspace({
                   </button>
                 </div>
               ))}
+              {manifest && filteredObjects.length === 0 && <p className="outliner-empty">没有匹配对象</p>}
             </div>
           </section>
           <PanelResizeHandle
@@ -1927,12 +2043,16 @@ function BlenderViewControls({
   scene,
   onTargetChange,
   reviewCameraRequest,
+  focusRequest,
+  onViewStateChange,
 }: {
   preset: CameraPreset;
   fileCameras: ThreeCamera[];
   scene: Object3D | null;
   onTargetChange: (target: Vec3) => void;
   reviewCameraRequest: { camera: ReviewCameraState; nonce: number } | null;
+  focusRequest: { names: string[]; nonce: number } | null;
+  onViewStateChange?: (camera: ReviewCameraState) => void;
 }) {
   const { camera, gl, set, size } = useThree();
   const controls = useRef<any>(null);
@@ -2023,13 +2143,48 @@ function BlenderViewControls({
     onTargetChange(saved.target);
   }, [onTargetChange, reviewCameraRequest, set, size.height, size.width]);
   useEffect(() => {
+    if (!focusRequest || !scene || !controls.current) return;
+    const bounds = new Box3();
+    let found = false;
+    const wanted = new Set(focusRequest.names);
+    scene.traverse((node) => {
+      if (!wanted.has(node.name)) return;
+      const nodeBounds = new Box3().setFromObject(node);
+      if (!nodeBounds.isEmpty()) {
+        bounds.union(nodeBounds);
+        found = true;
+      }
+    });
+    if (!found || bounds.isEmpty()) return;
+    const activeCamera = controls.current.object as ThreeCamera;
+    const center = bounds.getCenter(new Vector3());
+    const radius = Math.max(bounds.getSize(new Vector3()).length() / 2, 0.1);
+    const direction = activeCamera.position.clone().sub(controls.current.target).normalize();
+    if ((activeCamera as OrthographicCamera).isOrthographicCamera) {
+      const orthographic = activeCamera as OrthographicCamera;
+      const height = Math.abs(orthographic.top - orthographic.bottom);
+      orthographic.zoom = Math.max(0.01, height / (radius * 2.4));
+      orthographic.updateProjectionMatrix();
+    } else {
+      const perspective = activeCamera as PerspectiveCamera;
+      const distance = radius / Math.tan((perspective.fov * Math.PI) / 360) * 1.25;
+      activeCamera.position.copy(center).add(direction.multiplyScalar(distance));
+    }
+    controls.current.target.copy(center);
+    controls.current.update();
+    onTargetChange(center.toArray() as Vec3);
+  }, [focusRequest, onTargetChange, scene]);
+  useEffect(() => {
     const current = controls.current;
     if (!current) return;
-    const onChange = () =>
-      onTargetChange(current.target.toArray() as Vec3);
+    const onChange = () => {
+      const target = current.target.toArray() as Vec3;
+      onTargetChange(target);
+      if (onViewStateChange) onViewStateChange(captureCameraState(current.object as ThreeCamera, target));
+    };
     current.addEventListener("change", onChange);
     return () => current.removeEventListener("change", onChange);
-  }, [onTargetChange]);
+  }, [onTargetChange, onViewStateChange]);
   useEffect(() => {
     const element = gl.domElement;
     const chooseMiddleAction = (event: PointerEvent) => {
@@ -2059,6 +2214,24 @@ function BlenderViewControls({
       mouseButtons={{ LEFT: undefined, MIDDLE: MOUSE.ROTATE, RIGHT: MOUSE.PAN }}
     />
   );
+}
+
+function captureCameraState(camera: ThreeCamera, target: Vec3): ReviewCameraState {
+  const base = {
+    position: camera.position.toArray() as Vec3,
+    quaternion: camera.quaternion.toArray() as [number, number, number, number],
+    target,
+  };
+  if ((camera as OrthographicCamera).isOrthographicCamera) {
+    const value = camera as OrthographicCamera;
+    return {
+      ...base,
+      projection: "orthographic",
+      zoom: value.zoom,
+      orthographicHeight: Math.abs(value.top - value.bottom),
+    };
+  }
+  return { ...base, projection: "perspective", fov: (camera as PerspectiveCamera).fov };
 }
 
 function ReviewPanel({
