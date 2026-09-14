@@ -99,6 +99,11 @@ const PIN_DATA: PinData[] = [
 const ACCENT = 0xe87d0d
 const BLUE_INK = 0x5b9ee0
 
+/** Touch devices: vertical swipes must still scroll the page. */
+function allowPageScrollOnTouch(domElement: HTMLElement): void {
+  if (window.matchMedia('(hover: none)').matches) domElement.style.touchAction = 'pan-y'
+}
+
 const easeInOutCubic = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 
@@ -167,7 +172,7 @@ export function initHero3D(): void {
     return
   }
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 500 ? 1.5 : 2))
   renderer.setClearColor(0x000000, 0)
   renderer.domElement.style.cssText =
     'position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .6s ease'
@@ -224,6 +229,7 @@ export function initHero3D(): void {
   controls.autoRotateSpeed = 0.7
   const disposeBlenderNav = applyBlenderNavigation(controls, renderer.domElement)
   const disposeAutoRotate = attachIdleAutoRotate(controls)
+  allowPageScrollOnTouch(renderer.domElement)
 
   // --- Annotation pins (DOM) ---
   const pins3d: THREE.Group[] = []
@@ -478,7 +484,8 @@ export function initHero3D(): void {
         // Keep the open bubble glued to its pin.
         if (activePin >= 0 && !bubble.hidden && pinEls[activePin] && !pinEls[activePin].hidden) {
           const el = pinEls[activePin]
-          const x = Math.min(Math.max(parseFloat(el.style.left), 118), w - 118)
+          const half = Math.min(118, w * 0.45)
+          const x = Math.min(Math.max(parseFloat(el.style.left), half), w - half)
           const y = Math.max(parseFloat(el.style.top) - 54, 64)
           bubble.style.left = `${x.toFixed(1)}px`
           bubble.style.top = `${y.toFixed(1)}px`
@@ -521,9 +528,10 @@ export function createMiniViewer(host: HTMLElement): { dispose: () => void } | n
   } catch {
     return null
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 500 ? 1.5 : 2))
   renderer.setClearColor(0x000000, 0)
   renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%'
+  allowPageScrollOnTouch(renderer.domElement)
   host.appendChild(renderer.domElement)
 
   const scene = new THREE.Scene()
