@@ -98,6 +98,9 @@
     --mk-row-ink-off: #4a4a4a;
     --mk-caret: #888888;
     --mk-resolved-ink: #8cc4f5;
+    --feat-px: 24px;
+    --feat-py: 26px;
+    --art-dot: rgba(255, 255, 255, .05);
     color-scheme: dark;
   }
 
@@ -179,6 +182,9 @@
     --mk-row-ink-off: #c4bdb0;
     --mk-caret: #98928a;
     --mk-resolved-ink: #3d7ab5;
+    --feat-px: 24px;
+    --feat-py: 26px;
+    --art-dot: rgba(0, 0, 0, .055);
     color-scheme: light;
   }
 
@@ -505,7 +511,12 @@
     border-radius: var(--radius); overflow: hidden;
   }
 
-  .feature { position: relative; background: var(--bg); padding: 26px 24px; transition: background-color .22s ease; }
+  .feature {
+    position: relative;
+    background: var(--bg);
+    padding: var(--feat-py) var(--feat-px);
+    transition: background-color .22s ease;
+  }
   .feature:hover { background: var(--hover-bg); }
 
   .feature::before {
@@ -516,530 +527,6 @@
   }
 
   .feature:hover::before { width: 62%; }
-
-  .feature__icon {
-    display: grid; place-items: center;
-    width: 32px; height: 32px; margin-bottom: 15px;
-    border: 1px solid var(--border-soft); border-radius: 3px;
-    background: var(--input); color: var(--accent-warm);
-    font-family: var(--mono); font-size: 13px;
-  }
-
-  .feature h3 { margin: 0 0 8px; color: var(--ink-bright); font-size: 15.5px; font-weight: 600; }
-  .feature p { margin: 0 0 13px; color: var(--muted); font-size: 13.5px; }
-  .feature ul { margin: 0; padding: 0; list-style: none; }
-  .feature li { position: relative; padding-left: 13px; color: var(--faint); font-size: 12.5px; line-height: 1.95; }
-  .feature li::before { content: "·"; position: absolute; left: 3px; color: var(--accent); }
-
-  /* ---------- Product mockups（样式值照抄 src/styles.css 与 src/overrides.css） ---------- */
-
-  .mockup-duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
-
-  .mockup {
-    margin: 0;
-    border: 1px solid var(--mk-frame);
-    border-radius: 3px;
-    background: linear-gradient(145deg, var(--mk-surface-a), var(--mk-surface-b));
-    box-shadow: 0 8px 24px #0007;
-    overflow: hidden;
-  }
-
-  .mk-chrome {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    height: 29px; padding: 0 9px;
-    border-bottom: 1px solid var(--mk-frame-2);
-    color: var(--mk-strong); font-size: 10px;
-  }
-  .mk-chrome i { color: var(--mk-ink-dim); font-size: 9px; font-style: normal; }
-
-  .mockup figcaption {
-    padding: 8px 10px;
-    border-top: 1px solid var(--mk-frame-2);
-    background: var(--mk-foot-bg);
-    color: var(--mk-ink-dim);
-    font-size: 10.5px;
-    line-height: 1.55;
-  }
-  .mockup figcaption b { color: var(--mk-ink-soft); font-weight: 500; }
-
-  /* --- Outliner（产品 .outliner / .tree-row） --- */
-  .mk-outliner { padding: 4px 0 6px; background: var(--mk-body-bg); font-size: 10px; }
-  .mk-search {
-    display: flex; align-items: center; height: 25px; margin: 4px 5px 1px; padding: 0 7px;
-    border: 1px solid var(--mk-line-2); border-radius: 2px; background: var(--mk-input-bg);
-    color: var(--mk-row-ink-dim);
-  }
-  .mk-tree-root { display: flex; align-items: center; gap: 5px; padding: 4px 8px 2px; color: var(--mk-dd); }
-  .mk-tree-root span { color: var(--mk-caret); font-size: 8px; }
-  .mk-tree-row {
-    display: grid; grid-template-columns: 18px minmax(0, 1fr) 20px;
-    align-items: center; gap: 4px;
-    min-height: 24px; padding: 0 3px 0 16px;
-    color: var(--mk-dd); cursor: pointer;
-  }
-  .mk-tree-row:hover { background: var(--mk-hover); }
-  .mk-tree-row.selected { background: #2f5582; color: #fff; }
-  .mk-tree-row i { color: var(--mk-ink-mut); font-style: normal; font-size: 9px; text-align: center; }
-  .mk-tree-row.selected i { color: #cfe0f5; }
-  .mk-tree-row em { color: var(--mk-row-ink-dim); font-size: 8px; font-style: normal; text-align: center; }
-  .mk-tree-row em.off { color: var(--mk-row-ink-off); }
-
-  /* --- 批注列表（产品 .review-item） --- */
-  .mk-review { background: var(--mk-body-bg); font-size: 10px; }
-  .mk-review-item {
-    display: grid; grid-template-columns: 22px minmax(0, 1fr) auto;
-    align-items: center; gap: 7px;
-    padding: 7px 9px;
-    background: var(--mk-body-bg); color: var(--mk-dd); cursor: pointer;
-  }
-  .mk-review-item:hover { background: var(--mk-hover); }
-  .mk-review-item.selected { box-shadow: inset 2px 0 #e87d0d; }
-  .mk-review-item i {
-    display: grid; width: 19px; height: 19px; place-items: center;
-    border-radius: 50%; background: #e87d0d; color: #161616;
-    font-style: normal; font-weight: 700; font-size: 9px;
-  }
-  .mk-review-item i.resolved { background: #5b9ee0; }
-  .mk-review-item strong {
-    display: block; overflow: hidden;
-    color: var(--mk-strong); font-weight: 500;
-    text-overflow: ellipsis; white-space: nowrap;
-  }
-  .mk-review-item small { color: var(--mk-ink-dim); font-size: 9px; }
-  .mk-review-status {
-    border: 1px solid var(--mk-chip-border); border-radius: 2px;
-    background: transparent; padding: 2px 7px;
-    color: var(--mk-ink-mut); font-size: 9px; cursor: pointer;
-  }
-  .mk-review-status:hover { color: var(--mk-strong); border-color: var(--mk-chip-border-h); }
-
-  /* --- 上传工作台（产品 .blend-dropzone / .upload-progress-* 三态） --- */
-  .mk-uploader {
-    display: grid; gap: 8px;
-    padding: 10px;
-    background: var(--mk-panel-2);
-  }
-
-  .mk-slot {
-    position: relative;
-    height: 88px;
-  }
-  .mk-slot > * { position: absolute; inset: 0; }
-  .mk-slot > [hidden] { display: none; }
-
-  .mk-dropzone {
-    display: grid; justify-items: center; gap: 3px;
-    padding: 16px 10px 13px;
-    border: 1px dashed var(--mk-chip-border); border-radius: 3px;
-    background: var(--mk-inset);
-    color: var(--mk-ink-dim); cursor: pointer;
-    transition: border-color .2s ease, background-color .2s ease;
-  }
-  .mk-dropzone[hidden] { display: none; }
-  .mk-dropzone:hover { border-color: var(--accent); background: var(--mk-drop-hover); }
-  .mk-dropzone b { color: var(--mk-ink-soft); font-size: 16px; }
-  .mk-dropzone strong { color: var(--mk-bright); font-size: 11.5px; font-weight: 500; }
-  .mk-dropzone small { font-size: 9px; }
-
-  .mk-file {
-    display: flex; align-items: center; gap: 8px;
-    padding: 7px 9px;
-    border: 1px solid var(--mk-file-line); border-radius: 3px;
-    background: var(--mk-row-bg);
-  }
-  .mk-file[hidden] { display: none; }
-  .mk-file > i { color: var(--accent-warm); font-style: normal; }
-  .mk-file strong { display: block; color: var(--mk-strong); font-size: 11px; font-weight: 500; }
-  .mk-file small { color: var(--mk-ink-dim); font-size: 9px; }
-  .mk-file button {
-    margin-left: auto;
-    border: 0; background: transparent;
-    color: var(--mk-chip-ink); font-size: 10px; cursor: pointer;
-  }
-  .mk-file button:hover { color: #e18c7b; }
-
-  .mk-convert {
-    display: flex; align-items: center; justify-content: center;
-    height: 30px;
-    border: 1px solid var(--accent-edge); border-radius: 3px;
-    background: var(--accent); color: #fff;
-    font-size: 11px; font-weight: 600; cursor: pointer;
-    transition: background-color .15s ease;
-  }
-  .mk-convert:hover:not(:disabled) { background: #c5630b; }
-  .mk-convert:disabled {
-    border-color: var(--mk-frame); background: var(--mk-btn-disabled);
-    color: var(--mk-ink-dim); cursor: not-allowed;
-  }
-
-  .mk-progress[hidden] { display: none; }
-  .mk-progress {
-    display: grid; gap: 7px;
-    margin: 0; padding: 9px;
-    border: 1px solid var(--mk-line-3); border-radius: 3px;
-    background: var(--mk-inset);
-    list-style: none;
-  }
-  .mk-step {
-    display: grid;
-    grid-template-columns: 17px minmax(0, 1fr);
-    column-gap: 7px; align-items: center;
-    color: var(--mk-row-ink-dim); font-size: 10px;
-  }
-  .mk-step i {
-    grid-row: 1 / -1;
-    width: 13px; height: 13px;
-    border: 1px solid var(--mk-step-ring); border-radius: 50%;
-  }
-  .mk-step b { font-weight: 500; }
-  .mk-step small { display: block; color: var(--mk-ink-faint); font-size: 8.5px; }
-  .mk-step.active { color: var(--mk-bright); }
-  .mk-step.active i {
-    border-color: var(--accent);
-    animation: stepPulse 1s ease infinite;
-  }
-  .mk-step.done { color: var(--mk-ink-done); }
-  .mk-step.done i { border-color: #688148; background: #3c512b; }
-
-  @keyframes stepPulse {
-    50% { box-shadow: 0 0 0 3px rgba(232, 125, 13, .16); }
-  }
-
-  /* --- 分享凭证卡（产品 .share-credential-card） --- */
-  .mk-cred dl { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0 9px 9px; }
-  .mk-cred dl div { min-width: 0; padding: 0 7px; border-left: 1px solid var(--mk-line-2); }
-  .mk-cred dl div:first-child { padding-left: 0; border: 0; }
-  .mk-cred dt { color: var(--mk-dt); font-size: 8px; }
-  .mk-cred dd { margin: 3px 0 0; overflow: hidden; color: var(--mk-dd); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-  .mk-cred-code {
-    margin: 8px; padding: 6px;
-    border: 1px dashed var(--mk-code-border); background: var(--mk-code-bg);
-    color: var(--mk-code-ink); font: 9px var(--mono);
-    text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
-  }
-  .mk-cred-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--mk-line-3); }
-  .mk-cred-actions button,
-  .mk-cred-actions a {
-    display: flex; min-height: 29px; align-items: center; justify-content: center; gap: 5px;
-    border: 0; background: var(--mk-btn-bg); color: var(--mk-btn-ink);
-    font-size: 9px; cursor: pointer; text-decoration: none;
-  }
-  .mk-cred-actions button:hover, .mk-cred-actions a:hover { background: var(--mk-line-3); color: var(--mk-btn-ink-h); }
-
-  /* ---------- Public good ---------- */
-
-  .points { margin: 0; padding: 0; list-style: none; }
-  .points li {
-    position: relative; padding: 14px 0 14px 28px;
-    border-bottom: 1px solid var(--border);
-    color: var(--muted); font-size: 14px;
-  }
-  .points li:last-child { border-bottom: 0; }
-  .points li::before { content: "→"; position: absolute; left: 0; top: 14px; color: var(--accent); font-family: var(--mono); font-size: 13px; }
-  .points b { color: var(--ink-bright); font-weight: 600; }
-
-  /* ---------- Live status ---------- */
-
-  .live {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1px;
-    background: var(--border); border: 1px solid var(--border);
-    border-radius: var(--radius); overflow: hidden;
-  }
-
-  .stat { background: var(--stat-bg); padding: 22px 20px; }
-  .stat dt { margin: 0 0 9px; color: var(--faint); font-family: var(--mono); font-size: var(--fs-micro); letter-spacing: .12em; text-transform: uppercase; }
-  .stat dd { margin: 0; color: var(--ink-bright); font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1.24; }
-  .stat dd small { display: block; margin-top: 4px; color: var(--faint); font-family: inherit; font-size: 11.5px; font-weight: 400; }
-
-  .meter { height: 3px; margin-top: 11px; border-radius: 2px; background: var(--border-soft); overflow: hidden; }
-  .meter span { display: block; height: 100%; width: 0; background: var(--blue-ink); transition: width .9s ease-out; }
-
-  .live__note { margin: 16px 0 0; color: var(--faint); font-size: 12.5px; }
-  .live__note[data-state="offline"] { color: var(--accent-warm); }
-
-  /* ---------- Legal ---------- */
-
-  .legal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-  .legal { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
-
-  .legal > summary {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 15px 18px; cursor: pointer;
-    color: var(--ink-bright); font-size: 14px; font-weight: 600; list-style: none;
-    transition: background-color .18s ease;
-  }
-
-  .legal > summary::-webkit-details-marker { display: none; }
-  .legal > summary:hover { background: var(--panel-2); }
-  .legal > summary::after { content: "▾"; color: var(--faint); font-size: 10px; transition: transform .22s ease; }
-  .legal[open] > summary::after { transform: rotate(180deg); }
-
-  .legal__body { padding: 4px 18px 20px; border-top: 1px solid var(--border); }
-  .legal__body h4 { margin: 15px 0 6px; color: var(--ink-bright); font-size: 13px; font-weight: 600; }
-  .legal__body p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; line-height: 1.78; }
-  .legal__date { margin: 0; padding-top: 10px; color: var(--faint); font-family: var(--mono); font-size: var(--fs-micro); }
-
-  .notice {
-    margin-top: 18px; padding: 15px 18px;
-    border: 1px solid var(--notice-border); border-radius: var(--radius);
-    background: var(--notice-bg);
-    color: var(--notice-ink); font-size: 13px;
-  }
-
-  /* ---------- Footer ---------- */
-
-  .site-foot { padding: 34px 0 50px; border-top: 1px solid var(--border); color: var(--faint); font-size: 12.5px; }
-  .site-foot p { margin: 0 0 7px; }
-  .site-foot .mono { font-size: 12px; }
-
-  /* ---------- Cards（每节一个 mockup 化面板） ---------- */
-
-  .card {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: linear-gradient(160deg, var(--card-grad-a), var(--card-grad-b));
-    box-shadow:
-      0 26px 64px -40px rgba(0, 0, 0, .95),
-      0 0 0 1px rgba(255, 255, 255, .02);
-    overflow: hidden;
-    transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease;
-  }
-
-  .card:hover {
-    border-color: var(--border-strong);
-    transform: translateY(-2px);
-    box-shadow:
-      0 32px 72px -40px rgba(0, 0, 0, 1),
-      0 0 0 1px rgba(232, 125, 13, .08);
-  }
-
-  .card__chrome {
-    display: flex; align-items: center; gap: 12px;
-    padding: 11px 20px;
-    border-bottom: 1px solid var(--border);
-    background: var(--chrome-bg);
-    user-select: none;
-  }
-
-  .card__index {
-    color: var(--accent);
-    font-family: var(--mono);
-    font-size: var(--fs-chrome);
-    letter-spacing: .14em;
-  }
-
-  .card__name { color: var(--ink-bright); font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }
-
-  .card__tag {
-    margin-left: auto;
-    color: var(--faint);
-    font-family: var(--mono);
-    font-size: var(--fs-micro);
-    font-style: normal;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .card__body { padding: 32px 32px 36px; }
-  .card__body > h2:first-child { margin-top: 0; }
-
-  /* ---------- Card micro-interactions（跟随光晕 / 倾斜 / chrome 扫光 / 打字机 / 盖戳） ---------- */
-
-  .card { position: relative; }
-
-  .card::before {
-    content: "";
-    position: absolute; inset: 0; z-index: 0;
-    background: radial-gradient(440px circle at var(--mx, 50%) var(--my, 50%), rgba(232, 125, 13, .08), transparent 64%);
-    opacity: 0;
-    transition: opacity .35s ease;
-    pointer-events: none;
-  }
-
-  .card:hover::before { opacity: 1; }
-  .card__chrome, .card__body { position: relative; z-index: 1; }
-  .card__chrome { overflow: hidden; }
-
-  .card__dots { display: inline-flex; gap: 4px; margin-right: 4px; }
-  .card__dots i {
-    width: 7px; height: 7px;
-    border-radius: 2px;
-    background: #3d3d3d;
-    transition: background-color .3s ease;
-  }
-  .card:hover .card__dots i { background: #4c4c4c; }
-  .card:hover .card__dots i:first-child { background: var(--accent); }
-
-  .card__chrome::after {
-    content: "";
-    position: absolute; top: 0; bottom: 0; left: -45%;
-    width: 34%;
-    transform: skewX(-18deg);
-    background: linear-gradient(90deg, transparent, rgba(232, 125, 13, .14), transparent);
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .js .card.in .card__chrome::after { animation: chromeSweep .9s ease .25s 1 both; }
-
-  @keyframes chromeSweep {
-    from { opacity: 0; left: -45%; }
-    30%  { opacity: 1; }
-    to   { opacity: 0; left: 125%; }
-  }
-
-  /* --- 发出/读取分享：两张独立等高卡片 --- */
-
-  .share-duo {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 22px;
-    align-items: stretch;
-  }
-
-  .share-duo .card { display: flex; flex-direction: column; }
-  .share-duo .card__body { display: flex; flex-direction: column; flex: 1; }
-  .share-duo .card__note { margin-top: auto; padding-top: 16px; }
-
-  .card__note {
-    margin: 18px 0 0;
-    padding: 10px 14px;
-    border: 1px dashed var(--border-soft);
-    border-radius: var(--radius);
-    background: rgba(51, 41, 29, .28);
-    color: var(--faint);
-    font-size: 12px;
-    line-height: 1.6;
-  }
-
-  .card.receiving {
-    animation: rxPulse 1.1s ease;
-  }
-
-  @keyframes rxPulse {
-    0%   { box-shadow: 0 0 0 0 rgba(232, 125, 13, .38); }
-    100% { box-shadow: 0 0 0 16px rgba(232, 125, 13, 0); }
-  }
-
-  #mk-rx-foot.busy { color: var(--accent-warm); }
-  #mk-rx-foot.loaded { color: #79a95a; }
-
-  .mk-rx-note {
-    margin: 0;
-    padding: 9px 10px;
-    border-bottom: 1px solid var(--mk-line);
-    color: var(--mk-ink-mut);
-    font-size: 10px;
-    line-height: 1.6;
-  }
-
-  .mk-rx-foot {
-    margin-top: auto;
-    padding: 7px 9px;
-    border-top: 1px solid var(--mk-line);
-    color: var(--mk-ink-dim); font-size: 9px;
-  }
-
-  .mk-search-input {
-    min-width: 0; flex: 1;
-    border: 0; outline: 0;
-    background: transparent;
-    color: var(--mk-dd);
-    font-size: 10px;
-  }
-  .mk-search-input::placeholder { color: var(--mk-ink-faint); }
-  .mk-search:focus-within { border-color: #a85b10; }
-
-  .mk-tree-row .mk-eye {
-    border: 0; background: transparent;
-    padding: 0; color: var(--mk-row-ink-dim);
-    font-size: 9px; cursor: pointer;
-    transition: color .15s ease;
-  }
-  .mk-tree-row .mk-eye:hover { color: var(--mk-strong); }
-  .mk-tree-row .mk-eye.off { color: var(--mk-row-ink-off); }
-  .mk-tree-row.is-hidden span { opacity: .38; text-decoration: line-through; }
-  .mk-tree-row.is-hidden i, .mk-tree-row.is-hidden .mk-eye { opacity: .4; }
-
-  .mk-meta {
-    margin: 6px 5px 0;
-    padding: 6px 8px 0;
-    border-top: 1px solid var(--mk-line);
-    color: var(--mk-ink-dim); font-size: 9px;
-  }
-  .mk-meta b { color: var(--mk-ink-soft); font-weight: 500; }
-
-  .mk-outliner.collapsed .mk-tree-row { display: none; }
-  .mk-tree-root { cursor: pointer; }
-  .mk-tree-root span { transition: transform .2s ease; }
-  .mk-outliner.collapsed .mk-tree-root span { transform: rotate(-90deg); }
-
-  .mk-compose {
-    display: flex; gap: 6px;
-    padding: 8px 9px;
-    border-top: 1px solid var(--mk-line);
-    background: var(--mk-panel-2);
-  }
-  .mk-compose input {
-    min-width: 0; flex: 1;
-    border: 1px solid var(--mk-line-2); border-radius: 2px;
-    background: var(--mk-input-bg); outline: 0;
-    padding: 4px 7px;
-    color: var(--mk-dd); font-size: 10px;
-  }
-  .mk-compose input:focus { border-color: #a85b10; }
-  .mk-compose input::placeholder { color: var(--mk-ink-faint); }
-  .mk-compose button {
-    border: 1px solid var(--accent-edge); border-radius: 2px;
-    background: var(--accent-well); color: var(--accent-warm);
-    font-size: 9px; padding: 0 9px; cursor: pointer;
-    transition: filter .15s ease;
-  }
-  .mk-compose button:hover { filter: brightness(1.25); }
-  .mk-review-item.is-new { animation: mkIn .4s cubic-bezier(.2, 1.2, .4, 1) backwards; }
-
-  .mk-cred-chips {
-    display: flex; align-items: center; gap: 5px;
-    padding: 7px 9px;
-    border-bottom: 1px solid var(--mk-line);
-    background: var(--mk-chips-bg, transparent);
-  }
-  .mk-chip {
-    border: 1px solid var(--mk-chip-border); border-radius: 2px;
-    background: transparent; color: var(--mk-chip-ink);
-    font-size: 9px; padding: 2px 8px; cursor: pointer;
-    transition: color .15s ease, border-color .15s ease, background-color .15s ease;
-  }
-  .mk-chip:hover { color: var(--mk-chip-ink-h); }
-  .mk-chip[aria-pressed="true"] {
-    border-color: var(--accent-edge);
-    background: var(--accent-well);
-    color: var(--accent-warm);
-  }
-  .mk-chip-sep { width: 1px; height: 12px; background: var(--mk-line-2); }
-
-  /* --- 凭证卡盖戳 --- */
-
-  .mk-cred-code { position: relative; }
-
-  .mk-cred.stamped .mk-cred-code::after {
-    content: "已复制";
-    position: absolute; right: 6px; top: 50%;
-    padding: 1px 6px;
-    border: 1px solid var(--stamp-border);
-    border-radius: 2px;
-    background: var(--stamp-bg);
-    color: var(--stamp-ink);
-    font-family: var(--mono);
-    font-size: 8px;
-    transform: translateY(-50%) rotate(-8deg);
-    animation: stampIn .38s cubic-bezier(.2, 1.4, .4, 1) backwards;
-  }
-
-  @keyframes stampIn {
-    from { transform: translateY(-50%) rotate(-14deg) scale(1.9); opacity: 0; }
-  }
 
   @media (prefers-reduced-motion: reduce) {
     .card::before { display: none; }
@@ -1365,187 +852,152 @@
     .foot-bar { flex-direction: column; align-items: flex-start; }
   }
 
-  /* ---------- 功能卡整卡动态 SVG（v20） ---------- */
+  /* ---------- 功能卡插画（v28：满幅融合 + 统一线稿语言） ---------- */
 
+  /* 插画贴齐卡片左右上边缘，底部一条发丝线收边——是卡片的一部分，不是画框 */
   .feature__art {
-    height: 92px;
-    margin-bottom: 16px;
-    border: 1px solid var(--border-soft);
-    border-radius: var(--radius);
-    background: var(--stat-bg);
-    color: var(--accent-warm);
+    position: relative;
+    margin: calc(var(--feat-py) * -1) calc(var(--feat-px) * -1) 18px;
+    height: 132px;
+    border-bottom: 1px solid var(--border-soft);
+    background:
+      radial-gradient(120% 110% at 50% 0%, var(--stat-bg) 0%, transparent 72%),
+      radial-gradient(var(--art-dot) 1px, transparent 1px) 0 0 / 14px 14px;
+    color: var(--muted);
     overflow: hidden;
   }
 
+  /* 悬停时从底部透出一层极淡的橙光，与卡片 hover 联动 */
+  .feature__art::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(95% 90% at 50% 118%, var(--accent-well) 0%, transparent 62%);
+    opacity: 0;
+    transition: opacity .32s ease;
+    pointer-events: none;
+  }
+
+  .feature:hover .feature__art::after { opacity: .5; }
+
   .feature__art svg {
+    position: relative; z-index: 1;
     width: 100%; height: 100%; display: block;
     stroke: currentColor;
   }
 
+  /* 线稿语言：结构=中性色，焦点=橙，次要=蓝 */
   .a-acc { stroke: var(--accent); }
   .a-acc-fill { fill: var(--accent); stroke: none; }
-  .a-text { font: 10px var(--mono); fill: var(--faint); stroke: none; }
   .a-acc-text { fill: var(--accent-warm); }
+  .a-blue { stroke: var(--blue); }
+  .a-text { font: 9px var(--mono); fill: var(--faint); stroke: none; letter-spacing: .02em; }
+  .a-badge-text { font: 700 9px var(--mono); fill: #fff; stroke: none; }
 
-  /* 卡1：相机环绕 */
-  .a-orbit { transform-origin: 144px 46px; animation: aSpin 9s linear infinite; }
+  /* 01 环绕相机 + 立方体轻微浮动 */
+  .a-orbit { transform-origin: 146px 64px; animation: aSpin 16s linear infinite; }
   @keyframes aSpin { to { transform: rotate(360deg); } }
+  .a-bob { transform-box: fill-box; transform-origin: center; animation: aBob 6s ease-in-out infinite; }
+  @keyframes aBob { 0%, 100% { transform: translateY(-1.5px); } 50% { transform: translateY(1.5px); } }
 
-  /* 卡2：搜索高亮逐行扫描 */
-  .a-scan { fill: var(--accent-well); animation: aScan 3.6s ease-in-out infinite; }
+  /* 02 搜索高亮逐行扫过 */
+  .a-scan { fill: var(--accent-well); animation: aScan 4.4s ease-in-out infinite; }
   @keyframes aScan {
-    0%, 26%  { transform: translateY(0); opacity: 0; }
-    8%, 24%  { opacity: .6; }
-    33%, 58% { transform: translateY(24px); opacity: .6; }
-    66%, 92% { transform: translateY(48px); opacity: .6; }
-    97%, 100% { transform: translateY(0); opacity: 0; }
+    0%, 10%   { transform: translateY(0); opacity: 0; }
+    20%       { opacity: .8; }
+    34%, 48%  { transform: translateY(19px); opacity: .8; }
+    58%, 72%  { transform: translateY(38px); opacity: .8; }
+    82%, 100% { transform: translateY(0); opacity: 0; }
   }
+  .a-eye { opacity: .3; animation: aEye 4.4s ease-in-out infinite; }
+  @keyframes aEye { 0%, 100% { opacity: .3; } 45%, 60% { opacity: .85; } }
 
-  /* 卡3：pin 落下 + 涟漪 */
-  .a-pin { opacity: 0; animation: aDrop 4.8s ease infinite; }
-  .a-pin-2 { animation-delay: .7s; }
-  .a-pin-3 { animation-delay: 1.4s; }
+  /* 03 批注落定 + 涟漪 */
+  .a-pin { opacity: 0; animation: aDrop 5.2s ease infinite; }
+  .a-pin-2 { animation-delay: .85s; }
+  .a-pin-3 { animation-delay: 1.7s; }
   @keyframes aDrop {
-    0%       { opacity: 0; transform: translateY(-24px); }
-    10%      { opacity: 1; transform: translateY(0); }
-    15%      { transform: translateY(-3px); }
-    20%, 88% { opacity: 1; transform: translateY(0); }
+    0%       { opacity: 0; transform: translateY(-26px); }
+    8%       { opacity: 1; transform: translateY(0); }
+    12%      { transform: translateY(-3px); }
+    17%, 86% { opacity: 1; transform: translateY(0); }
     100%     { opacity: 0; transform: translateY(0); }
   }
-
-  .a-ripple {
-    opacity: 0;
-    transform-box: fill-box; transform-origin: center;
-    animation: aRip 4.8s ease infinite;
-  }
-  .a-ripple-2 { animation-delay: .7s; }
-  .a-ripple-3 { animation-delay: 1.4s; }
+  .a-ripple { opacity: 0; transform-box: fill-box; transform-origin: center; animation: aRip 5.2s ease infinite; }
+  .a-ripple { stroke: var(--accent); }
+  .a-ripple-2 { animation-delay: .85s; }
+  .a-ripple-3 { animation-delay: 1.7s; }
   @keyframes aRip {
-    0%, 20%  { opacity: 0; transform: scale(.3); }
-    32%      { opacity: .7; }
-    58%, 100% { opacity: 0; transform: scale(1.7); }
+    0%, 17%   { opacity: 0; transform: scale(.4); }
+    28%       { opacity: .55; }
+    54%, 100% { opacity: 0; transform: scale(1.7); }
   }
 
-  /* 卡4：虚线流动 + 对勾描画 */
-  .a-flow { animation: aFlowDash 1.5s linear infinite; }
+  /* 04 链接虚线流动 + 权限开关 */
+  .a-flow { animation: aFlowDash 1.9s linear infinite; }
   @keyframes aFlowDash { to { stroke-dashoffset: -22; } }
-
-  .a-check {
-    stroke: var(--accent);
-    stroke-dasharray: 32; stroke-dashoffset: 32;
-    animation: aCheckDraw 3.2s ease infinite .6s;
-  }
-  @keyframes aCheckDraw {
-    0%       { stroke-dashoffset: 32; }
-    28%, 72% { stroke-dashoffset: 0; }
-    94%, 100% { stroke-dashoffset: 32; }
+  .a-toggle { transform-box: fill-box; animation: aToggle 5.4s ease-in-out infinite; }
+  @keyframes aToggle {
+    0%, 16%   { transform: translateX(0); }
+    38%, 58%  { transform: translateX(-28px); }
+    82%, 100% { transform: translateX(0); }
   }
 
-  /* 卡5：容量条往复填充 */
+  /* 05 容量条填充 */
   .a-meter {
-    fill: currentColor; stroke: none;
+    fill: var(--accent); stroke: none;
     transform-box: fill-box; transform-origin: left center;
-    animation: aMeter 5.5s ease-in-out infinite alternate;
+    animation: aMeter 6.5s ease-in-out infinite alternate;
   }
   @keyframes aMeter { from { transform: scaleX(.24); } to { transform: scaleX(1); } }
 
-  /* 卡6：柱状图呼吸 */
-  .a-bar {
-    transform-box: fill-box; transform-origin: bottom center;
-    animation: aBar 2.9s ease-in-out infinite alternate;
+  /* 06 柱状呼吸 + 阈值线 */
+  .a-bar { transform-box: fill-box; transform-origin: bottom; animation: aBar 3.6s ease-in-out infinite alternate; }
+  .a-bar-2 { animation-delay: .45s; }
+  .a-bar-4 { animation-delay: .9s; }
+  .a-bar-5 { animation-delay: 1.35s; }
+  @keyframes aBar { from { transform: scaleY(.4); } to { transform: scaleY(1); } }
+  .a-thresh { animation: aThresh 6s linear infinite; }
+  @keyframes aThresh { to { stroke-dashoffset: -40; } }
+
+  /* 07 直转对勾 + 回退支路 */
+  .a-check {
+    stroke: var(--accent);
+    stroke-dasharray: 34; stroke-dashoffset: 34;
+    animation: aCheckDraw 4.4s ease infinite .5s;
   }
-  .a-bar-2 { animation-delay: .4s; }
-  .a-bar-3 { animation-delay: .8s; }
-  .a-bar-4 { animation-delay: 1.2s; }
-  @keyframes aBar { from { transform: scaleY(.22); } to { transform: scaleY(1); } }
+  @keyframes aCheckDraw {
+    0%       { stroke-dashoffset: 34; }
+    24%, 72% { stroke-dashoffset: 0; }
+    94%, 100% { stroke-dashoffset: 34; }
+  }
+  .a-fallback { animation: aFlowDash 2.6s linear infinite; }
+
+  /* 08 新行滑入 + 铃铛脉冲 + 角标 */
+  .a-newrow { animation: aNewRow 4.8s ease infinite; }
+  @keyframes aNewRow {
+    0%, 18%   { opacity: 0; transform: translateY(-9px); }
+    32%, 88%  { opacity: 1; transform: translateY(0); }
+    100%      { opacity: 0; transform: translateY(-9px); }
+  }
+  .a-bell-ring { opacity: 0; transform-box: fill-box; transform-origin: center; animation: aBell 3.8s ease-out infinite; }
+  @keyframes aBell {
+    0%, 8%    { opacity: 0; transform: scale(.72); }
+    30%       { opacity: .45; }
+    70%, 100% { opacity: 0; transform: scale(1.3); }
+  }
+  .a-badge { transform-box: fill-box; transform-origin: center; animation: aBadge 3.8s ease infinite; }
+  @keyframes aBadge { 0%, 58%, 100% { transform: scale(1); } 74% { transform: scale(1.3); } }
+
+  @media (max-width: 620px) {
+    .feature { --feat-px: 17px; --feat-py: 20px; }
+    .feature__art { height: 118px; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .feature__art * { animation: none !important; }
     .a-scan { opacity: .35; }
-    .a-pin, .a-ripple { opacity: 1; }
-  }
-
-  /* ---------- 技术栈与原理（08 卡） ---------- */
-
-  .stack-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .stack-item {
-    display: flex; flex-direction: column; gap: 4px;
-    padding: 13px 16px;
-    border: 1px solid var(--border-soft);
-    border-radius: var(--radius);
-    background: var(--stat-bg);
-  }
-
-  .stack-item b { color: var(--accent-warm); font-size: 11px; font-weight: 600; letter-spacing: .06em; }
-  .stack-item span { color: var(--muted); font-family: var(--mono); font-size: 11.5px; line-height: 1.5; }
-
-  @media (max-width: 760px) {
-    .stack-grid { grid-template-columns: minmax(0, 1fr); }
-  }
-
-  /* ---------- 批注通知 / 回退路径 / 支持范围（v26） ---------- */
-
-  .a-bell-ring {
-    transform-box: fill-box; transform-origin: center;
-    animation: aBell 2.6s ease-out infinite;
-  }
-  @keyframes aBell {
-    0%, 12%  { opacity: 0; transform: scale(.55); }
-    30%      { opacity: .65; }
-    72%, 100% { opacity: 0; transform: scale(1.45); }
-  }
-
-  .a-badge {
-    transform-box: fill-box; transform-origin: center;
-    animation: aBadge 2.6s ease infinite;
-  }
-  @keyframes aBadge { 0%, 58%, 100% { transform: scale(1); } 74% { transform: scale(1.28); } }
-
-  .a-badge-text { font: 700 9px/1 var(--mono); fill: #fff; stroke: none; }
-  .a-fallback { animation: aFlowDash 2.2s linear infinite; }
-
-  .scope-title {
-    margin: 26px 0 0;
-    padding-top: 18px;
-    border-top: 1px solid var(--border-soft);
-    color: var(--ink-bright);
-    font-size: 15px;
-    font-weight: 600;
-  }
-
-  .scope-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 22px;
-  }
-
-  .scope-col {
-    padding: 14px 16px 15px;
-    border: 1px solid var(--border-soft);
-    border-left-width: 2px;
-    border-radius: var(--radius);
-    background: var(--stat-bg);
-  }
-
-  .scope-col.is-yes { border-left-color: #688148; }
-  .scope-col.is-no { border-left-color: var(--mk-chip-border); }
-
-  .scope-col b { display: block; margin-bottom: 8px; font-size: 12.5px; font-weight: 600; }
-  .scope-col.is-yes b { color: #79a95a; }
-  .scope-col.is-no b { color: var(--muted); }
-
-  .scope-col ul { margin: 0; padding-left: 17px; }
-  .scope-col li { margin-bottom: 4px; color: var(--muted); font-size: 12px; line-height: 1.6; }
-  .scope-col li::marker { color: var(--faint); }
-
-  @media (max-width: 760px) {
-    .scope-grid { grid-template-columns: minmax(0, 1fr); }
+    .a-pin, .a-ripple, .a-newrow, .a-bell-ring { opacity: 1; }
+    .a-chain .a-check { stroke-dashoffset: 0; }
   }
 
   /* ---------- Responsive ---------- */
@@ -1661,6 +1113,14 @@
 </style>
 </head>
 <body>
+<svg class="art-defs" aria-hidden="true" width="0" height="0" focusable="false">
+  <defs>
+    <radialGradient id="artGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:var(--accent); stop-opacity:.14" />
+      <stop offset="100%" style="stop-color:var(--accent); stop-opacity:0" />
+    </radialGradient>
+  </defs>
+</svg>
 <button type="button" id="theme-toggle" class="theme-toggle" aria-pressed="false" title="切换亮色 / 暗色模式">☀ 亮色</button>
 <main>
 
@@ -1818,18 +1278,28 @@
 
           <div class="features reveal">
             <div class="feature">
-              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round"><g stroke-width="1">
-                <path d="M28 76h224M28 82h224"/>
-                <path d="M60 66l-16 16M104 66l-24 16M148 66l-32 16M192 66l-40 16M236 66l-48 16"/>
-              </g>
-              <g stroke-width="1.5">
-                <path d="M126 32l18-9 18 9v22l-18 9-18-9z"/>
-                <path d="M126 32l18 9 18-9M144 41v22" opacity=".55"/>
-              </g>
-              <g class="a-orbit">
-                <ellipse cx="144" cy="46" rx="92" ry="24" stroke-dasharray="4 7" opacity=".5"/>
-                <circle cx="236" cy="46" r="4" class="a-acc-fill"/>
-              </g></svg></div>
+<div class="feature__art" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="150" cy="62" rx="98" ry="46" fill="url(#artGlow)" stroke="none"/>
+      <rect x="30" y="18" width="196" height="86" rx="4" stroke-width="1.25" opacity=".7"/>
+      <path d="M30 32h196" stroke-width="1" opacity=".3"/>
+      <circle cx="39" cy="25" r="1.7" fill="currentColor" stroke="none" opacity=".35"/>
+      <circle cx="46" cy="25" r="1.7" fill="currentColor" stroke="none" opacity=".35"/>
+      <circle cx="53" cy="25" r="1.7" fill="currentColor" stroke="none" opacity=".35"/>
+      <g class="a-bob" stroke-width="1.5">
+        <path class="a-acc" d="M128 54l18-10 18 10v20l-18 10-18-10z"/>
+        <path class="a-acc" opacity=".5" d="M128 54l18 10 18-10M164 54v20"/>
+      </g>
+      <g class="a-orbit">
+        <ellipse cx="146" cy="64" rx="64" ry="26" stroke-dasharray="4 7" stroke-width="1.2" opacity=".45"/>
+        <circle class="a-acc-fill" cx="210" cy="64" r="3.5"/>
+      </g>
+      <g stroke-width="1.5" opacity=".9">
+        <path class="a-acc" d="M206 52V40"/>
+        <path class="a-blue" d="M206 52l-9 5"/>
+        <path d="M206 52l9 5" opacity=".45"/>
+      </g>
+      <circle cx="206" cy="52" r="1.6" fill="currentColor" stroke="none" opacity=".5"/>
+    </svg></div>
               <h3>像操作 Blender 一样操作</h3>
               <p>中键旋转、Shift+中键平移、滚轮缩放——你在 Blender 里练出的手感原样保留，不用重新学。</p>
               <ul>
@@ -1840,20 +1310,23 @@
             </div>
 
             <div class="feature">
-              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round"><g stroke-width="1.5">
-                <rect x="52" y="10" width="200" height="18" rx="2"/>
-                <rect x="52" y="34" width="200" height="18" rx="2"/>
-                <rect x="52" y="58" width="200" height="18" rx="2"/>
-              </g>
-              <g stroke-width="1.5" opacity=".8">
-                <circle cx="64" cy="19" r="2"/>
-                <path d="M74 19h56"/>
-                <circle cx="64" cy="43" r="2"/>
-                <path d="M74 43h42"/>
-                <circle cx="64" cy="67" r="2"/>
-                <path d="M74 67h64"/>
-              </g>
-              <rect class="a-scan" x="52" y="10" width="200" height="18" rx="2"/></svg></div>
+<div class="feature__art" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="160" cy="60" rx="100" ry="46" fill="url(#artGlow)" stroke="none"/>
+      <rect x="46" y="14" width="228" height="90" rx="4" stroke-width="1.25" opacity=".7"/>
+      <path d="M46 28h228" stroke-width="1" opacity=".3"/>
+      <rect x="56" y="20" width="38" height="4" rx="2" fill="currentColor" stroke="none" opacity=".3"/>
+      <g stroke-width="1.25" opacity=".75">
+        <path d="M60 46l4 3-4 3"/><path d="M70 49h52"/>
+        <path d="M78 66l4 3-4 3"/><path d="M88 69h42"/>
+        <path d="M78 86l4 3-4 3"/><path d="M88 89h58"/>
+      </g>
+      <g class="a-eye" fill="currentColor" stroke="none">
+        <circle cx="256" cy="49" r="2.3"/>
+        <circle cx="256" cy="69" r="2.3"/>
+        <circle cx="256" cy="89" r="2.3"/>
+      </g>
+      <rect class="a-scan" x="52" y="38" width="216" height="20" rx="3"/>
+    </svg></div>
               <h3>把场景结构随身带走</h3>
               <p>Outliner 对象树照 Blender 的习惯组织，按名称或类型搜索，键盘就能选择并聚焦。</p>
               <ul>
@@ -1864,23 +1337,17 @@
             </div>
 
             <div class="feature">
-              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round"><path d="M36 64c30-26 62-34 96-30 34 4 62 16 112 30" stroke-width="1.5"/>
-              <path d="M24 72h232" stroke-width="1" opacity=".4"/>
-              <g class="a-pin a-pin-1" stroke-width="1.5">
-                <circle cx="104" cy="34" r="4.5" class="a-acc"/>
-                <path d="M104 39v13" class="a-acc"/>
-              </g>
-              <circle class="a-ripple a-ripple-1" cx="104" cy="55" r="9"/>
-              <g class="a-pin a-pin-2" stroke-width="1.5">
-                <circle cx="158" cy="30" r="4.5" class="a-acc"/>
-                <path d="M158 35v13" class="a-acc"/>
-              </g>
-              <circle class="a-ripple a-ripple-2" cx="158" cy="51" r="9"/>
-              <g class="a-pin a-pin-3" stroke-width="1.5">
-                <circle cx="206" cy="40" r="4.5" class="a-acc"/>
-                <path d="M206 45v13" class="a-acc"/>
-              </g>
-              <circle class="a-ripple a-ripple-3" cx="206" cy="61" r="9"/></svg></div>
+<div class="feature__art" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="160" cy="64" rx="100" ry="46" fill="url(#artGlow)" stroke="none"/>
+      <path d="M104 76l56-28 56 28-56 28z" stroke-width="1.25" opacity=".7"/>
+      <path d="M132 62l56 28M160 48v56M188 62l-56 28" stroke-width="1" opacity=".22"/>
+      <g class="a-pin a-pin-1"><circle class="a-acc" cx="148" cy="40" r="4.5"/><path class="a-acc" d="M148 45v19" stroke-width="1.5"/></g>
+      <ellipse class="a-ripple a-ripple-1" cx="148" cy="64" rx="9" ry="5.5"/>
+      <g class="a-pin a-pin-2"><circle class="a-acc" cx="188" cy="34" r="4.5"/><path class="a-acc" d="M188 39v23" stroke-width="1.5"/></g>
+      <ellipse class="a-ripple a-ripple-2" cx="188" cy="62" rx="9" ry="5.5"/>
+      <g class="a-pin a-pin-3"><circle class="a-acc" cx="120" cy="52" r="4.5"/><path class="a-acc" d="M120 57v27" stroke-width="1.5"/></g>
+      <ellipse class="a-ripple a-ripple-3" cx="120" cy="84" rx="9" ry="5.5"/>
+    </svg></div>
               <h3>批注直接钉在模型上</h3>
               <p>点哪儿标哪儿，编号和相机状态一起存下来；对方点开批注，就站在你当时的视角。</p>
               <ul>
@@ -1891,13 +1358,19 @@
             </div>
 
             <div class="feature">
-              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round"><rect x="26" y="24" width="88" height="44" rx="3" stroke-width="1.5"/>
-              <path d="M38 40h44M38 50h30" stroke-width="1.2" opacity=".65"/>
-              <circle cx="100" cy="58" r="3" class="a-acc-fill"/>
-              <path class="a-flow" d="M120 46h40" stroke-dasharray="5 6" stroke-width="1.5"/>
-              <rect x="166" y="24" width="88" height="44" rx="3" stroke-width="1.5"/>
-              <path class="a-check" d="M200 46l8 8 14-16" stroke-width="2"/>
-              <path d="M178 60h64" stroke-width="1.2" opacity=".4"/></svg></div>
+<div class="feature__art" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="160" cy="60" rx="104" ry="46" fill="url(#artGlow)" stroke="none"/>
+      <rect x="28" y="32" width="94" height="56" rx="4" stroke-width="1.25" opacity=".75"/>
+      <path d="M40 48h50M40 60h30" stroke-width="1.2" opacity=".4"/>
+      <g opacity=".55" stroke-width="1.2"><path d="M40 74h16M62 74h16"/></g>
+      <path class="a-flow" d="M126 60h44" stroke-dasharray="5 6" stroke-width="1.5" opacity=".9"/>
+      <path d="M172 60l-7-4.5v9z" fill="currentColor" stroke="none" opacity=".45"/>
+      <rect x="178" y="26" width="114" height="68" rx="4" stroke-width="1.25" opacity=".75"/>
+      <path d="M190 42h52" stroke-width="1.2" opacity=".4"/>
+      <rect x="190" y="56" width="44" height="18" rx="9" stroke-width="1.25" opacity=".7"/>
+      <circle class="a-toggle a-acc-fill" cx="224" cy="65" r="6.5"/>
+      <path d="M244 60h36M244 70h24" stroke-width="1.2" opacity=".4"/>
+    </svg></div>
               <h3>分享的规矩你定</h3>
               <p>每条分享单独设权限与有效期，可选密码；发出去的链接随时可以撤销。</p>
               <ul>
@@ -1908,12 +1381,16 @@
             </div>
 
             <div class="feature">
-              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round"><text x="30" y="26" class="a-text">5 GiB 共享池</text>
-              <text x="250" y="26" text-anchor="end" class="a-text a-acc-text">2.1 GiB 已用</text>
-              <rect x="30" y="38" width="220" height="16" rx="8" stroke-width="1.5"/>
-              <rect class="a-meter" x="33" y="41" width="214" height="10" rx="5"/>
-              <path d="M30 70h220" stroke-width="1" opacity=".4"/>
-              <path d="M60 64v12M120 64v12M180 64v12" stroke-width="1" opacity=".35"/></svg></div>
+<div class="feature__art" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="160" cy="60" rx="104" ry="44" fill="url(#artGlow)" stroke="none"/>
+      <text x="46" y="44" class="a-text">5 GiB 共享池</text>
+      <text x="274" y="44" text-anchor="end" class="a-text a-acc-text">2.1 GiB 已用</text>
+      <rect x="46" y="54" width="228" height="22" rx="11" stroke-width="1.25" opacity=".75"/>
+      <rect class="a-meter" x="50" y="58" width="220" height="14" rx="7"/>
+      <path d="M46 90h228" stroke-width="1" opacity=".22"/>
+      <path d="M104 84v12M160 84v12M216 84v12" stroke-width="1" opacity=".22"/>
+      <path d="M46 106h228" stroke-width="1" opacity=".12"/>
+    </svg></div>
               <h3>空间用量一目了然</h3>
               <p>邀请码注册后，自己的项目、有效分享和占用空间都在一个页面看得清清楚楚。</p>
               <ul>
@@ -1924,12 +1401,20 @@
             </div>
 
             <div class="feature">
-              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round"><path d="M24 72h232" stroke-width="1.5"/>
-              <rect class="a-bar a-bar-1" x="48" y="38" width="24" height="34" rx="2" stroke-width="1.5"/>
-              <rect class="a-bar a-bar-2" x="106" y="24" width="24" height="48" rx="2" stroke-width="1.5"/>
-              <rect class="a-bar a-bar-3" x="164" y="46" width="24" height="26" rx="2" stroke-width="1.5"/>
-              <rect class="a-bar a-bar-4" x="222" y="18" width="24" height="54" rx="2" stroke-width="1.5"/>
-              <path d="M24 24h232" stroke-dasharray="4 6" stroke-width="1" opacity=".6"/></svg></div>
+<div class="feature__art" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="160" cy="62" rx="100" ry="44" fill="url(#artGlow)" stroke="none"/>
+      <rect x="50" y="14" width="220" height="92" rx="4" stroke-width="1.25" opacity=".7"/>
+      <path d="M50 28h220" stroke-width="1" opacity=".3"/>
+      <path d="M50 94h220" stroke-width="1.25" opacity=".55"/>
+      <g stroke-width="1.4">
+        <rect class="a-bar a-bar-1" x="76" y="60" width="20" height="34" rx="2"/>
+        <rect class="a-bar a-bar-2 a-acc" x="118" y="46" width="20" height="48" rx="2"/>
+        <rect class="a-bar a-bar-3" x="160" y="66" width="20" height="28" rx="2"/>
+        <rect class="a-bar a-bar-4" x="202" y="52" width="20" height="42" rx="2"/>
+        <rect class="a-bar a-bar-5" x="244" y="72" width="20" height="22" rx="2"/>
+      </g>
+      <path class="a-thresh" d="M50 42h220" stroke-dasharray="4 6" stroke-width="1" opacity=".5"/>
+    </svg></div>
               <h3>管理后台心里有底</h3>
               <p>成员用量、邀请码发放、容量与保留期阈值——全部可见可控，且有硬上限兜底。</p>
               <ul>
@@ -1938,20 +1423,24 @@
                 <li>5 GiB / 48 小时内调整阈值</li>
               </ul>
             </div>
-          </div>
 
             <div class="feature">
-              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round">
-                <rect x="18" y="16" width="82" height="48" rx="3" stroke-width="1.5"/>
-                <path d="M18 28h82M30 40h34M30 50h22" stroke-width="1.1" opacity=".5"/>
-                <text x="30" y="60" class="a-text">.blend</text>
-                <path class="a-flow" d="M106 40h28" stroke-dasharray="5 6" stroke-width="1.5"/>
-                <rect x="140" y="23" width="72" height="34" rx="3" stroke-width="1.5"/>
-                <path class="a-check" d="M156 40l7 7 13-14" stroke-width="2"/>
-                <text x="140" y="70" class="a-text">浏览器就地转换</text>
-                <path class="a-fallback" d="M59 68v9h66v-9" stroke-dasharray="3 5" stroke-width="1" opacity=".7"/>
-                <text x="132" y="88" class="a-text">复杂文件 → 本机 Blender</text>
-              </svg></div>
+<div class="feature__art" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="150" cy="52" rx="100" ry="42" fill="url(#artGlow)" stroke="none"/>
+      <rect x="24" y="18" width="116" height="62" rx="4" stroke-width="1.25" opacity=".75"/>
+      <path d="M24 30h116" stroke-width="1" opacity=".3"/>
+      <circle cx="32" cy="24" r="1.6" fill="currentColor" stroke="none" opacity=".35"/>
+      <circle cx="38" cy="24" r="1.6" fill="currentColor" stroke="none" opacity=".35"/>
+      <text x="38" y="50" class="a-text">.blend</text>
+      <path d="M38 60h42M38 68h26" stroke-width="1.2" opacity=".35"/>
+      <path class="a-flow" d="M148 48h32" stroke-dasharray="5 6" stroke-width="1.5"/>
+      <path d="M182 48l-7-4.5v9z" fill="currentColor" stroke="none" opacity=".45"/>
+      <polygon points="214,26 234,38 234,62 214,74 194,62 194,38" stroke-width="1.4" opacity=".8"/>
+      <path class="a-check" d="M205 50l6 6 12-13" stroke-width="2"/>
+      <path class="a-fallback" d="M82 80v16h104" stroke-dasharray="3 5" stroke-width="1" opacity=".5"/>
+      <rect x="188" y="88" width="112" height="24" rx="3" stroke-width="1.25" opacity=".65"/>
+      <text x="198" y="104" class="a-text">复杂文件 → 本机 Blender</text>
+    </svg></div>
               <h3>不装 bridge 也能转</h3>
               <p>浏览器优先在页面内解析受支持的静态 <code>.blend</code>；超出范围的文件自动回退到你本机的 Blender，流程不中断。</p>
               <ul>
@@ -1962,16 +1451,22 @@
             </div>
 
             <div class="feature">
-              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round">
-                <rect x="22" y="18" width="126" height="50" rx="3" stroke-width="1.5"/>
-                <path d="M34 32h70M34 44h54M34 56h62" stroke-width="1.2" opacity=".55"/>
-                <circle class="a-bell-ring" cx="212" cy="42" r="20"/>
-                <circle cx="212" cy="42" r="13" stroke-width="1.5"/>
-                <path d="M206 36a7 7 0 0 1 12 0M212 36v7" stroke-width="1.5"/>
-                <circle class="a-badge" cx="236" cy="22" r="9" fill="#e87d0d" stroke="none"/>
-                <text x="236" y="25.5" text-anchor="middle" class="a-badge-text">3</text>
-                <text x="22" y="86" class="a-text">作者端 15 秒轮询 · 站内未读提示</text>
-              </svg></div>
+<div class="feature__art" aria-hidden="true"><svg viewBox="0 0 320 120" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="156" cy="60" rx="100" ry="44" fill="url(#artGlow)" stroke="none"/>
+      <rect x="24" y="18" width="156" height="84" rx="4" stroke-width="1.25" opacity=".7"/>
+      <path d="M36 36h74M36 52h56M36 68h66" stroke-width="1.2" opacity=".35"/>
+      <g class="a-newrow">
+        <rect x="32" y="78" width="140" height="16" rx="3" stroke-width="1.2" opacity=".75"/>
+        <path d="M42 86h64" stroke-width="1.2" opacity=".45"/>
+        <rect class="a-acc-fill" x="32" y="78" width="3" height="16" rx="1.5"/>
+      </g>
+      <circle class="a-bell-ring" cx="240" cy="58" r="22" stroke-width="1.2"/>
+      <path d="M233 60v-4a7 7 0 0 1 14 0v4l2.5 3h-19z" stroke-width="1.4" opacity=".85"/>
+      <path d="M231.5 63h17" stroke-width="1.4" opacity=".85"/>
+      <path d="M237 66.5a3 3 0 0 0 6 0" stroke-width="1.4" opacity=".85"/>
+      <circle class="a-badge a-acc-fill" cx="258" cy="34" r="9"/>
+      <text x="258" y="37.5" text-anchor="middle" class="a-badge-text">3</text>
+    </svg></div>
               <h3>新批注有人回音</h3>
               <p>项目作者每 15 秒检查一次新批注，右侧显示未读数量与站内提示——不必额外部署实时服务。</p>
               <ul>
@@ -1981,6 +1476,7 @@
               </ul>
             </div>
           </div>
+        </div>
       </div>
     </div>
   </section>
