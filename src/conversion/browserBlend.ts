@@ -1,0 +1,102 @@
+/** Experimental browser-side .blend conversion for the small, static MVP scope.
+ *  Runs in a Worker-friendly module and deliberately does not execute Blender
+ *  Python, plugins, animation, or simulation data.
+ */
+import {
+  evaluateAllMeshes,
+  extractCameras,
+  extractCollections,
+  extractMaterials,
+  extractObjects,
+  extractScenes,
+  parseBlend,
+  type Material,
+} from "jsblender";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  Object3D,
+  Color,
+} from "three";
+
+export type BrowserBlendResult = {
+  glb: Blob;
+  manifest: {
+    scene: string;
+    camera: string | null;
+    cameras: Array<{ name: string; projection: string }>;
+    objects: Array<{ name: string; type: string; collections: string[] }>;
+    collections: string[];
+    materials: string[];
+    export: { sourceBytes: number; glbBytes: number; objectCount: number };
+  };
+};
+
+const objectType = (type: number) => ({ 1: "MESH", 10: "LIGHT", 11: "CAMERA", 25: "ARMATURE" } as Record<number, string>)[type] ?? "OTHER";
+
+/** Converts the supported static subset without sending the source file anywhere. */
+export async function convertBlendInBrowser(file: File): Promise<BrowserBlendResult> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const blend = parseBlend(bytes);
+  const scenes = extractScenes(blend);
+  const objects = extractObjects(blend);
+  const collections = extractCollections(blend);
+  const materials = extractMaterials(blend);
+  const cameras = extractCameras(blend);
+  const meshes = evaluateAllMeshes(blend);
+  const root = new Group();
+  const material = (materials[0] ? toMaterial(materials[0]) : new MeshStandardMaterial({ color: 0xb8bec4 }));
+
+  for (const object of objects) {
+    if (object.type !== 1) continue;
+    const source = meshes.get(object.name);
+    if (!source) continue;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(source.vertices, 3));
+    if (source.vertexNormals?.length) geometry.setAttribute("normal", new BufferAttribute(source.vertexNormals, 3));
+    if (source.uvMaps && Object.keys(source.uvMaps).length) geometry.setAttribute("uv", new BufferAttribute(source.uvMaps[Object.keys(source.uvMaps)[0]]!, 2));
+    geometry.setIndex(new BufferAttribute(source.triangles, 1));
+    if (!source.vertexNormals?.length) geometry.computeVertexNormals();
+    const mesh = new Mesh(geometry, material.clone());
+    mesh.name = object.name;
+    mesh.matrix.fromArray(object.worldMatrix);
+    mesh.matrixAutoUpdate = false;
+    root.add(mesh);
+  }
+
+  const glb = await new Promise<Blob>((resolve, reject) => new GLTFExporter().parse(root, (result) => resolve(new Blob([result as ArrayBuffer], { type: "model/gltf-binary" })), reject, { binary: true }));
+  const activeScene = scenes[0];
+  return {
+    glb,
+    manifest: {
+      scene: activeScene?.name ?? file.name.replace(/\.blend$/i, ""),
+      camera: activeScene?.cameraObject ?? null,
+      cameras: cameras.map((camera) => ({ name: camera.name, projection: camera.type })),
+      objects: objects.map((object) => ({ name: object.name, type: objectType(object.type), collections: [] })),
+      collections: collections.map((collection) => collection.name),
+      materials: materials.map((entry) => entry.name),
+      export: { sourceBytes: file.size, glbBytes: glb.size, objectCount: objects.length },
+    },
+  };
+}
+
+function toMaterial(source: Material) {
+  const shader = source.shader?.principled;
+  const rgb = shader?.baseColor ?? source.diffuse;
+  const color = new Color(rgb[0], rgb[1], rgb[2]);
+  return new MeshStandardMaterial({
+    color,
+    metalness: shader?.metallic ?? source.metallic,
+    roughness: shader?.roughness ?? source.roughness,
+    transparent: (shader?.alpha ?? source.diffuse[3]) < 1,
+    opacity: shader?.alpha ?? source.diffuse[3],
+  });
+}
+
+export function disposeBrowserBlendResult(result: BrowserBlendResult) {
+  result.glb = new Blob();
+}

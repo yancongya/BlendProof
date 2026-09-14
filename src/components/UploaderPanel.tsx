@@ -234,7 +234,7 @@ export function UploaderPanel({
       )}
 
       <p className="uploader-local-note">
-        源文件只发送到本机转换桥，不会上传到云端。
+        原始 .blend 仅用于本地解析；云端发布只上传派生 GLB 与清单。
       </p>
     </aside>
   );

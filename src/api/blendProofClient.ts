@@ -2,6 +2,7 @@ import type {
   ReviewComment,
   ReviewCommentDraft,
 } from "../reviewRepository";
+import { convertBlendInBrowser } from "../conversion/browserBlend";
 
 export type OwnerProject = {
   id: string;
@@ -165,6 +166,15 @@ export class BlendProofClient {
       modelUrl: this.bridgeUrl(project.modelUrl),
       manifestUrl: this.bridgeUrl(project.manifestUrl),
     };
+  }
+
+  /** Browser-only conversion for the supported static .blend subset. */
+  async convertInBrowser(file: File): Promise<OwnerProject> {
+    const result = await convertBlendInBrowser(file);
+    const id = `browser-${crypto.randomUUID().replaceAll("-", "")}`;
+    const modelUrl = URL.createObjectURL(result.glb);
+    const manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(result.manifest)], { type: "application/json" }));
+    return { id, name: file.name, modelUrl, manifestUrl, ownerCapability: `browser-${crypto.randomUUID()}`, transport: "local", status: "ready" };
   }
 
   /**

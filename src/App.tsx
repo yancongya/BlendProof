@@ -320,9 +320,15 @@ export function App() {
     setProcessing(true);
     setHomeOpen(false);
     setUploadStage("converting");
-    setMessage("正在调用本机 Blender 导出 GLB。");
+    setMessage("正在浏览器本地读取并转换 Blender 文件。");
     try {
-      const result = await blendProofClient.convertLocal(file);
+      let result: Project;
+      try {
+        result = await blendProofClient.convertInBrowser(file);
+      } catch (browserReason) {
+        setMessage("浏览器转换不适用于此文件，正在切换本机 Blender。");
+        result = await blendProofClient.convertLocal(file);
+      }
       setProject(result);
       setHidden(new Set());
       setSelected(new Set());
@@ -331,7 +337,7 @@ export function App() {
       setShareExpiresAt(null);
       setCloudProject(null);
       setUploadStage("ready");
-      setMessage("本机转换完成。");
+      setMessage(result.id.startsWith("browser-") ? "浏览器本地转换完成。" : "本机 Blender 转换完成。");
     } catch (reason) {
       setUploadStage("error");
       setMessage(reason instanceof Error ? reason.message : "导入失败。");

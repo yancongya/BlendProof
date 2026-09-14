@@ -33,6 +33,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "gsap": "^3.15.0",
+    "jsblender": "^0.0.4",
     "lucide-react": "^0.554.0",
     "multer": "^2.0.2",
     "postprocessing": "^6.39.5",
