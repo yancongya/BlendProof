@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BlendProof · 原始工程，不出本机</title>
-<meta name="description" content=".blend 由本机 Blender 转成 GLB，云端只收裁剪后的模型与清单。审稿者打开一条链接即可查看并批注，无需安装 Blender。5 GiB 公益存储池，到期自动清理。">
+<meta name="description" content="浏览器优先在本地把 .blend 转成 GLB，复杂文件才回退本机 Blender；云端只收派生模型与清单。审稿者打开一条链接即可查看并批注。5 GiB 公益存储池，到期自动清理。">
 <link rel="canonical" href="https://blendproof.itycon.cn/landing/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="BlendProof · 原始工程，不出本机">
-<meta property="og:description" content="本机转换，云端只收 GLB。审稿者一条链接即可查看与批注，无需安装 Blender。">
+<meta property="og:description" content="浏览器就地转换，云端只收 GLB。审稿者一条链接即可查看与批注，无需安装 Blender。">
 <meta property="og:url" content="https://blendproof.itycon.cn/landing/">
 <meta property="og:image" content="https://blendproof.itycon.cn/blendproof-splash-v2.jpg">
 <meta name="twitter:card" content="summary_large_image">
@@ -1488,6 +1488,57 @@
     .stack-grid { grid-template-columns: minmax(0, 1fr); }
   }
 
+  /* ---------- 批注通知 / 回退路径 / 支持范围（v26） ---------- */
+
+  .a-bell-ring {
+    transform-box: fill-box; transform-origin: center;
+    animation: aBell 2.6s ease-out infinite;
+  }
+  @keyframes aBell {
+    0%, 12%  { opacity: 0; transform: scale(.55); }
+    30%      { opacity: .65; }
+    72%, 100% { opacity: 0; transform: scale(1.45); }
+  }
+
+  .a-badge {
+    transform-box: fill-box; transform-origin: center;
+    animation: aBadge 2.6s ease infinite;
+  }
+  @keyframes aBadge { 0%, 58%, 100% { transform: scale(1); } 74% { transform: scale(1.28); } }
+
+  .a-badge-text { font: 700 9px/1 var(--mono); fill: #fff; stroke: none; }
+  .a-fallback { animation: aFlowDash 2.2s linear infinite; }
+
+  .scope-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 22px;
+  }
+
+  .scope-col {
+    padding: 14px 16px 15px;
+    border: 1px solid var(--border-soft);
+    border-left-width: 2px;
+    border-radius: var(--radius);
+    background: var(--stat-bg);
+  }
+
+  .scope-col.is-yes { border-left-color: #688148; }
+  .scope-col.is-no { border-left-color: var(--mk-chip-border); }
+
+  .scope-col b { display: block; margin-bottom: 8px; font-size: 12.5px; font-weight: 600; }
+  .scope-col.is-yes b { color: #79a95a; }
+  .scope-col.is-no b { color: var(--muted); }
+
+  .scope-col ul { margin: 0; padding-left: 17px; }
+  .scope-col li { margin-bottom: 4px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .scope-col li::marker { color: var(--faint); }
+
+  @media (max-width: 760px) {
+    .scope-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+
   /* ---------- Responsive ---------- */
 
   @media (max-width: 1080px) {
@@ -1611,7 +1662,7 @@
         <p class="eyebrow">Blender 风格 3D 审稿</p>
         <h1>原始工程，<br><em>不出本机</em>。</h1>
         <p class="hero__lead">
-          <code>.blend</code> 由你本机的 Blender 转成 GLB，云端只接收裁剪后的模型与清单。
+          <code>.blend</code> 在浏览器里就地转成 GLB，复杂文件才回退到你本机的 Blender；云端只接收派生后的模型与清单。
           审稿的人打开一条链接就能查看、能在模型表面写批注——不需要安装 Blender。
         </p>
         <div class="hero__actions">
@@ -1879,7 +1930,48 @@
               </ul>
             </div>
           </div>
-        </div>
+
+            <div class="feature">
+              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round">
+                <rect x="18" y="16" width="82" height="48" rx="3" stroke-width="1.5"/>
+                <path d="M18 28h82M30 40h34M30 50h22" stroke-width="1.1" opacity=".5"/>
+                <text x="30" y="60" class="a-text">.blend</text>
+                <path class="a-flow" d="M106 40h28" stroke-dasharray="5 6" stroke-width="1.5"/>
+                <rect x="140" y="23" width="72" height="34" rx="3" stroke-width="1.5"/>
+                <path class="a-check" d="M156 40l7 7 13-14" stroke-width="2"/>
+                <text x="140" y="70" class="a-text">浏览器就地转换</text>
+                <path class="a-fallback" d="M59 68v9h66v-9" stroke-dasharray="3 5" stroke-width="1" opacity=".7"/>
+                <text x="132" y="88" class="a-text">复杂文件 → 本机 Blender</text>
+              </svg></div>
+              <h3>不装 bridge 也能转</h3>
+              <p>浏览器优先在页面内解析受支持的静态 <code>.blend</code>；超出范围的文件自动回退到你本机的 Blender，流程不中断。</p>
+              <ul>
+                <li>静态 Mesh、相机、基础材质</li>
+                <li>已评估的 Mirror / Array Modifier</li>
+                <li>回退路径保证复杂文件也能用</li>
+              </ul>
+            </div>
+
+            <div class="feature">
+              <div class="feature__art" aria-hidden="true"><svg viewBox="0 0 280 92" fill="none" stroke-linecap="round">
+                <rect x="22" y="18" width="126" height="50" rx="3" stroke-width="1.5"/>
+                <path d="M34 32h70M34 44h54M34 56h62" stroke-width="1.2" opacity=".55"/>
+                <circle class="a-bell-ring" cx="212" cy="42" r="20"/>
+                <circle cx="212" cy="42" r="13" stroke-width="1.5"/>
+                <path d="M206 36a7 7 0 0 1 12 0M212 36v7" stroke-width="1.5"/>
+                <circle class="a-badge" cx="236" cy="22" r="9" fill="#e87d0d" stroke="none"/>
+                <text x="236" y="25.5" text-anchor="middle" class="a-badge-text">3</text>
+                <text x="22" y="86" class="a-text">作者端 15 秒轮询 · 站内未读提示</text>
+              </svg></div>
+              <h3>新批注有人回音</h3>
+              <p>项目作者每 15 秒检查一次新批注，右侧显示未读数量与站内提示——不必额外部署实时服务。</p>
+              <ul>
+                <li>未读数量角标</li>
+                <li>点开直达那条批注</li>
+                <li>轻量轮询，不引入新依赖</li>
+              </ul>
+            </div>
+          </div>
       </div>
     </div>
   </section>
@@ -1903,7 +1995,7 @@
           <h3>没拿走的：你的原件</h3>
           <ul>
             <li><code>.blend</code> 文件不会离开你的电脑</li>
-            <li>转换在你本机的 Blender 后台完成，全程断不了网也无所谓</li>
+            <li>浏览器在页面里直接读取转换；复杂文件才回退到你本机的 Blender</li>
             <li>云端从头到尾没见过这个文件</li>
           </ul>
         </div>
@@ -1932,12 +2024,12 @@
       </div>
 
       <figure class="mockup mk-upload reveal" style="margin-top:14px">
-        <div class="mk-chrome"><span>上传工作台</span><i>本机 Blender 后台转换</i></div>
+        <div class="mk-chrome"><span>上传工作台</span><i>浏览器直转 · 复杂文件回退本机</i></div>
         <div class="mk-uploader">
           <div class="mk-slot">
           <button type="button" class="mk-dropzone" id="mk-dropzone">
             <b>⇪</b>
-            <strong>点击选择 .blend 文件，立即开始本机转换</strong>
+            <strong>点击选择 .blend 文件，浏览器就地转换</strong>
             <small>仅接受 .blend · 文件不会上传</small>
           </button>
           <div class="mk-file" id="mk-file" hidden>
@@ -1946,14 +2038,14 @@
             <button type="button" id="mk-remove" aria-label="移除文件">✕</button>
           </div>
           </div>
-          <button type="button" class="mk-convert" id="mk-convert" disabled>由本机 Blender 转换</button>
+          <button type="button" class="mk-convert" id="mk-convert" disabled>开始转换</button>
           <ol class="mk-progress" id="mk-progress" hidden>
-            <li class="mk-step" data-step="convert"><i></i><div><b>本机转换</b><small>Blender 后台导出 GLB 与清单</small></div></li>
+            <li class="mk-step" data-step="convert"><i></i><div><b>浏览器转换</b><small>页面内解析，必要时调用本机 Blender</small></div></li>
             <li class="mk-step" data-step="upload"><i></i><div><b>上传派生资产</b><small>model.glb + manifest.json · 69.7 KB</small></div></li>
             <li class="mk-step" data-step="publish"><i></i><div><b>发布审稿</b><small>生成分享凭证</small></div></li>
           </ol>
         </div>
-        <figcaption><b>产品内的上传工作台。</b>整个流程里 scene.blend 从未离开你的机器——上传的是本机 Blender 导出的派生资产，源文件只在本地被读取。</figcaption>
+        <figcaption><b>产品内的上传工作台。</b>整个流程里 scene.blend 都不会被上传到云端：浏览器在页面内解析，复杂文件才交给本机 Blender；发出去的始终是派生资产。</figcaption>
       </figure>
       </div>
     </div>
@@ -2105,24 +2197,48 @@
   <section class="band band--deep">
     <div class="wrap">
       <div class="card" data-anim>
-        <div class="card__chrome"><span class="card__index">08</span><span class="card__name">技术栈与原理</span><i class="card__tag">Under the Hood</i></div>
+        <div class="card__chrome"><span class="card__index">08</span><span class="card__name">技术栈与支持范围</span><i class="card__tag">Under the Hood</i></div>
         <div class="card__body">
-      <h2>它是怎么工作的。</h2>
-      <p class="lead">没有魔法——就是 Blender 的官方能力、浏览器的标准能力，和一层薄薄的服务端。项目开源，每一行都欢迎审阅。</p>
+      <h2>它是怎么工作的，以及能覆盖多少。</h2>
+      <p class="lead">没有魔法——就是浏览器的标准能力、Blender 的官方能力和一层薄薄的服务端。免安装路径覆盖静态场景，复杂文件自动回退本机 Blender。项目开源，每一行都欢迎审阅。</p>
 
       <div class="stack-grid reveal">
         <div class="stack-item"><b>前端</b><span>React 19 · three.js / R3F · Vite</span></div>
-        <div class="stack-item"><b>转换</b><span>本机 Blender 后台导出 GLB + manifest</span></div>
+        <div class="stack-item"><b>转换</b><span>浏览器解析优先 · 复杂回退本机 Blender</span></div>
         <div class="stack-item"><b>服务端</b><span>Cloudflare Workers · D1 · R2 · 每小时 cron 清理</span></div>
         <div class="stack-item"><b>本地桥接</b><span>Node 22 · Express · 仅监听 loopback</span></div>
       </div>
 
       <ol class="points reveal" style="margin-top:22px">
-        <li><b>本机转换。</b>Blender 在你的电脑后台导出 GLB 与清单，原件不参与任何网络传输。</li>
+        <li><b>浏览器优先转换。</b>页面内直接解析受支持的 <code>.blend</code>；不支持的文件回退到你本机的 Blender 导出 GLB 与清单。原件不参与任何网络传输。</li>
         <li><b>受控上传。</b>只有派生资产被推到云端，415 硬门槛挡住一切工程原件。</li>
         <li><b>凭证分享。</b>一条带权限与有效期的链接，对方浏览器直接渲染，无需安装。</li>
         <li><b>到期清空。</b>每小时定时任务按精确 key 删除过期资产，不做长期留存。</li>
       </ol>
+
+      <div class="scope-grid reveal">
+        <div class="scope-col is-yes">
+          <b>免安装路径支持</b>
+          <ul>
+            <li>静态 Mesh、对象名称与变换</li>
+            <li>Scene / Collection 信息、UV</li>
+            <li>基础 Principled 材质参数</li>
+            <li>文件相机</li>
+            <li>已评估的 Mirror / Array Modifier</li>
+          </ul>
+        </div>
+        <div class="scope-col is-no">
+          <b>目前不保证</b>
+          <ul>
+            <li>动画播放、骨骼绑定</li>
+            <li>物理、粒子、流体、布料与模拟</li>
+            <li>任意 Geometry Nodes</li>
+            <li>合成器 / 世界节点、插件数据</li>
+            <li>链接库、Cycles / Eevee 像素级还原</li>
+          </ul>
+        </div>
+      </div>
+      <p class="card__note">这不是网页版 Blender。超出范围的文件会自动回退到你本机的 Blender 转换——兼容性和完整度优先于「免安装」。</p>
 
       <div class="legal-modals">
         <dialog class="legal-modal" id="legal-privacy">
@@ -2132,7 +2248,7 @@
           </header>
           <div class="legal__body">
             <h4>数据处理范围</h4>
-            <p>原始 <code>.blend</code> 文件仅在您的本机 Blender bridge 中读取和转换，不会上传至 BlendProof 云端。您确认发布后，云端仅保存用于审阅的轻量 GLB、裁剪后的 manifest、可选缩略图、分享设置和批注。</p>
+            <p>原始 <code>.blend</code> 文件仅在浏览器页面内或您本机的 Blender bridge 中读取和转换，不会上传至 BlendProof 云端。您确认发布后，云端仅保存用于审阅的轻量 GLB、裁剪后的 manifest、可选缩略图、分享设置和批注。</p>
             <h4>账号与日志</h4>
             <p>邀请码注册会处理邮箱、显示名称、账号角色、会话与邀请码使用记录。为保障安全、容量控制和故障排查，服务会保留必要的访问、发布、分享和清理日志。</p>
             <h4>保留与删除</h4>
