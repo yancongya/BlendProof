@@ -10,6 +10,7 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [newCount, setNewCount] = useState(0);
   const requestGeneration = useRef(0);
   const activeProjectId = useRef(projectId);
   activeProjectId.current = projectId;
@@ -22,12 +23,20 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
       setLoading(false);
       return;
     }
-    setComments([]);
+    setComments((current) => current);
     setLoading(true);
     setError(null);
     try {
       const next = await reviewRepository.list(projectId, ownerCapability, transport);
-      if (requestGeneration.current === generation) setComments(next);
+      if (requestGeneration.current === generation) {
+        setComments((current) => {
+          if (current.length > 0) {
+            const known = new Set(current.map((item) => item.id));
+            setNewCount(next.filter((item) => !known.has(item.id)).length);
+          }
+          return next;
+        });
+      }
     } catch (reason) {
       if (requestGeneration.current === generation)
         setError(reason instanceof Error ? reason.message : "无法读取评论。");
@@ -38,7 +47,12 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
 
   useEffect(() => {
     void reload();
+    if (!projectId || !ownerCapability) return;
+    const timer = window.setInterval(() => void reload(), 15000);
+    return () => window.clearInterval(timer);
   }, [reload]);
+
+  const acknowledgeNew = useCallback(() => setNewCount(0), []);
 
   const create = useCallback(
     async (draft: ReviewCommentDraft) => {
@@ -75,5 +89,5 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
     [projectId, ownerCapability, transport],
   );
 
-  return { comments, error, loading, create, update, reload };
+  return { comments, error, loading, newCount, acknowledgeNew, create, update, reload };
 }

@@ -76,6 +76,7 @@ type Manifest = {
   export?: { sourceBytes?: number; glbBytes?: number; objectCount?: number };
 };
 type DisplayMode = "material" | "gray" | "wire";
+type ReviewFilter = "all" | "open" | "resolved";
 type CameraPreset =
   "perspective" | "front" | "right" | "top" | `file:${string}`;
 type SelectionBox = {
@@ -492,7 +493,7 @@ export function App() {
         onSelect={(name) => setSelected(name ? new Set([name]) : new Set())} onSelectMany={(names) => setSelected(new Set(names))}
         onToggle={toggle} message={message} modelUrl={workspaceModelUrl} readOnly={false} canComment={Boolean(project)}
         displayMode={displayMode} onDisplayMode={setDisplayMode} cameraPreset={cameraPreset} onCameraPreset={setCameraPreset}
-        comments={reviews.comments} reviewError={reviews.error} onCreateComment={reviews.create} onUpdateComment={reviews.update}
+        comments={reviews.comments} reviewError={reviews.error} reviewNewCount={reviews.newCount} onAcknowledgeReview={reviews.acknowledgeNew} onCreateComment={reviews.create} onUpdateComment={reviews.update}
         onViewStateChange={setCurrentCamera}
         onOpenUploader={openUploader} onHome={() => setHomeOpen(true)} recentProjects={recentProjects} onProjectSelect={switchProject}
       />
@@ -547,6 +548,8 @@ export function App() {
       onCameraPreset={setCameraPreset}
       comments={reviews.comments}
       reviewError={reviews.error}
+      reviewNewCount={reviews.newCount}
+      onAcknowledgeReview={reviews.acknowledgeNew}
       onCreateComment={reviews.create}
       onUpdateComment={reviews.update}
       onViewStateChange={setCurrentCamera}
@@ -1021,6 +1024,8 @@ function BlenderWorkspace({
   onCameraPreset,
   comments,
   reviewError,
+  reviewNewCount = 0,
+  onAcknowledgeReview = () => undefined,
   onCreateComment,
   onUpdateComment,
   initialCamera = null,
@@ -1055,6 +1060,8 @@ function BlenderWorkspace({
   onCameraPreset: (preset: CameraPreset) => void;
   comments: ReviewComment[];
   reviewError: string | null;
+  reviewNewCount?: number;
+  onAcknowledgeReview?: () => void;
   onCreateComment?: (draft: ReviewCommentDraft) => Promise<ReviewComment>;
   onUpdateComment?: (
     commentId: string,
@@ -1086,9 +1093,15 @@ function BlenderWorkspace({
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
   const [commentBody, setCommentBody] = useState("");
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+  const [annotationsVisible, setAnnotationsVisible] = useState(true);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState<Vec3>([0, 0, 0]);
+  const visibleComments = useMemo(
+    () => reviewFilter === "all" ? comments : comments.filter((comment) => comment.status === reviewFilter),
+    [comments, reviewFilter],
+  );
   const [outlinerHeight, setOutlinerHeight] = useState(280);
   const [propertyHeight, setPropertyHeight] = useState(132);
   const [summaryHeight, setSummaryHeight] = useState(180);
@@ -1370,12 +1383,19 @@ function BlenderWorkspace({
                 onClick={() => {
                   setAnnotationMode((current) => !current);
                   setPendingReview(null);
+                  setReviewFilter("all");
+                  setAnnotationsVisible(true);
                 }}
               >
                 <MessageSquarePlus size={13} />
                 {annotationMode ? "点击模型放置批注" : "添加批注"}
               </button>
             )}
+            <div className="review-filters" aria-label="批注状态筛选">
+              {([['all', '全部'], ['open', '待处理'], ['resolved', '已解决']] as const).map(([value, label]) => (
+                <button key={value} type="button" className={reviewFilter === value ? "active" : ""} onClick={() => setReviewFilter(value)}>{label}</button>
+              ))}
+            </div>
             <div className="view-controls" aria-label="视图控制">
               <div className="icon-group" aria-label="显示模式">
                 <button
@@ -1450,6 +1470,15 @@ function BlenderWorkspace({
             >
               <Grid2X2 size={12} /> 叠加层
             </button>
+            <button
+              type="button"
+              className={`editor-mode overlay-toggle ${annotationsVisible ? "active" : ""}`}
+              aria-pressed={annotationsVisible}
+              title="显示或隐藏全部批注 Pin"
+              onClick={() => setAnnotationsVisible((visible) => !visible)}
+            >
+              <MessageSquarePlus size={12} /> 批注
+            </button>
           </div>
           <div className="viewport" data-testid="viewer-viewport" aria-label="3D 模型视图">
             {modelUrl ? (
@@ -1486,11 +1515,11 @@ function BlenderWorkspace({
                       setReviewMessage("已定位批注，请填写内容。");
                     }}
                   />
-                  <ReviewAnnotations
-                    comments={comments}
+                  {annotationsVisible && <ReviewAnnotations
+                    comments={visibleComments}
                     selectedId={selectedCommentId}
                     onSelect={selectReviewComment}
-                  />
+                  />}
                   <Environment preset="city" />
                 </Suspense>
                 <BlenderViewControls
@@ -1670,7 +1699,9 @@ function BlenderWorkspace({
             />
             <div className="review-panel-slot">
               <ReviewPanel
-                comments={comments}
+                comments={visibleComments}
+                newCount={reviewNewCount}
+                onAcknowledgeNew={onAcknowledgeReview}
                 selectedId={selectedCommentId}
                 pending={pendingReview}
                 body={commentBody}
@@ -2276,6 +2307,8 @@ function captureCameraState(camera: ThreeCamera, target: Vec3): ReviewCameraStat
 
 function ReviewPanel({
   comments,
+  newCount,
+  onAcknowledgeNew,
   selectedId,
   pending,
   body,
@@ -2291,6 +2324,8 @@ function ReviewPanel({
   onEdit,
 }: {
   comments: ReviewComment[];
+  newCount: number;
+  onAcknowledgeNew: () => void;
   selectedId: string | null;
   pending: PendingReview | null;
   body: string;
@@ -2314,8 +2349,9 @@ function ReviewPanel({
     <div className="review-panel" data-testid="review-panel" aria-label="审稿批注" aria-readonly={readOnly}>
       <div className="review-panel-title">
         <span>审稿批注</span>
-        <b data-testid="review-count">{comments.length}</b>
+        <b data-testid="review-count">{comments.length}{newCount > 0 ? ` · 新 ${newCount}` : ""}</b>
       </div>
+      {newCount > 0 && <button className="review-new-notice" onClick={onAcknowledgeNew}>收到新批注，点击查看</button>}
       {pending && canComment && (
         <div className="review-compose" data-testid="review-draft">
           <span>落点：{pending.objectName ?? "模型表面"}</span>

@@ -586,6 +586,10 @@
   color: #fff;
   background: #a85109;
 }
+.review-filters { display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; }
+.review-filters button { padding: 3px 7px; border: 1px solid transparent; border-radius: 2px; background: transparent; color: #858585; font-size: 10px; cursor: pointer; }
+.review-filters button:hover { color: #ddd; background: #2a2a2a; }
+.review-filters button.active { border-color: #74410f; background: #33200e; color: #f1a04a; }
 .review-panel {
   border-top: 1px solid #171717;
   overflow: auto;
@@ -602,6 +606,7 @@
 .review-panel-title b {
   color: #aaa;
 }
+.review-new-notice { width: 100%; margin: 4px 0 8px; padding: 6px 8px; border: 1px solid #8a4d12; border-radius: 3px; background: #2b1b0d; color: #f2a04b; text-align: left; font-size: 10px; cursor: pointer; }
 .review-compose {
   display: grid;
   gap: 7px;
