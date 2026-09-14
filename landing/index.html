@@ -1509,6 +1509,15 @@
   .a-badge-text { font: 700 9px/1 var(--mono); fill: #fff; stroke: none; }
   .a-fallback { animation: aFlowDash 2.2s linear infinite; }
 
+  .scope-title {
+    margin: 26px 0 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-soft);
+    color: var(--ink-bright);
+    font-size: 15px;
+    font-weight: 600;
+  }
+
   .scope-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2216,29 +2225,31 @@
         <li><b>到期清空。</b>每小时定时任务按精确 key 删除过期资产，不做长期留存。</li>
       </ol>
 
+      <h3 class="scope-title">转换为 GLB：留下什么，丢掉什么</h3>
+
       <div class="scope-grid reveal">
         <div class="scope-col is-yes">
-          <b>免安装路径支持</b>
+          <b>转换后能看到</b>
           <ul>
-            <li>静态 Mesh、对象名称与变换</li>
-            <li>Scene / Collection 信息、UV</li>
-            <li>基础 Principled 材质参数</li>
-            <li>文件相机</li>
-            <li>已评估的 Mirror / Array Modifier</li>
+            <li>修改器求值后的网格与拓扑</li>
+            <li>对象层级、名称与集合结构</li>
+            <li>PBR 材质基础属性（基础色 / 粗糙度 / 金属度 / 贴图）</li>
+            <li>场景相机与灯光</li>
+            <li>动画与骨骼绑定（经本机 Blender 导出时）</li>
           </ul>
         </div>
         <div class="scope-col is-no">
-          <b>目前不保证</b>
+          <b>GLB 带不走</b>
           <ul>
-            <li>动画播放、骨骼绑定</li>
-            <li>物理、粒子、流体、布料与模拟</li>
-            <li>任意 Geometry Nodes</li>
-            <li>合成器 / 世界节点、插件数据</li>
-            <li>链接库、Cycles / Eevee 像素级还原</li>
+            <li>物理、粒子、流体、布料等模拟</li>
+            <li>程序化节点的可调参数——几何节点只留烘焙结果</li>
+            <li>合成器 / 世界节点与后期效果</li>
+            <li>Blender 专有着色，以及 Cycles / Eevee 的像素级观感</li>
+            <li>插件数据、链接库与工程内部结构</li>
           </ul>
         </div>
       </div>
-      <p class="card__note">这不是网页版 Blender。超出范围的文件会自动回退到你本机的 Blender 转换——兼容性和完整度优先于「免安装」。</p>
+      <p class="card__note"><b>两条转换路径，能力不同。</b>浏览器直转只覆盖静态网格子集，材质按首材质近似；需要动画、骨骼或完整着色时会自动回退到你本机的 Blender 导出。无论哪条路径，审稿者看到的都是<b>转换后的展示模型</b>，不是 Blender 里的实时画面。</p>
 
       <div class="legal-modals">
         <dialog class="legal-modal" id="legal-privacy">
