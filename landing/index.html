@@ -402,6 +402,7 @@
   .h3d-bubble {
     position: absolute;
     transform: translate(-50%, -100%);
+    z-index: 3;
     max-width: 232px;
     margin-top: -18px;
     padding: 10px 12px 9px;
@@ -412,6 +413,7 @@
     box-shadow: 0 18px 44px -18px rgba(0, 0, 0, .85);
     pointer-events: auto;
   }
+  .h3d-bubble.is-below { transform: translate(-50%, 0); }
   .h3d-bubble[hidden] { display: none; }
 
   .h3d-bubble__head {
@@ -1560,16 +1562,28 @@
     .btn { height: 40px; padding: 0 16px; }
   }
 
-  /* 触屏：手机上没有中键，改用单指/双指手势；触控目标放大 */
+  /* 触屏：手机上没有中键，改用单指/双指手势；触控目标放大到 ≥40px 命中区 */
   @media (hover: none) {
     .hero3d__hint--mouse { display: none; }
     .hero3d__hint--touch { display: inline; }
     .h3d-pin { width: 26px; height: 26px; margin: -13px 0 0 -13px; font-size: 10px; }
     .h3d-bubble { max-width: min(72vw, 232px); }
-    .mk-tree-row .mk-eye { padding: 4px 6px; }
-    .mk-compose input, .mk-compose button { min-height: 30px; }
-    .mk-chip { padding: 5px 10px; }
-    .mk-review-status { padding: 5px 8px; }
+
+    /* 直接放大的（视觉允许） */
+    .hero3d__state { min-height: 34px; padding: 6px 11px; }
+    .theme-toggle { height: 36px; padding: 0 12px; }
+    .mk-search { height: 32px; }
+    .mk-compose input, .mk-compose button { min-height: 34px; }
+    .mk-browser__go { min-height: 32px; }
+    .mk-cred-actions button, .mk-cred-actions a { min-height: 40px; }
+    .mk-chip { padding: 6px 11px; min-height: 34px; }
+    .mk-review-status { min-height: 32px; padding: 5px 10px; }
+
+    /* 视觉保持 Blender 小巧、命中区隐形外扩的 */
+    .mk-tree-row .mk-eye, .h3d-pin, .mk-file button { position: relative; }
+    .mk-tree-row .mk-eye::after { content: ""; position: absolute; inset: -10px; }
+    .h3d-pin::after { content: ""; position: absolute; inset: -8px; }
+    .mk-file button::after { content: ""; position: absolute; inset: -10px; }
   }
 
   @media (prefers-reduced-motion: reduce) {

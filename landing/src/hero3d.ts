@@ -481,14 +481,19 @@ export function initHero3D(): void {
           el.classList.toggle('is-behind', Boolean(hit && hit.distance < dist - 0.08))
         })
 
-        // Keep the open bubble glued to its pin.
+        // Keep the open bubble glued to its pin; flip below when there is no
+        // room above (a translateY(-100%) bubble would leave the viewport).
         if (activePin >= 0 && !bubble.hidden && pinEls[activePin] && !pinEls[activePin].hidden) {
           const el = pinEls[activePin]
           const half = Math.min(118, w * 0.45)
           const x = Math.min(Math.max(parseFloat(el.style.left), half), w - half)
-          const y = Math.max(parseFloat(el.style.top) - 54, 64)
+          const pinY = parseFloat(el.style.top)
+          const bh = bubble.offsetHeight || 130
+          let top = pinY - 18 - bh
+          if (top < 90) top = pinY + 30
           bubble.style.left = `${x.toFixed(1)}px`
-          bubble.style.top = `${y.toFixed(1)}px`
+          bubble.style.top = `${top.toFixed(1)}px`
+          bubble.classList.toggle('is-below', top === pinY + 30)
         }
       }
     },
