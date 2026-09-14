@@ -1,0 +1,1725 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BlendProof · 原始工程，不出本机</title>
+<meta name="description" content=".blend 由本机 Blender 转成 GLB，云端只收裁剪后的模型与清单。审稿者打开一条链接即可查看并批注，无需安装 Blender。5 GiB 公益存储池，到期自动清理。">
+<link rel="canonical" href="https://blendproof.itycon.cn/landing/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="BlendProof · 原始工程，不出本机">
+<meta property="og:description" content="本机转换，云端只收 GLB。审稿者一条链接即可查看与批注，无需安装 Blender。">
+<meta property="og:url" content="https://blendproof.itycon.cn/landing/">
+<meta property="og:image" content="https://blendproof.itycon.cn/blendproof-splash-v2.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #151515;
+    --bg-deep: #0f0f0f;
+    --panel: #1e1e1e;
+    --panel-2: #242424;
+    --input: #1a1a1a;
+    --border: #2e2e2e;
+    --border-soft: #3a3a3a;
+    --border-strong: #4a4a4a;
+    --ink: #d6d6d6;
+    --ink-bright: #f0f0f0;
+    --muted: #a4a4a4;
+    --faint: #858585;
+    --accent: #e87d0d;
+    --accent-warm: #f39a35;
+    --accent-well: #33291d;
+    --accent-edge: #76501f;
+    --blue: #265787;
+    --blue-ink: #5b9ee0;
+    --radius: 4px;
+    --fs-micro: 9px;
+    --fs-chrome: 10px;
+    --fs-label: 11px;
+    --content: 1160px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", monospace;
+    /* 组件级 token（亮暗主题各自映射） */
+    --card-grad-a: #1a1a1a;
+    --card-grad-b: #141414;
+    --chrome-bg: rgba(40, 40, 40, .55);
+    --bar-bg: rgba(30, 30, 30, .88);
+    --stat-bg: #131313;
+    --band-deep: rgba(15, 15, 15, .72);
+    --side-bg: #141414;
+    --gate-bg: #101010;
+    --view-g1: #242424;
+    --view-g2: #161616;
+    --mk-line: #333333;
+    --mk-line-2: #3a3a3a;
+    --mk-line-3: #383838;
+    --mk-chip-border: #4a4a4a;
+    --mk-chip-ink: #888888;
+    --mk-chip-ink-h: #cccccc;
+    --mk-code-bg: #17130f;
+    --mk-code-border: #6b431e;
+    --mk-code-ink: #efa45b;
+    --mk-dt: #707070;
+    --mk-dd: #cccccc;
+    --mk-btn-bg: #2c2c2c;
+    --mk-btn-ink: #bbbbbb;
+    --mk-btn-ink-h: #dddddd;
+    --mk-ink-mut: #999999;
+    --mk-ink-dim: #777777;
+    --mk-strong: #dddddd;
+    --hover-bg: #1b1b1b;
+    --hover-border: #5c5c5c;
+    --stamp-bg: rgba(23, 19, 15, .88);
+    --stamp-border: #79a95a;
+    --stamp-ink: #79a95a;
+    color-scheme: dark;
+  }
+
+  html[data-theme="light"] {
+    --bg: #f4f3f0;
+    --bg-deep: #edebe6;
+    --panel: #ffffff;
+    --panel-2: #f2f1ed;
+    --input: #ffffff;
+    --border: #dcdad4;
+    --border-soft: #cbc9c2;
+    --border-strong: #b3b1a9;
+    --ink: #3d3d3d;
+    --ink-bright: #191919;
+    --muted: #5d5d5d;
+    --faint: #8a8a8a;
+    --accent: #c5630b;
+    --accent-warm: #b4580a;
+    --accent-well: #f7e8d2;
+    --accent-edge: #d8a35c;
+    --blue: #265787;
+    --blue-ink: #2f6ba3;
+    --card-grad-a: #ffffff;
+    --card-grad-b: #f7f6f3;
+    --chrome-bg: rgba(255, 255, 255, .75);
+    --bar-bg: rgba(255, 255, 255, .92);
+    --stat-bg: #faf9f6;
+    --band-deep: rgba(226, 222, 214, .55);
+    --side-bg: #f2f0eb;
+    --gate-bg: #e9e6df;
+    --view-g1: #fbfaf7;
+    --view-g2: #efede7;
+    --mk-line: #e0dbd0;
+    --mk-line-2: #d8d2c6;
+    --mk-line-3: #ded8cc;
+    --mk-chip-border: #c4bdb0;
+    --mk-chip-ink: #8a8377;
+    --mk-chip-ink-h: #4d4a43;
+    --mk-code-bg: #fdf3e2;
+    --mk-code-border: #d8a35c;
+    --mk-code-ink: #b4580a;
+    --mk-dt: #8a8377;
+    --mk-dd: #45423c;
+    --mk-btn-bg: #f1eee7;
+    --mk-btn-ink: #5d5a52;
+    --mk-btn-ink-h: #2d2b26;
+    --mk-ink-mut: #98928a;
+    --mk-ink-dim: #a29c92;
+    --mk-strong: #2a2a2a;
+    --hover-bg: #f0ede4;
+    --hover-border: #c4bdb0;
+    --stamp-bg: rgba(255, 255, 255, .92);
+    --stamp-border: #688148;
+    --stamp-ink: #4e6b31;
+    color-scheme: light;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg-deep);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+    font-size: 15px;
+    line-height: 1.68;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  a { color: var(--accent-warm); }
+  code { font-family: var(--mono); font-size: .92em; color: var(--ink-bright); }
+
+  .wrap { width: min(var(--content), 100% - 44px); margin-inline: auto; }
+  .mono { font-family: var(--mono); }
+
+  /* ---------- Section scaffolding ---------- */
+
+  .band { padding: 56px 0; border-top: 1px solid var(--border); }
+  .band--deep { background: var(--band-deep); }
+
+  .eyebrow {
+    display: flex; align-items: center; gap: 12px;
+    margin: 0 0 14px;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: var(--fs-chrome);
+    letter-spacing: .2em;
+    text-transform: uppercase;
+  }
+
+  .eyebrow::before { content: ""; width: 22px; height: 1px; background: var(--accent); }
+
+  h2 {
+    margin: 0 0 14px;
+    color: var(--ink-bright);
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    font-weight: 700;
+    line-height: 1.22;
+    letter-spacing: -0.022em;
+  }
+
+  .lead { margin: 0 0 40px; max-width: 64ch; color: var(--muted); }
+
+  /* ---------- Hero ---------- */
+
+  .hero {
+    position: relative;
+    padding: 74px 0 84px;
+    background:
+      radial-gradient(ellipse 70% 60% at 80% 40%, rgba(232, 125, 13, .075) 0%, transparent 68%),
+      radial-gradient(ellipse 60% 50% at 18% 22%, rgba(38, 87, 135, .09) 0%, transparent 70%);
+  }
+
+  .hero__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.16fr);
+    gap: 52px;
+    align-items: center;
+  }
+
+  .hero h1 {
+    margin: 0 0 20px;
+    color: var(--ink-bright);
+    font-size: clamp(2.3rem, 4.6vw, 3.5rem);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.032em;
+  }
+
+  .hero h1 em { font-style: normal; color: var(--accent); }
+
+  .hero__lead { margin: 0 0 30px; max-width: 44ch; color: var(--muted); font-size: 16px; }
+  .hero__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 36px; }
+
+  .btn {
+    display: inline-flex; align-items: center; height: 42px; padding: 0 20px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: var(--input); color: var(--ink);
+    font-size: 14px; text-decoration: none; cursor: pointer;
+    transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
+  }
+
+  .btn:hover { background: var(--hover-bg); border-color: var(--hover-border); transform: translateY(-1px); }
+  .btn--primary { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+  .btn--primary:hover { background: #f08a1a; border-color: #f08a1a; }
+
+  .facts {
+    display: flex; flex-wrap: wrap; gap: 30px;
+    margin: 0; padding: 22px 0 0; list-style: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .facts li { color: var(--faint); font-size: 12.5px; }
+
+  .facts b {
+    display: block;
+    color: var(--ink-bright);
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  /* ---------- Theme toggle ---------- */
+
+  .theme-toggle {
+    position: fixed; top: 14px; right: 16px; z-index: 60;
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 34px; padding: 0 13px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: var(--bar-bg);
+    backdrop-filter: blur(8px);
+    color: var(--ink); font-size: 12px; cursor: pointer;
+    box-shadow: 0 6px 20px -10px rgba(0, 0, 0, .4);
+    transition: border-color .18s ease, color .18s ease, transform .18s ease;
+  }
+
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent-warm); transform: translateY(-1px); }
+
+  body {
+    transition: background-color .3s ease, color .3s ease;
+  }
+
+  .card, .stage, .stat, .side, .legal, .mockup, .mk-cred-code {
+    transition: border-color .3s ease, background-color .3s ease, box-shadow .3s ease;
+  }
+
+  /* ---------- Hero 3D viewport（简化猴头：扁平着色 + 极简灯光 + 30fps 上限） ---------- */
+
+  .hero3d { margin: 0; }
+
+  .hero3d__view {
+    position: relative;
+    height: 452px;
+    border: 1px solid #111;
+    border-radius: 3px;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 40%, var(--view-g1) 0%, var(--view-g2) 70%);
+    overflow: hidden;
+    box-shadow:
+      0 30px 76px -34px rgba(0, 0, 0, .95),
+      0 0 0 1px rgba(255, 255, 255, .025);
+  }
+
+  .hero3d__fallback { position: absolute; inset: 0; }
+  .hero3d__fallback.is-hidden { display: none; }
+
+  .hero3d__fallback img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: .92;
+  }
+
+  #hero3d canvas { display: block; cursor: grab; }
+  #hero3d canvas:active { cursor: grabbing; }
+
+  .hero3d__chip {
+    position: absolute; left: 10px; top: 10px; z-index: 2;
+    border: 1px solid #3c3c3c; border-radius: 2px;
+    background: rgba(28, 28, 28, .85);
+    padding: 3px 8px;
+    color: #a9a9a9;
+    font-family: var(--mono);
+    font-size: var(--fs-micro);
+    letter-spacing: .08em;
+    pointer-events: none;
+  }
+
+  .hero3d__hint {
+    position: absolute; right: 10px; bottom: 10px; z-index: 2;
+    margin: 0;
+    color: #6f6f6f;
+    font-size: var(--fs-micro);
+    pointer-events: none;
+  }
+
+  .hero3d__status {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 7px 10px;
+    border: 1px solid var(--border); border-top: 0;
+    border-radius: 0 0 3px 3px;
+    background: var(--bar-bg);
+    color: #8f8f8f; font-size: var(--fs-micro);
+  }
+
+  .hero3d__status b { color: #a9a9a9; font-weight: 500; }
+
+  .dot-live {
+    display: inline-block; width: 6px; height: 6px; margin-right: 5px;
+    border-radius: 50%; background: #4ea04e;
+    box-shadow: 0 0 0 2px rgba(78, 160, 78, .18);
+  }
+
+  /* ---------- Pain → outcome ---------- */
+
+  .pains {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+
+  .pain { position: relative; background: var(--bg); padding: 26px 24px; transition: background-color .22s ease; }
+  .pain:hover { background: var(--hover-bg); }
+
+  .pain__from { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--faint); font-size: 13px; }
+  .pain__from s { text-decoration-color: #4a4a4a; }
+  .pain__num { color: var(--accent); font-family: var(--mono); font-size: var(--fs-micro); letter-spacing: .12em; }
+
+  .pain h3 { margin: 0 0 8px; color: var(--ink-bright); font-size: 16px; font-weight: 600; }
+  .pain p { margin: 0; color: var(--muted); font-size: 13.5px; }
+
+  /* ---------- Boundary ---------- */
+
+  .crossing {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--side-bg); overflow: hidden;
+  }
+
+  .side { padding: 26px 24px; min-width: 0; }
+  .side__label { margin: 0 0 14px; font-family: var(--mono); font-size: var(--fs-micro); letter-spacing: .14em; text-transform: uppercase; }
+  .side--local .side__label { color: var(--accent-warm); }
+  .side--cloud .side__label { color: var(--blue-ink); }
+  .side h3 { margin: 0 0 10px; color: var(--ink-bright); font-size: 15px; font-weight: 600; }
+  .side ul { margin: 0; padding-left: 17px; color: var(--muted); font-size: 13px; }
+  .side li { margin-bottom: 5px; }
+
+  .gate {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    width: 82px; background: var(--gate-bg);
+    border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .gate__line { flex: 1; width: 1px; background: linear-gradient(to bottom, transparent, var(--blue), transparent); }
+
+  .gate__badge {
+    display: grid; place-items: center;
+    width: 50px; height: 50px;
+    border: 1px solid var(--accent-edge); border-radius: 50%;
+    background: var(--accent-well); color: var(--accent-warm);
+    font-family: var(--mono); font-size: var(--fs-label); font-weight: 600;
+    box-shadow: 0 0 24px -6px rgba(232, 125, 13, .5);
+  }
+
+  .gate__code { margin: 0; color: var(--faint); font-family: var(--mono); font-size: var(--fs-micro); line-height: 1.5; }
+
+  /* ---------- Features ---------- */
+
+  .features {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+
+  .feature { position: relative; background: var(--bg); padding: 26px 24px; transition: background-color .22s ease; }
+  .feature:hover { background: var(--hover-bg); }
+
+  .feature::before {
+    content: ""; position: absolute; inset: 0 auto auto 0;
+    width: 0; height: 2px;
+    background: linear-gradient(to right, var(--accent), transparent);
+    transition: width .3s ease;
+  }
+
+  .feature:hover::before { width: 62%; }
+
+  .feature__icon {
+    display: grid; place-items: center;
+    width: 32px; height: 32px; margin-bottom: 15px;
+    border: 1px solid var(--border-soft); border-radius: 3px;
+    background: var(--input); color: var(--accent-warm);
+    font-family: var(--mono); font-size: 13px;
+  }
+
+  .feature h3 { margin: 0 0 8px; color: var(--ink-bright); font-size: 15.5px; font-weight: 600; }
+  .feature p { margin: 0 0 13px; color: var(--muted); font-size: 13.5px; }
+  .feature ul { margin: 0; padding: 0; list-style: none; }
+  .feature li { position: relative; padding-left: 13px; color: var(--faint); font-size: 12.5px; line-height: 1.95; }
+  .feature li::before { content: "·"; position: absolute; left: 3px; color: var(--accent); }
+
+  /* ---------- Product mockups（样式值照抄 src/styles.css 与 src/overrides.css） ---------- */
+
+  .mockup-duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
+
+  .mockup {
+    margin: 0;
+    border: 1px solid #474747;
+    border-radius: 3px;
+    background: linear-gradient(145deg, #262626, #1c1c1c);
+    box-shadow: 0 8px 24px #0007;
+    overflow: hidden;
+  }
+
+  .mk-chrome {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    height: 29px; padding: 0 9px;
+    border-bottom: 1px solid #3c3c3c;
+    color: #ddd; font-size: 10px;
+  }
+  .mk-chrome i { color: #777; font-size: 9px; font-style: normal; }
+
+  .mockup figcaption {
+    padding: 8px 10px;
+    border-top: 1px solid #3c3c3c;
+    background: #171717;
+    color: #777;
+    font-size: 10.5px;
+    line-height: 1.55;
+  }
+  .mockup figcaption b { color: #a4a4a4; font-weight: 500; }
+
+  /* --- Outliner（产品 .outliner / .tree-row） --- */
+  .mk-outliner { padding: 4px 0 6px; background: #252525; font-size: 10px; }
+  .mk-search {
+    display: flex; align-items: center; height: 25px; margin: 4px 5px 1px; padding: 0 7px;
+    border: 1px solid #3a3a3a; border-radius: 2px; background: #1a1a1a;
+    color: #666;
+  }
+  .mk-tree-root { display: flex; align-items: center; gap: 5px; padding: 4px 8px 2px; color: #ccc; }
+  .mk-tree-root span { color: #888; font-size: 8px; }
+  .mk-tree-row {
+    display: grid; grid-template-columns: 18px minmax(0, 1fr) 20px;
+    align-items: center; gap: 4px;
+    min-height: 24px; padding: 0 3px 0 16px;
+    color: #ccc; cursor: pointer;
+  }
+  .mk-tree-row:hover { background: #343434; }
+  .mk-tree-row.selected { background: #2f5582; color: #fff; }
+  .mk-tree-row i { color: #999; font-style: normal; font-size: 9px; text-align: center; }
+  .mk-tree-row.selected i { color: #cfe0f5; }
+  .mk-tree-row em { color: #666; font-size: 8px; font-style: normal; text-align: center; }
+  .mk-tree-row em.off { color: #4a4a4a; }
+
+  /* --- 批注列表（产品 .review-item） --- */
+  .mk-review { background: #252525; font-size: 10px; }
+  .mk-review-item {
+    display: grid; grid-template-columns: 22px minmax(0, 1fr) auto;
+    align-items: center; gap: 7px;
+    padding: 7px 9px;
+    background: #252525; color: #ccc; cursor: pointer;
+  }
+  .mk-review-item:hover { background: #343434; }
+  .mk-review-item.selected { box-shadow: inset 2px 0 #e87d0d; }
+  .mk-review-item i {
+    display: grid; width: 19px; height: 19px; place-items: center;
+    border-radius: 50%; background: #e87d0d; color: #161616;
+    font-style: normal; font-weight: 700; font-size: 9px;
+  }
+  .mk-review-item i.resolved { background: #5b9ee0; }
+  .mk-review-item strong {
+    display: block; overflow: hidden;
+    color: #ddd; font-weight: 500;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mk-review-item small { color: #777; font-size: 9px; }
+  .mk-review-status {
+    border: 1px solid #4a4a4a; border-radius: 2px;
+    background: transparent; padding: 2px 7px;
+    color: #999; font-size: 9px; cursor: pointer;
+  }
+  .mk-review-status:hover { color: #ddd; border-color: #6a6a6a; }
+
+  /* --- 上传工作台（产品 .blend-dropzone / .upload-progress-* 三态） --- */
+  .mk-uploader {
+    display: grid; gap: 8px;
+    padding: 10px;
+    background: #202020;
+  }
+
+  .mk-dropzone {
+    display: grid; justify-items: center; gap: 3px;
+    padding: 16px 10px 13px;
+    border: 1px dashed #4a4a4a; border-radius: 3px;
+    background: #1b1b1b;
+    color: #777; cursor: pointer;
+    transition: border-color .2s ease, background-color .2s ease;
+  }
+  .mk-dropzone:hover { border-color: var(--accent); background: #2b241d; }
+  .mk-dropzone b { color: #a9a9a9; font-size: 16px; }
+  .mk-dropzone strong { color: #f0f0f0; font-size: 11.5px; font-weight: 500; }
+  .mk-dropzone small { font-size: 9px; }
+
+  .mk-file {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px;
+    border: 1px solid #3f3f3f; border-radius: 3px;
+    background: #242424;
+  }
+  .mk-file[hidden] { display: none; }
+  .mk-file > i { color: var(--accent-warm); font-style: normal; }
+  .mk-file strong { display: block; color: #ddd; font-size: 11px; font-weight: 500; }
+  .mk-file small { color: #777; font-size: 9px; }
+  .mk-file button {
+    margin-left: auto;
+    border: 0; background: transparent;
+    color: #888; font-size: 10px; cursor: pointer;
+  }
+  .mk-file button:hover { color: #e18c7b; }
+
+  .mk-convert {
+    display: flex; align-items: center; justify-content: center;
+    height: 30px;
+    border: 1px solid var(--accent-edge); border-radius: 3px;
+    background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    transition: background-color .15s ease;
+  }
+  .mk-convert:hover:not(:disabled) { background: #c5630b; }
+  .mk-convert:disabled {
+    border-color: #444; background: #313131;
+    color: #696969; cursor: not-allowed;
+  }
+
+  .mk-progress {
+    display: grid; gap: 7px;
+    margin: 0; padding: 9px;
+    border: 1px solid #383838; border-radius: 3px;
+    background: #1b1b1b;
+    list-style: none;
+  }
+  .mk-step {
+    display: grid;
+    grid-template-columns: 17px minmax(0, 1fr);
+    column-gap: 7px; align-items: center;
+    color: #666; font-size: 10px;
+  }
+  .mk-step i {
+    grid-row: 1 / -1;
+    width: 13px; height: 13px;
+    border: 1px solid #555; border-radius: 50%;
+  }
+  .mk-step b { font-weight: 500; }
+  .mk-step small { display: block; color: #5c5c5c; font-size: 8.5px; }
+  .mk-step.active { color: #e4e4e4; }
+  .mk-step.active i {
+    border-color: var(--accent);
+    animation: stepPulse 1s ease infinite;
+  }
+  .mk-step.done { color: #bdbdbd; }
+  .mk-step.done i { border-color: #688148; background: #3c512b; }
+
+  @keyframes stepPulse {
+    50% { box-shadow: 0 0 0 3px rgba(232, 125, 13, .16); }
+  }
+
+  /* --- 分享凭证卡（产品 .share-credential-card） --- */
+  .mk-cred dl { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0 9px 9px; }
+  .mk-cred dl div { min-width: 0; padding: 0 7px; border-left: 1px solid var(--mk-line-2); }
+  .mk-cred dl div:first-child { padding-left: 0; border: 0; }
+  .mk-cred dt { color: var(--mk-dt); font-size: 8px; }
+  .mk-cred dd { margin: 3px 0 0; overflow: hidden; color: var(--mk-dd); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .mk-cred-code {
+    margin: 9px; padding: 7px;
+    border: 1px dashed var(--mk-code-border); background: var(--mk-code-bg);
+    color: var(--mk-code-ink); font: 9px var(--mono);
+    text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+  }
+  .mk-cred-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--mk-line-3); }
+  .mk-cred-actions button,
+  .mk-cred-actions a {
+    display: flex; min-height: 29px; align-items: center; justify-content: center; gap: 5px;
+    border: 0; background: var(--mk-btn-bg); color: var(--mk-btn-ink);
+    font-size: 9px; cursor: pointer; text-decoration: none;
+  }
+  .mk-cred-actions button:hover, .mk-cred-actions a:hover { background: var(--mk-line-3); color: var(--mk-btn-ink-h); }
+
+  /* ---------- Public good ---------- */
+
+  .points { margin: 0; padding: 0; list-style: none; }
+  .points li {
+    position: relative; padding: 14px 0 14px 28px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted); font-size: 14px;
+  }
+  .points li:last-child { border-bottom: 0; }
+  .points li::before { content: "→"; position: absolute; left: 0; top: 14px; color: var(--accent); font-family: var(--mono); font-size: 13px; }
+  .points b { color: var(--ink-bright); font-weight: 600; }
+
+  /* ---------- Live status ---------- */
+
+  .live {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+
+  .stat { background: var(--stat-bg); padding: 22px 20px; }
+  .stat dt { margin: 0 0 9px; color: var(--faint); font-family: var(--mono); font-size: var(--fs-micro); letter-spacing: .12em; text-transform: uppercase; }
+  .stat dd { margin: 0; color: var(--ink-bright); font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1.24; }
+  .stat dd small { display: block; margin-top: 4px; color: var(--faint); font-family: inherit; font-size: 11.5px; font-weight: 400; }
+
+  .meter { height: 3px; margin-top: 11px; border-radius: 2px; background: var(--border-soft); overflow: hidden; }
+  .meter span { display: block; height: 100%; width: 0; background: var(--blue-ink); transition: width .9s ease-out; }
+
+  .live__note { margin: 16px 0 0; color: var(--faint); font-size: 12.5px; }
+  .live__note[data-state="offline"] { color: var(--accent-warm); }
+
+  /* ---------- Legal ---------- */
+
+  .legal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .legal { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
+
+  .legal > summary {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 15px 18px; cursor: pointer;
+    color: var(--ink-bright); font-size: 14px; font-weight: 600; list-style: none;
+    transition: background-color .18s ease;
+  }
+
+  .legal > summary::-webkit-details-marker { display: none; }
+  .legal > summary:hover { background: var(--panel-2); }
+  .legal > summary::after { content: "▾"; color: var(--faint); font-size: 10px; transition: transform .22s ease; }
+  .legal[open] > summary::after { transform: rotate(180deg); }
+
+  .legal__body { padding: 4px 18px 20px; border-top: 1px solid var(--border); }
+  .legal__body h4 { margin: 15px 0 6px; color: var(--ink-bright); font-size: 13px; font-weight: 600; }
+  .legal__body p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; line-height: 1.78; }
+  .legal__date { margin: 0; padding-top: 10px; color: var(--faint); font-family: var(--mono); font-size: var(--fs-micro); }
+
+  .notice {
+    margin-top: 18px; padding: 15px 18px;
+    border: 1px solid var(--accent-edge); border-radius: var(--radius);
+    background: rgba(51, 41, 29, .55);
+    color: var(--accent-warm); font-size: 13px;
+  }
+
+  /* ---------- Footer ---------- */
+
+  .site-foot { padding: 34px 0 50px; border-top: 1px solid var(--border); color: var(--faint); font-size: 12.5px; }
+  .site-foot p { margin: 0 0 7px; }
+  .site-foot .mono { font-size: 12px; }
+
+  /* ---------- Cards（每节一个 mockup 化面板） ---------- */
+
+  .card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: linear-gradient(160deg, var(--card-grad-a), var(--card-grad-b));
+    box-shadow:
+      0 26px 64px -40px rgba(0, 0, 0, .95),
+      0 0 0 1px rgba(255, 255, 255, .02);
+    overflow: hidden;
+    transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease;
+  }
+
+  .card:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+    box-shadow:
+      0 32px 72px -40px rgba(0, 0, 0, 1),
+      0 0 0 1px rgba(232, 125, 13, .08);
+  }
+
+  .card__chrome {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--chrome-bg);
+    user-select: none;
+  }
+
+  .card__index {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: var(--fs-chrome);
+    letter-spacing: .14em;
+  }
+
+  .card__name { color: var(--ink-bright); font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }
+
+  .card__tag {
+    margin-left: auto;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: var(--fs-micro);
+    font-style: normal;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .card__body { padding: 32px 32px 36px; }
+  .card__body > h2:first-child { margin-top: 0; }
+
+  /* ---------- Card micro-interactions（跟随光晕 / 倾斜 / chrome 扫光 / 打字机 / 盖戳） ---------- */
+
+  .card { position: relative; }
+
+  .card::before {
+    content: "";
+    position: absolute; inset: 0; z-index: 0;
+    background: radial-gradient(440px circle at var(--mx, 50%) var(--my, 50%), rgba(232, 125, 13, .08), transparent 64%);
+    opacity: 0;
+    transition: opacity .35s ease;
+    pointer-events: none;
+  }
+
+  .card:hover::before { opacity: 1; }
+  .card__chrome, .card__body { position: relative; z-index: 1; }
+  .card__chrome { overflow: hidden; }
+
+  .card__dots { display: inline-flex; gap: 4px; margin-right: 4px; }
+  .card__dots i {
+    width: 7px; height: 7px;
+    border-radius: 2px;
+    background: #3d3d3d;
+    transition: background-color .3s ease;
+  }
+  .card:hover .card__dots i { background: #4c4c4c; }
+  .card:hover .card__dots i:first-child { background: var(--accent); }
+
+  .card__chrome::after {
+    content: "";
+    position: absolute; top: 0; bottom: 0; left: -45%;
+    width: 34%;
+    transform: skewX(-18deg);
+    background: linear-gradient(90deg, transparent, rgba(232, 125, 13, .14), transparent);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .js .card.in .card__chrome::after { animation: chromeSweep .9s ease .25s 1 both; }
+
+  @keyframes chromeSweep {
+    from { opacity: 0; left: -45%; }
+    30%  { opacity: 1; }
+    to   { opacity: 0; left: 125%; }
+  }
+
+  /* --- 发出/读取分享：两张独立等高卡片 --- */
+
+  .share-duo {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+    align-items: stretch;
+  }
+
+  .share-duo .card { display: flex; flex-direction: column; }
+  .share-duo .card__body { display: flex; flex-direction: column; flex: 1; }
+  .share-duo .card__note { margin-top: auto; padding-top: 16px; }
+
+  .card__note {
+    margin: 18px 0 0;
+    padding: 10px 14px;
+    border: 1px dashed var(--border-soft);
+    border-radius: var(--radius);
+    background: rgba(51, 41, 29, .28);
+    color: var(--faint);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .card.receiving {
+    animation: rxPulse 1.1s ease;
+  }
+
+  @keyframes rxPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(232, 125, 13, .38); }
+    100% { box-shadow: 0 0 0 16px rgba(232, 125, 13, 0); }
+  }
+
+  #mk-rx-foot.busy { color: var(--accent-warm); }
+  #mk-rx-foot.loaded { color: #79a95a; }
+
+  .mk-rx-note {
+    margin: 0;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--mk-line);
+    color: var(--mk-ink-mut);
+    font-size: 10px;
+    line-height: 1.6;
+  }
+
+  .mk-rx-foot {
+    margin-top: auto;
+    padding: 7px 9px;
+    border-top: 1px solid var(--mk-line);
+    color: var(--mk-ink-dim); font-size: 9px;
+  }
+
+  /* 亮色下，结构封闭的产品截图面板用滤镜整体转亮（橙/蓝色相保持） */
+  html[data-theme="light"] .mockup {
+    filter: invert(.92) hue-rotate(180deg);
+  }
+
+  /* 卡片 05/06 的 chrome 走主题 token（不在滤镜内） */
+  html[data-theme="light"] .mk-cred .mk-chrome {
+    color: var(--mk-strong);
+    border-color: var(--mk-line-2);
+    background: var(--chrome-bg);
+  }
+
+  .mk-search-input {
+    min-width: 0; flex: 1;
+    border: 0; outline: 0;
+    background: transparent;
+    color: #ccc;
+    font-size: 10px;
+  }
+  .mk-search-input::placeholder { color: #5c5c5c; }
+  .mk-search:focus-within { border-color: #a85b10; }
+
+  .mk-tree-row .mk-eye {
+    border: 0; background: transparent;
+    padding: 0; color: #666;
+    font-size: 9px; cursor: pointer;
+    transition: color .15s ease;
+  }
+  .mk-tree-row .mk-eye:hover { color: #ddd; }
+  .mk-tree-row .mk-eye.off { color: #4a4a4a; }
+  .mk-tree-row.is-hidden span { opacity: .38; text-decoration: line-through; }
+  .mk-tree-row.is-hidden i, .mk-tree-row.is-hidden .mk-eye { opacity: .4; }
+
+  .mk-meta {
+    margin: 6px 5px 0;
+    padding: 6px 8px 0;
+    border-top: 1px solid #333;
+    color: #777; font-size: 9px;
+  }
+  .mk-meta b { color: #a9a9a9; font-weight: 500; }
+
+  .mk-outliner.collapsed .mk-tree-row { display: none; }
+  .mk-tree-root { cursor: pointer; }
+  .mk-tree-root span { transition: transform .2s ease; }
+  .mk-outliner.collapsed .mk-tree-root span { transform: rotate(-90deg); }
+
+  .mk-compose {
+    display: flex; gap: 6px;
+    padding: 8px 9px;
+    border-top: 1px solid #333;
+    background: #1f1f1f;
+  }
+  .mk-compose input {
+    min-width: 0; flex: 1;
+    border: 1px solid #3a3a3a; border-radius: 2px;
+    background: #161616; outline: 0;
+    padding: 4px 7px;
+    color: #ccc; font-size: 10px;
+  }
+  .mk-compose input:focus { border-color: #a85b10; }
+  .mk-compose input::placeholder { color: #5c5c5c; }
+  .mk-compose button {
+    border: 1px solid var(--accent-edge); border-radius: 2px;
+    background: var(--accent-well); color: var(--accent-warm);
+    font-size: 9px; padding: 0 9px; cursor: pointer;
+    transition: filter .15s ease;
+  }
+  .mk-compose button:hover { filter: brightness(1.25); }
+  .mk-review-item.is-new { animation: mkIn .4s cubic-bezier(.2, 1.2, .4, 1) backwards; }
+
+  .mk-cred-chips {
+    display: flex; align-items: center; gap: 5px;
+    padding: 7px 9px;
+    border-bottom: 1px solid var(--mk-line);
+    background: var(--mk-chips-bg, transparent);
+  }
+  .mk-chip {
+    border: 1px solid var(--mk-chip-border); border-radius: 2px;
+    background: transparent; color: var(--mk-chip-ink);
+    font-size: 9px; padding: 2px 8px; cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+  }
+  .mk-chip:hover { color: var(--mk-chip-ink-h); }
+  .mk-chip[aria-pressed="true"] {
+    border-color: var(--accent-edge);
+    background: var(--accent-well);
+    color: var(--accent-warm);
+  }
+  .mk-chip-sep { width: 1px; height: 12px; background: var(--mk-line-2); }
+
+  /* --- 凭证卡盖戳 --- */
+
+  .mk-cred-code { position: relative; }
+
+  .mk-cred.stamped .mk-cred-code::after {
+    content: "已复制";
+    position: absolute; right: 6px; top: 50%;
+    padding: 1px 6px;
+    border: 1px solid var(--stamp-border);
+    border-radius: 2px;
+    background: var(--stamp-bg);
+    color: var(--stamp-ink);
+    font-family: var(--mono);
+    font-size: 8px;
+    transform: translateY(-50%) rotate(-8deg);
+    animation: stampIn .38s cubic-bezier(.2, 1.4, .4, 1) backwards;
+  }
+
+  @keyframes stampIn {
+    from { transform: translateY(-50%) rotate(-14deg) scale(1.9); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card::before { display: none; }
+    .card__chrome::after { animation: none !important; }
+    .mk-cred.stamped .mk-cred-code::after { animation: none; }
+  }
+
+  /* ---------- Enter / exit choreography ----------
+     Hidden states are only applied under html.js and via classes the script
+     adds, so crawlers and no-JS visitors always get fully visible content. */
+
+  .js [data-anim] {
+    transition: opacity .58s ease, transform .58s cubic-bezier(.22, .86, .3, 1);
+    will-change: opacity, transform;
+  }
+
+  .js [data-anim].pre {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+
+  .js [data-anim].pre[data-exit="up"] { transform: translateY(-32px); }
+
+  .js [data-anim].in {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Inner blocks stagger in after the card itself lands. */
+  .js [data-anim]:not(.in) .reveal {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  .js [data-anim].in .reveal {
+    opacity: 1;
+    transform: none;
+    transition: opacity .55s ease-out, transform .55s cubic-bezier(.22, .86, .3, 1);
+    /* transition-delay is set per element by the script (stagger) */
+  }
+
+  /* Hero: one-shot load choreography, safe without JS. */
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(24px); }
+  }
+
+  .hero h1, .hero__lead, .hero__actions, .facts, .hero3d {
+    animation: rise .72s cubic-bezier(.22, .86, .3, 1) backwards;
+  }
+  .hero__lead { animation-delay: .1s; }
+  .hero__actions { animation-delay: .18s; }
+  .facts { animation-delay: .26s; }
+  .hero3d { animation-delay: .2s; }
+
+  /* ---------- v18：hero 状态 / 痛点翻面 / 流程动画 / mock 浏览器 / 条款弹窗 ---------- */
+
+  /* hero 状态切换 */
+  .hero3d__states {
+    position: absolute; right: 10px; top: 10px; z-index: 3;
+    display: flex; gap: 4px;
+  }
+  .hero3d__state {
+    border: 1px solid var(--mk-chip-border); border-radius: 2px;
+    background: var(--bar-bg); color: var(--mk-chip-ink);
+    font-size: var(--fs-micro); padding: 3px 8px; cursor: pointer;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .hero3d__state:hover { color: var(--ink-bright); }
+  .hero3d__state[aria-pressed="true"] {
+    border-color: var(--accent); color: var(--accent-warm);
+  }
+
+  /* 痛点卡翻面 */
+  .pain { position: relative; overflow: hidden; cursor: pointer; min-height: 168px; }
+  .pain__front { display: block; transition: opacity .3s ease, transform .3s ease; }
+  .pain__back {
+    position: absolute; inset: 0;
+    padding: 26px 24px;
+    background: linear-gradient(160deg, var(--card-grad-a), var(--card-grad-b));
+    opacity: 0; transform: translateY(14px);
+    transition: opacity .3s ease, transform .3s ease;
+    pointer-events: none;
+  }
+  .pain:hover .pain__front, .pain.flipped .pain__front,
+  .pain:focus-visible .pain__front { opacity: 0; transform: translateY(-8px); }
+  .pain:hover .pain__back, .pain.flipped .pain__back,
+  .pain:focus-visible .pain__back { opacity: 1; transform: none; }
+  .pain__back h3 { margin: 0 0 8px; color: var(--accent-warm); }
+  .pain__hint { margin: 14px 0 0; color: var(--faint); font-size: 11.5px; }
+  .pain__from b { color: var(--accent-warm); font-weight: 600; }
+
+  /* 边界流程动画：blend 被拒 / glb 通过 */
+  .crossing__flow {
+    position: relative; height: 40px; margin-top: 14px;
+    border: 1px dashed var(--border); border-radius: var(--radius);
+    background:
+      linear-gradient(to right, transparent 47%, var(--accent-well) 47%, var(--accent-well) 53%, transparent 53%),
+      var(--bg);
+    overflow: hidden;
+  }
+  .parcel {
+    position: absolute; top: 50%; left: 4%;
+    transform: translateY(-50%);
+    border: 1px solid var(--border-strong); border-radius: 2px;
+    background: var(--panel); color: var(--muted);
+    font-family: var(--mono); font-size: 9px;
+    padding: 2px 8px; white-space: nowrap;
+  }
+  .parcel--blend { animation: parcelRejected 5.2s ease-in-out infinite; }
+  .parcel--glb {
+    animation: parcelAccepted 5.2s ease-in-out 2.6s infinite;
+    opacity: 0;
+  }
+  @keyframes parcelRejected {
+    0%   { left: 4%; opacity: 0; }
+    8%   { left: 8%; opacity: 1; }
+    42%  { left: 43%; }
+    50%  { left: 45%; border-color: var(--accent); color: var(--accent-warm); }
+    54%  { left: 43%; }
+    90%  { left: 8%; opacity: 1; }
+    100% { left: 4%; opacity: 0; }
+  }
+  @keyframes parcelAccepted {
+    0%   { left: 55%; opacity: 0; }
+    10%  { left: 58%; opacity: 1; border-color: #79a95a; color: #79a95a; }
+    45%  { left: 90%; }
+    55%  { left: 92%; opacity: 0; }
+    100% { left: 92%; opacity: 0; }
+  }
+
+  /* mock 浏览器（读取分享卡） */
+  .mk-browser {
+    border: 1px solid var(--mk-chip-border); border-radius: 3px;
+    background: var(--stat-bg); overflow: hidden;
+  }
+  .mk-browser__bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px;
+    border-bottom: 1px solid var(--mk-line);
+    background: var(--mk-btn-bg);
+  }
+  .mk-browser__dots { display: inline-flex; gap: 4px; }
+  .mk-browser__dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--mk-chip-border); }
+  .mk-browser__url {
+    min-width: 0; flex: 1;
+    border: 1px solid var(--mk-line-2); border-radius: 2px;
+    background: var(--input); outline: 0;
+    padding: 4px 8px;
+    color: var(--ink); font-size: 10px;
+  }
+  .mk-browser__url:focus { border-color: #a85b10; }
+  .mk-browser__go {
+    border: 1px solid var(--accent-edge); border-radius: 2px;
+    background: var(--accent); color: #fff;
+    font-size: 9px; padding: 4px 10px; cursor: pointer;
+  }
+  .mk-browser__go:disabled { background: var(--mk-btn-bg); color: var(--mk-ink-dim); border-color: var(--mk-line-2); }
+  .mk-browser__page { min-height: 240px; }
+  .mk-browser__empty {
+    display: grid; justify-items: center; gap: 9px;
+    padding: 42px 16px;
+    color: var(--faint); font-size: 12px; text-align: center;
+  }
+  .mk-browser__empty b { color: var(--ink); font-size: 13px; }
+  .mk-browser__empty button {
+    border: 1px solid var(--accent-edge); border-radius: var(--radius);
+    background: var(--accent-well); color: var(--accent-warm);
+    font-size: 11px; padding: 7px 14px; cursor: pointer;
+    transition: filter .15s ease;
+  }
+  .mk-browser__empty button:hover { filter: brightness(1.1); }
+  .mk-browser__empty small { color: var(--faint); }
+  .mk-browser__view[hidden] { display: none; }
+  .mk-browser__pass {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--mk-line);
+    color: var(--mk-ink-dim); font-size: 10px;
+  }
+  .mk-browser__pass input {
+    border: 1px solid var(--mk-line-2); border-radius: 2px;
+    background: var(--input); color: var(--ink);
+    font-family: var(--mono); font-size: 10px;
+    padding: 2px 8px; width: 90px; text-align: center;
+  }
+  .mk-rx-model { position: relative; height: 220px; background: var(--view-g1); }
+  .mk-browser__status {
+    padding: 7px 10px;
+    border-top: 1px solid var(--mk-line);
+    color: var(--mk-ink-dim); font-size: 10px; min-height: 30px;
+  }
+  .mk-browser__status[data-kind="busy"] { color: var(--accent-warm); }
+  .mk-browser__status[data-kind="ok"] { color: #79a95a; }
+
+  /* 条款弹窗 */
+  .legal-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .legal-modal {
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: var(--panel); color: var(--ink);
+    width: min(92vw, 620px);
+    padding: 0;
+    box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .6);
+  }
+  .legal-modal::backdrop {
+    background: rgba(0, 0, 0, .55);
+    backdrop-filter: blur(3px);
+  }
+  .legal-modal__head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--chrome-bg);
+  }
+  .legal-modal__head b { color: var(--ink-bright); font-size: 15px; }
+  .legal-modal__close {
+    border: 1px solid var(--border-soft); border-radius: 2px;
+    background: transparent; color: var(--muted);
+    width: 26px; height: 26px; cursor: pointer; font-size: 11px;
+  }
+  .legal-modal__close:hover { color: var(--ink-bright); border-color: var(--border-strong); }
+  .legal-modal .legal__body { max-height: 62vh; overflow-y: auto; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .parcel--blend, .parcel--glb { animation: none; opacity: 0; }
+    .pain__front, .pain__back { transition: none; }
+    .mk-review-item.is-new { animation: none; }
+  }
+
+  /* ---------- Responsive ---------- */
+
+  @media (max-width: 1080px) {
+    .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 940px) {
+    .hero { padding: 50px 0 62px; }
+    .hero__grid { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+    .hero3d__view { height: 380px; }
+    .band { padding: 44px 0; }
+    .card__body { padding: 24px 22px 28px; }
+    .pains { grid-template-columns: minmax(0, 1fr); }
+    .crossing { grid-template-columns: minmax(0, 1fr); }
+    .gate {
+      flex-direction: row; width: auto; padding: 18px 0;
+      border-left: 0; border-right: 0;
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    .gate__line { width: auto; height: 1px; background: linear-gradient(to right, transparent, var(--blue), transparent); }
+    .legal-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  @media (max-width: 900px) {
+    .share-duo { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  @media (max-width: 760px) {
+    .mockup-duo { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  @media (max-width: 620px) {
+    .features { grid-template-columns: minmax(0, 1fr); }
+    .hero3d__view { height: 330px; }
+    .facts { gap: 20px; }
+    .stat dd { font-size: 19px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    body, .card, .stage, .stat, .side, .legal, .mockup { transition: none; }
+    .reveal, .btn, .pain, .feature, .legal > summary, .legal > summary::after,
+    .feature::before, .meter span,
+    .mk-tree-row, .mk-review-item, .mk-review-status,
+    .card, .js [data-anim] .reveal {
+      transition: none;
+    }
+    .reveal, .js [data-anim] .reveal { opacity: 1; transform: none; }
+    .hero h1, .hero__lead, .hero__actions, .facts, .hero3d { animation: none; }
+  }
+</style>
+</head>
+<body>
+<button type="button" id="theme-toggle" class="theme-toggle" aria-pressed="false" title="切换亮色 / 暗色模式">☀ 亮色</button>
+<main>
+
+  <!-- ===== Hero ===== -->
+  <section class="hero">
+    <div class="wrap hero__grid">
+      <div>
+        <p class="eyebrow">Blender 风格 3D 审稿</p>
+        <h1>原始工程，<br><em>不出本机</em>。</h1>
+        <p class="hero__lead">
+          <code>.blend</code> 由你本机的 Blender 转成 GLB，云端只接收裁剪后的模型与清单。
+          审稿的人打开一条链接就能查看、能在模型表面写批注——不需要安装 Blender。
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="https://blendproof.itycon.cn">打开线上站点</a>
+          <a class="btn" href="#boundary">看它怎么守住边界</a>
+        </div>
+        <ul class="facts">
+          <li><b>5 GiB</b>公益存储池</li>
+          <li><b>48 小时</b>自动清理</li>
+          <li><b>415</b>拒绝源文件</li>
+          <li><b>0 元</b>免费使用</li>
+        </ul>
+      </div>
+
+      <div>
+        <!-- Simplified 3D viewport. The static splash is the no-JS / reduced-motion
+             / WebGL-failure fallback and stays until the model is ready. -->
+        <figure class="hero3d" aria-label="演示视口：Suzanne 模型，可拖拽旋转">
+          <div class="hero3d__view" id="hero3d">
+            <div class="hero3d__fallback">
+              <img src="../public/blendproof-splash-v2.jpg" alt="BlendProof 审稿视口，展示可旋转的 3D 模型" width="1600" height="899">
+            </div>
+            <div class="hero3d__states" role="group" aria-label="演示状态">
+              <button type="button" class="hero3d__state" data-state="solid" aria-pressed="true">实体</button>
+              <button type="button" class="hero3d__state" data-state="review" aria-pressed="false">审稿中</button>
+              <button type="button" class="hero3d__state" data-state="resolved" aria-pressed="false">已批示</button>
+            </div>
+            <span class="hero3d__chip">Suzanne · 演示模型</span>
+            <p class="hero3d__hint">拖拽旋转 · 滚轮缩放</p>
+          </div>
+          <figcaption class="hero3d__status">
+            <span><span class="dot-live"></span>线上审稿视口即此观感 · <b>GLB 69.7 KB</b></span>
+            <span class="mono">WebGL</span>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Pain → outcome ===== -->
+  <section class="band">
+    <div class="wrap">
+      <div class="card" data-anim>
+        <div class="card__chrome"><span class="card__index">01</span><span class="card__name">为什么要有它</span><i class="card__tag">Pain → Outcome</i></div>
+        <div class="card__body">
+      <h2>把工程发出去审稿，本来不该这么别扭。</h2>
+      <p class="lead">
+        给客户或外包看一个模型，常见做法是把工程文件整个发过去，或者截一堆图来回传。
+        BlendProof 把审稿放进浏览器，同时把原始工程留在你自己的机器上。
+      </p>
+
+      <div class="pains reveal">
+        <div class="pain" tabindex="0" role="button" aria-label="悬停或回车查看解法">
+          <div class="pain__front">
+            <p class="pain__from"><span class="pain__num">01</span>旧做法</p>
+            <h3>对方得先装 Blender</h3>
+            <p>先甩一个 3 GB 的安装包过去，装完还可能因为版本不对打不开。</p>
+            <p class="pain__hint">悬停或回车，看 BlendProof 怎么解 →</p>
+          </div>
+          <div class="pain__back">
+            <p class="pain__from"><span class="pain__num">01</span><b>BlendProof</b></p>
+            <h3>一条链接就能看</h3>
+            <p>审稿者浏览器打开 <code>/s/suzanne</code>，模型、相机角度、显示模式按发送方保存的状态还原。</p>
+          </div>
+        </div>
+        <div class="pain" tabindex="0" role="button" aria-label="悬停或回车查看解法">
+          <div class="pain__front">
+            <p class="pain__from"><span class="pain__num">02</span>旧做法</p>
+            <h3>工程文件整个外发</h3>
+            <p>未发布的资产、贴图、路径全都在里面，发出去就收不回来。</p>
+            <p class="pain__hint">悬停或回车，看 BlendProof 怎么解 →</p>
+          </div>
+          <div class="pain__back">
+            <p class="pain__from"><span class="pain__num">02</span><b>BlendProof</b></p>
+            <h3>只发出裁剪后的模型</h3>
+            <p>原始 <code>.blend</code> 只交给本机的转换进程，云端拿到的是 GLB、去敏后的清单和可选缩略图。</p>
+          </div>
+        </div>
+        <div class="pain" tabindex="0" role="button" aria-label="悬停或回车查看解法">
+          <div class="pain__front">
+            <p class="pain__from"><span class="pain__num">03</span>旧做法</p>
+            <h3>截图来回传，说不清位置</h3>
+            <p>"左上角那个球再大一点"——是哪个球？哪张图？</p>
+            <p class="pain__hint">悬停或回车，看 BlendProof 怎么解 →</p>
+          </div>
+          <div class="pain__back">
+            <p class="pain__from"><span class="pain__num">03</span><b>BlendProof</b></p>
+            <h3>直接在模型上标</h3>
+            <p>批注锚定在模型表面并编号，带稳定的相机状态，对方点开就能回到你当时看的那一面。</p>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- ===== Boundary ===== -->
+  <section class="band band--deep" id="boundary">
+    <div class="wrap">
+      <div class="card" data-anim>
+        <div class="card__chrome"><span class="card__index">02</span><span class="card__name">信任边界</span><i class="card__tag">415 · Hard Gate</i></div>
+        <div class="card__body">
+      <h2>一道真实的边界，不是一句承诺。</h2>
+      <p class="lead">
+        想把 <code>.blend</code> 原件直接传给云端？服务器在门口就把它拒收了。
+        这条规则不是写在承诺里，而是写死在代码里——想绕也绕不过去。
+      </p>
+
+      <div class="crossing reveal">
+        <div class="side side--local">
+          <p class="side__label">本机 · 你掌控</p>
+          <h3>原始工程留在这里</h3>
+          <ul>
+            <li><code>.blend</code> 只发往 loopback 转换进程</li>
+            <li>由本机 Blender 后台导出 GLB 与清单</li>
+            <li>本地路径：<code>storage/projects/&lt;id&gt;/</code></li>
+          </ul>
+        </div>
+
+        <div class="gate">
+          <div class="gate__line"></div>
+          <div class="gate__badge">415</div>
+          <p class="gate__code">.blend<br>拒绝</p>
+          <div class="gate__line"></div>
+        </div>
+
+        <div class="side side--cloud">
+          <p class="side__label">云端 · 受控</p>
+          <h3>只放得下的东西</h3>
+          <ul>
+            <li><code>model.glb</code> 审核通过的模型</li>
+            <li><code>manifest.json</code> 去敏后的清单</li>
+            <li>可选 <code>thumbnail.webp</code> 缩略图</li>
+            <li>到期由定时任务按精确 key 清理</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="crossing__flow reveal" aria-hidden="true">
+        <span class="parcel parcel--blend">scene.blend</span>
+        <span class="parcel parcel--glb">model.glb</span>
+      </div>
+
+      <figure class="mockup mk-upload reveal" style="margin-top:14px">
+        <div class="mk-chrome"><span>上传工作台</span><i>本机 Blender 后台转换</i></div>
+        <div class="mk-uploader">
+          <button type="button" class="mk-dropzone" id="mk-dropzone">
+            <b>⇪</b>
+            <strong>点击选择 .blend 文件，立即开始本机转换</strong>
+            <small>仅接受 .blend · 文件不会上传</small>
+          </button>
+          <div class="mk-file" id="mk-file" hidden>
+            <i>▣</i>
+            <div><strong>creature_v03.blend</strong><small>12.4 MB · 场景 Scene · 7 个对象</small></div>
+            <button type="button" id="mk-remove" aria-label="移除文件">✕</button>
+          </div>
+          <button type="button" class="mk-convert" id="mk-convert" disabled>由本机 Blender 转换</button>
+          <ol class="mk-progress" id="mk-progress">
+            <li class="mk-step" data-step="convert"><i></i><div><b>本机转换</b><small>Blender 后台导出 GLB 与清单</small></div></li>
+            <li class="mk-step" data-step="upload"><i></i><div><b>上传派生资产</b><small>model.glb + manifest.json · 69.7 KB</small></div></li>
+            <li class="mk-step" data-step="publish"><i></i><div><b>发布审稿</b><small>生成分享凭证</small></div></li>
+          </ol>
+        </div>
+        <figcaption><b>产品内的上传工作台。</b>整个流程里 scene.blend 从未离开你的机器——上传的是本机 Blender 导出的派生资产，源文件只在本地被读取。</figcaption>
+      </figure>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- ===== Share: sender + receiver (two independent cards) ===== -->
+  <section class="band">
+    <div class="wrap share-duo">
+
+      <div class="card" data-anim id="mk-sender-card">
+        <div class="card__chrome"><span class="card__index">03</span><span class="card__name">发出分享</span><i class="card__tag">Sender Credential</i></div>
+        <div class="card__body">
+          <h2>配置一张审稿凭证。</h2>
+          <p class="lead" style="margin-bottom:24px">权限、有效期、密码都在发送方手里定好；发出之后随时可以撤销。</p>
+          <div class="mk-cred">
+            <div class="mk-cred-chips">
+              <button type="button" class="mk-chip" data-k="perm" aria-pressed="true">可评论</button>
+              <button type="button" class="mk-chip" data-k="perm" aria-pressed="false">只读</button>
+              <span class="mk-chip-sep"></span>
+              <button type="button" class="mk-chip" data-k="exp" aria-pressed="true">24h</button>
+              <button type="button" class="mk-chip" data-k="exp" aria-pressed="false">48h</button>
+              <span class="mk-chip-sep"></span>
+              <button type="button" class="mk-chip" data-k="pwd" aria-pressed="true">密码</button>
+            </div>
+            <div class="mk-cred-code">/s/suzanne</div>
+            <dl>
+              <div><dt>权限</dt><dd id="mk-dd-perm">可评论</dd></div>
+              <div><dt>到期</dt><dd id="mk-dd-exp">24 小时后</dd></div>
+              <div><dt>密码</dt><dd id="mk-dd-pwd">已设置</dd></div>
+            </dl>
+            <div class="mk-cred-actions">
+              <button type="button" id="mk-copy">复制链接</button>
+              <a href="https://blendproof.itycon.cn/s/suzanne" target="_blank" rel="noreferrer">打开检查</a>
+            </div>
+          </div>
+          <p class="card__note">chips 切换会实时改写明细，并同步到右边接收方的通行证。码框里的 <code>/s/suzanne</code> 是<b>真实可开</b>的公开演示（口令 <code>tycon</code>），现在就能在别的电脑上验证。</p>
+        </div>
+      </div>
+
+      <div class="card" data-anim id="mk-receiver-card">
+        <div class="card__chrome"><span class="card__index">04</span><span class="card__name">读取分享</span><i class="card__tag">Receiver Pass</i></div>
+        <div class="card__body">
+          <h2>对方打开链接，看到的是这个。</h2>
+          <p class="lead" style="margin-bottom:24px">这就是审稿者的浏览器：输入链接、通过口令，模型就载入了——复用的正是上方那只猴头。</p>
+          <div class="mk-browser">
+            <div class="mk-browser__bar">
+              <span class="mk-browser__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <input type="text" id="mk-browser-url" class="mk-browser__url" placeholder="输入分享链接，如 blendproof.itycon.cn/s/suzanne" aria-label="分享链接">
+              <button type="button" id="mk-browser-go" class="mk-browser__go">前往</button>
+            </div>
+            <div class="mk-browser__page">
+              <div class="mk-browser__empty" id="mk-browser-empty">
+                <b>输入分享链接，或</b>
+                <button type="button" id="mk-browser-fill">填入演示链接 /s/suzanne</button>
+                <small>打开后会自动通过口令并载入模型</small>
+              </div>
+              <div class="mk-browser__view" id="mk-browser-view" hidden>
+                <div class="mk-browser__pass">
+                  <span>口令已自动填充</span>
+                  <input type="password" id="mk-browser-pwd" readonly aria-label="口令">
+                </div>
+                <div class="mk-rx-model" id="mk-rx-model"></div>
+                <div class="mk-browser__status" id="mk-browser-status" role="status"></div>
+              </div>
+            </div>
+          </div>
+          <p class="card__note">试试点「填入演示链接」——口令自动通过，模型载入。左边改权限，这张通行证的明细会跟着变。</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== Features ===== -->
+  <section class="band">
+    <div class="wrap">
+      <div class="card" data-anim>
+        <div class="card__chrome"><span class="card__index">05</span><span class="card__name">能力</span><i class="card__tag">Feature Matrix</i></div>
+        <div class="card__body">
+          <h2>一个能真正干活的审稿台。</h2>
+          <p class="lead">
+            下面这些不是功能清单，是你实际会做的事——全部在浏览器里完成，不需要装任何东西。
+            操作方式以 Blender 为基线，你的手不用换一套肌肉记忆。
+          </p>
+
+          <div class="mockup-duo reveal">
+            <figure class="mockup">
+              <div class="mk-chrome"><span>Outliner</span><i>场景集合</i></div>
+              <div class="mk-outliner" id="mk-outliner">
+                <label class="mk-search">⌕<input type="text" class="mk-search-input" placeholder="搜索对象" aria-label="搜索场景对象"></label>
+                <div class="mk-tree-root" id="mk-tree-root" role="treeitem" aria-expanded="true"><span>⌄</span><strong>Scene Collection</strong></div>
+                <div class="mk-tree-row selected" data-name="Monkey_Head" data-meta="MESH · 4,832 verts" role="treeitem" aria-selected="true"><i>▣</i><span>Monkey_Head</span><button type="button" class="mk-eye" aria-label="隐藏 Monkey_Head">◉</button></div>
+                <div class="mk-tree-row" data-name="Eyes" data-meta="MESH · 640 verts" role="treeitem" aria-selected="false"><i>▣</i><span>Eyes</span><button type="button" class="mk-eye" aria-label="隐藏 Eyes">◉</button></div>
+                <div class="mk-tree-row" data-name="Ground_Plane" data-meta="PLANE · 4 verts" role="treeitem" aria-selected="false"><i>▣</i><span>Ground_Plane</span><button type="button" class="mk-eye" aria-label="隐藏 Ground_Plane">◉</button></div>
+                <div class="mk-tree-row" data-name="Key_Light" data-meta="POINT · 800 W" role="treeitem" aria-selected="false"><i>✦</i><span>Key_Light</span><button type="button" class="mk-eye" aria-label="隐藏 Key_Light">◉</button></div>
+                <div class="mk-tree-row" data-name="Camera_Front" data-meta="CAMERA · 50 mm" role="treeitem" aria-selected="false"><i>◎</i><span>Camera_Front</span><button type="button" class="mk-eye" aria-label="隐藏 Camera_Front">◉</button></div>
+                <div class="mk-tree-row" data-name="Review_Marker_03" data-meta="EMPTY · 批注锚点" role="treeitem" aria-selected="false"><i>◈</i><span>Review_Marker_03</span><button type="button" class="mk-eye off" aria-label="显示 Review_Marker_03">◌</button></div>
+                <div class="mk-tree-row" data-name="Review_Marker_07" data-meta="EMPTY · 批注锚点" role="treeitem" aria-selected="false"><i>◈</i><span>Review_Marker_07</span><button type="button" class="mk-eye" aria-label="隐藏 Review_Marker_07">◉</button></div>
+                <p class="mk-meta">已选择 <b id="mk-meta-name">Monkey_Head</b> · <span id="mk-meta-info">MESH · 4,832 verts</span></p>
+              </div>
+              <figcaption><b>产品内的 Outliner。</b>行选中即 Blender 的 #2f5582 蓝，眼睛列可隐藏对象，小键盘 . 聚焦选中。</figcaption>
+            </figure>
+
+            <figure class="mockup">
+              <div class="mk-chrome"><span>批注</span><i id="mk-review-count">3 open · 1 resolved</i></div>
+              <div class="mk-review" id="mk-review">
+                <div class="mk-review-item selected"><i>1</i><div><strong>耳根布线太硬，减两段再发</strong><small>Monkey_Head · 王工</small></div><button type="button" class="mk-review-status">解决</button></div>
+                <div class="mk-review-item"><i>2</i><div><strong>眼睛材质换成 3 号灰模</strong><small>Eyes · 李监制</small></div><button type="button" class="mk-review-status">解决</button></div>
+                <div class="mk-review-item"><i>3</i><div><strong>地面反光强度偏高</strong><small>Ground_Plane · 王工</small></div><button type="button" class="mk-review-status">解决</button></div>
+                <div class="mk-review-item"><i class="resolved">6</i><div><strong>主光角度已按 01 号批注调整 ✓</strong><small>Key_Light · 阿烟</small></div><button type="button" class="mk-review-status">重开</button></div>
+              </div>
+              <div class="mk-compose">
+                <input type="text" id="mk-compose-input" placeholder="在模型表面写一条批注…" maxlength="40" aria-label="新建批注">
+                <button type="button" id="mk-compose-add">添加</button>
+              </div>
+              <figcaption><b>产品内的批注列表。</b>橙色序号锚定模型表面点，点开即回到发送方当时的相机视角。</figcaption>
+            </figure>
+          </div>
+
+          <div class="features reveal">
+            <div class="feature">
+              <div class="feature__icon">◑</div>
+              <h3>像操作 Blender 一样操作</h3>
+              <p>中键旋转、Shift+中键平移、滚轮缩放——你在 Blender 里练出的手感原样保留，不用重新学。</p>
+              <ul>
+                <li>线框 / 灰模 / 材质显示模式</li>
+                <li>文件相机与 1 / 3 / 7 / 0 预设视角</li>
+                <li>透视与正交投影切换</li>
+              </ul>
+            </div>
+
+            <div class="feature">
+              <div class="feature__icon">▤</div>
+              <h3>把场景结构随身带走</h3>
+              <p>Outliner 对象树照 Blender 的习惯组织，按名称或类型搜索，键盘就能选择并聚焦。</p>
+              <ul>
+                <li>小键盘 <code>.</code> 聚焦选中对象</li>
+                <li>网格与坐标轴叠加层开关</li>
+                <li>面板分隔条可拖拽调整</li>
+              </ul>
+            </div>
+
+            <div class="feature">
+              <div class="feature__icon">✎</div>
+              <h3>批注直接钉在模型上</h3>
+              <p>点哪儿标哪儿，编号和相机状态一起存下来；对方点开批注，就站在你当时的视角。</p>
+              <ul>
+                <li>点击模型表面落点标注</li>
+                <li>点开即回到当时视角</li>
+                <li>open / resolved 轻量闭环</li>
+              </ul>
+            </div>
+
+            <div class="feature">
+              <div class="feature__icon">⌘</div>
+              <h3>分享的规矩你定</h3>
+              <p>每条分享单独设权限与有效期，可选密码；发出去的链接随时可以撤销。</p>
+              <ul>
+                <li>只读或可评论两种权限</li>
+                <li>可选访问密码</li>
+                <li>随时撤销，到期自动失效</li>
+              </ul>
+            </div>
+
+            <div class="feature">
+              <div class="feature__icon">◈</div>
+              <h3>空间用量一目了然</h3>
+              <p>邀请码注册后，自己的项目、有效分享和占用空间都在一个页面看得清清楚楚。</p>
+              <ul>
+                <li>角色只有 admin 与 user</li>
+                <li>个人空间占用统计</li>
+                <li>邀请码可撤销、可限次</li>
+              </ul>
+            </div>
+
+            <div class="feature">
+              <div class="feature__icon">▦</div>
+              <h3>管理后台心里有底</h3>
+              <p>成员用量、邀请码发放、容量与保留期阈值——全部可见可控，且有硬上限兜底。</p>
+              <ul>
+                <li>成员用量查看与停用</li>
+                <li>邀请码创建、限次与撤销</li>
+                <li>5 GiB / 48 小时内调整阈值</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Public good ===== -->
+  <section class="band band--deep">
+    <div class="wrap">
+      <div class="card" data-anim>
+        <div class="card__chrome"><span class="card__index">06</span><span class="card__name">公益性质</span><i class="card__tag">Public Pool · 5 GiB</i></div>
+        <div class="card__body">
+          <h2>一个不打算收费的存储池。</h2>
+          <p class="lead" style="margin-bottom:0">
+            BlendProof 更像一个<b>审稿件的临时快递柜</b>：包裹只在转运期间被持有，到期自动清空，
+            全程无人开箱查看。它目前是个人维护的公益项目，不做付费档位，也不靠留存用户数据运营。
+          </p>
+
+          <ul class="points reveal">
+            <li><b>免费使用。</b>注册与审稿都不收费，也没有付费解锁的功能。</li>
+            <li><b>5 GiB 共享容量。</b>所有用户共用一个总量上限，用完即止，不超额透支。</li>
+            <li><b>到期自动清理。</b>项目最长保留 48 小时，分享默认 24 小时，每小时定时任务按精确 key 删除。</li>
+            <li><b>上限优先于便利。</b>容量与保留期被硬约束保护，管理员只能在 5 GiB / 48 小时内调低，不能调高。</li>
+            <li><b>邀请码注册。</b>不开放自由注册，是为了让容量和清理节奏可控——这是公益池能长期跑下去的前提。</li>
+            <li><b>不看你的内容。</b>服务端只转发派生资产，没有人工查看环节；日志只记操作，不看模型。</li>
+            <li><b>开源，可自行部署。</b>不放心公益池？<a href="https://github.com/yancongya/BlendProof">代码全部公开</a>，可以自己搭一套一模一样的。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== Live status ===== -->
+  <section class="band">
+    <div class="wrap">
+      <div class="card" data-anim>
+        <div class="card__chrome"><span class="card__index">07</span><span class="card__name">运行状态</span><i class="card__tag">Live · /api/public/stats</i></div>
+        <div class="card__body">
+      <h2>平台此刻的真实状态。</h2>
+      <p class="lead">
+        以下数据直接来自生产接口 <code>/api/public/stats</code>，随页面加载实时读取，不做缓存包装。
+        项目刚上线，累计用量从零开始增长。
+      </p>
+
+      <dl class="live">
+        <div class="stat">
+          <dt>服务状态</dt>
+          <dd data-stat="health">检测中<small>读取 /api/health</small></dd>
+        </div>
+        <div class="stat">
+          <dt>已运行</dt>
+          <dd data-stat="uptime">—<small>自 2026-09-12 上线</small></dd>
+        </div>
+        <div class="stat">
+          <dt>公益池</dt>
+          <dd data-stat="capacity">5 GiB<small>共享容量上限</small></dd>
+          <div class="meter"><span data-stat="meter"></span></div>
+        </div>
+        <div class="stat">
+          <dt>当前项目</dt>
+          <dd data-stat="projects">—<small>— 条活跃分享</small></dd>
+        </div>
+        <div class="stat">
+          <dt>累计处理</dt>
+          <dd data-stat="processed">—<small>—</small></dd>
+        </div>
+        <div class="stat">
+          <dt>已清理</dt>
+          <dd data-stat="cleaned">—<small>到期资产自动删除</small></dd>
+        </div>
+      </dl>
+
+      <p class="live__note" data-stat="note" role="status">正在读取实时数据……</p>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- ===== Legal ===== -->
+  <section class="band band--deep">
+    <div class="wrap">
+      <div class="card" data-anim>
+        <div class="card__chrome"><span class="card__index">08</span><span class="card__name">隐私与条款</span><i class="card__tag">Legal</i></div>
+        <div class="card__body">
+      <h2>数据处理范围与使用约定。</h2>
+      <p class="lead">以下内容与线上站点中的协议文本一致。展开可查看完整条款。</p>
+
+      <div class="legal-actions reveal">
+        <button type="button" class="btn" data-legal-open="legal-privacy">查看隐私政策</button>
+        <button type="button" class="btn" data-legal-open="legal-terms">查看服务条款</button>
+      </div>
+
+      <div class="legal-modals">
+        <dialog class="legal-modal" id="legal-privacy">
+          <header class="legal-modal__head">
+            <b>隐私政策</b>
+            <button type="button" class="legal-modal__close" aria-label="关闭">✕</button>
+          </header>
+          <div class="legal__body">
+            <h4>数据处理范围</h4>
+            <p>原始 <code>.blend</code> 文件仅在您的本机 Blender bridge 中读取和转换，不会上传至 BlendProof 云端。您确认发布后，云端仅保存用于审阅的轻量 GLB、裁剪后的 manifest、可选缩略图、分享设置和批注。</p>
+            <h4>账号与日志</h4>
+            <p>邀请码注册会处理邮箱、显示名称、账号角色、会话与邀请码使用记录。为保障安全、容量控制和故障排查，服务会保留必要的访问、发布、分享和清理日志。</p>
+            <h4>保留与删除</h4>
+            <p>普通审阅资产默认建议在 24 小时内使用，最长保留时间受平台配置限制（默认不超过 48 小时），到期后自动清理。管理员维护的公开演示模型不适用该临时保留规则。</p>
+            <h4>联系</h4>
+            <p>如需隐私相关协助，请联系 <a href="mailto:admin@itycon.cn">admin@itycon.cn</a>。</p>
+            <p class="legal__date">生效日期：2026 年 9 月 12 日</p>
+          </div>
+        </dialog>
+
+        <dialog class="legal-modal" id="legal-terms">
+          <header class="legal-modal__head">
+            <b>服务条款</b>
+            <button type="button" class="legal-modal__close" aria-label="关闭">✕</button>
+          </header>
+          <div class="legal__body">
+            <h4>服务定位</h4>
+            <p>BlendProof 是轻量 3D 审阅工具，不替代 Blender、专业归档、备份或法律存证服务。分享访问者应依分享人设置的权限使用审阅内容。</p>
+            <h4>允许与禁止</h4>
+            <p>您须确保拥有上传、转换、发布和分享内容的必要权利。严禁上传或传播色情、暴力、恐怖主义、违法、侵权、恶意程序或其他可能危害他人的文件与内容。</p>
+            <h4>账号与邀请码</h4>
+            <p>注册仅可使用管理员发放的邀请码。您应妥善保管账号和分享密码；管理员可基于安全、容量或违规情况撤销邀请码、停用账号或清理相关审阅资产。</p>
+            <h4>免责声明</h4>
+            <p>用户提交、评论和分享的内容仅代表其作者，不代表 BlendProof 立场。平台在法律允许的范围内按现状提供服务，不保证临时审阅资产的永久保存或所有格式的转换结果。</p>
+            <p class="legal__date">生效日期：2026 年 9 月 12 日</p>
+          </div>
+        </dialog>
+      </div>
+
+      <p class="notice">
+        禁止上传色情、暴力、恐怖主义、违法或侵犯他人权益的文件与内容。
+        用户提交内容仅代表其作者，不代表 BlendProof 立场。
+      </p>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <p>BlendProof · 浏览器里的 Blender 风格 3D 审稿工具。当前仅支持 macOS。</p>
+      <p>这是一个个人维护的公益项目，按现状提供服务。联系：<a href="mailto:admin@itycon.cn">admin@itycon.cn</a></p>
+      <p class="mono">源码：<a href="https://github.com/yancongya/BlendProof">github.com/yancongya/BlendProof</a></p>
+      <p class="mono">© 2026 BlendProof. All rights reserved.</p>
+    </div>
+  </footer>
+
+</main>
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

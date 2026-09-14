@@ -461,6 +461,20 @@
 
 **资产单一真源**：复用主仓库的 `public/default-monkey.glb`，构建时复制到 `dist/landing/assets/`，不手工维护第二份。
 
+**首屏图片优化（已实施）**：`public/blendproof-splash-v1.png` 原为 1672×940 PNG、**1789 KB**，是首屏最重的资源；而且**产品自己的启动封面（`src/overrides.css` 的 `.start-splash`）也在用它**，所以这是一处产品与落地页共同承担的负担。实测该图 `hasAlpha: no`，转 JPEG 安全。已生成 `public/blendproof-splash-v2.jpg` 并切换两处引用。
+
+| 方案 | 体积 | 说明 |
+|---|---|---|
+| 原 PNG 1672×940 | 1789 KB | 基线 |
+| **JPEG 1600 宽 q85（采用）** | **275.66 KB** | 缩小 84.6%，全屏背景质量足够 |
+| JPEG 1400 宽 q85 | 221 KB | 更省，大屏背景略糊 |
+| JPEG 1200 宽 q82 | 140 KB | 只够落地页视口，不够全屏 |
+
+工具用 macOS 自带的 `sips`——项目本身仅支持 macOS，不引入新依赖。
+
+**首屏资源清单（优化后）**：`index.html` 37.7 KB（gzip 11 KB）+ `app.js` 1154 KB（gzip 322 KB）+ `splash-v2.jpg` 275.7 KB + `default-monkey.glb` 69.7 KB。其中 `app.js` 已是最大项，若要继续减重，下一步是把 R3F 拆成动态 `import()`，让首屏先只加载 HTML 与图片、空闲时再拉 3D。
+
+
 ### 已知工程坑（来自 skill 实战经验）
 
 - **`.blend` 被挡回**若做成可重试，必须用独立 generation counter 判断存活，不能复用步数计数器——否则多步演示会在第一步后自我取消。
@@ -525,6 +539,12 @@ S5、S6 需登录。**登录仅在当次会话内进行，凭据不落盘、不�
 |---|---|---|
 | 生产 Worker | `https://blendproof.itycon.cn/landing/` | **主入口**。已有用户与访客从站内进入，同源、无跳转；同时是 SEO 正本 |
 | GitHub Pages | `https://yancongya.github.io/BlendProof/` | 镜像与对外分发，独立于生产基础设施 |
+
+**优先级：CF 优先，Pages 次要。** 老板明确要求在两者之间取舍时，以生产 Worker 的 `/landing/` 显示效果为准。由此产生三条实际影响：
+
+1. **实时运行状态可以正常读取。** CF 下落地页与 `/api/public/stats` 同源，不受跨域限制；GitHub Pages 那份跨域会被拦截，降级提示即可，不必为它改生产接口。
+2. **`canonical` 指向 CF**，Pages 作为镜像存在。
+3. **相对路径方案对两者都成立**（都在子路径下），所以这个优先级不带来额外成本。
 
 **不使用独立子域。** 老板决定改用主域下的路径，好处是不多占 DNS 记录、不必配 CNAME 与证书，也避开 Cloudflare 代理与 GitHub 自定义域校验的冲突。代价见 8.2。
 
@@ -592,7 +612,22 @@ curl -s https://blendproof.itycon.cn/landing/ | grep -c '<落地页特征串>'
 curl -s -o /dev/null -w "%{http_code}\n" https://blendproof.itycon.cn/landing/app.js
 ```
 
-若第 2 条命中的是应用特征串，说明被 fallback 吃掉，改为在 `worker/index.ts` 里显式处理 `/landing`。
+**已在 `wrangler dev --local`（真 Miniflare，与 CF 同源行为）中实测通过**，结论如下：
+
+| 检查 | 结果 |
+|---|---|
+| `/`（应用首页） | 200 |
+| `/landing/` | 200 |
+| `/landing`（无尾斜杠） | 200，自动跳转到 `/landing/` |
+| `/landing/` 返回内容 | 落地页特征串命中 5 处、7 处；**应用特征 `id="root"` 命中 0 处** |
+| `./app.js`、`./assets/default-monkey.glb` | 均 200 |
+
+**结论：`not_found_handling: "single-page-application"` 不会吃掉真实存在的 `/landing/index.html`。** 这条原本标为"必须实测、不能假设"的风险已关闭，无需在 `worker/index.ts` 里做显式处理。
+
+> 验证必须用 `wrangler dev`，不能用 `python -m http.server`。后者也会补尾斜杠，但它的路由行为与 Workers 静态资源不同，证明不了 CF 上的表现。
+
+**缓存策略（同样已实测）**：Workers 静态资源对 HTML、JS、图片一律返回 `Cache-Control: public, max-age=0, must-revalidate` + `ETag`。这意味着**固定文件名 `app.js` 是安全的**——每次请求都带 `ETag` 回源验证，未改动返回 304，改动则立即拿到新版，不存在"用户停在旧 JS"的风险。因此**不需要**改用具哈希的文件名，也**不需要**手动 bump 查询串。
+
 
 
 ### 8.4 GitHub Pages 部署

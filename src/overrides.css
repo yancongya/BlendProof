@@ -1177,7 +1177,7 @@
 .start-splash {
   position: relative;
   height: clamp(250px, 40vh, 370px);
-  background-image: linear-gradient(180deg, #06101b0d 35%, #0b101ad9 100%), url('/blendproof-splash-v1.png');
+  background-image: linear-gradient(180deg, #06101b0d 35%, #0b101ad9 100%), url('/blendproof-splash-v2.jpg');
   background-position: center;
   background-size: cover;
 }
