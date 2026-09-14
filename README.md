@@ -5,7 +5,7 @@
   <img src="public/blendproof-splash-v1.png" alt="BlendProof" width="640">
   <h3 align="center">BlendProof</h3>
   <p align="center">
-    Blender-grade 3D review in the browser — the original .blend never leaves your machine.
+    A focused Blender-style 3D review desk — convert locally, then share a lightweight web asset.
     <br />
     <a href="https://blendproof.itycon.cn"><strong>Open the live site »</strong></a>
     ·
@@ -46,11 +46,11 @@
 
 ## About
 
-BlendProof is a web 3D review tool with a Blender-style shell. A `.blend` file is converted to GLB by a Blender process on your own machine; only the trimmed `model.glb`, a cropped `manifest.json`, and an optional `thumbnail.webp` are ever allowed to reach the cloud. Reviewers open a link, inspect the model in the same viewer the uploader used, and annotate directly on surfaces.
+BlendProof is a focused web 3D review desk with a Blender-style shell. The browser first attempts local conversion for a supported static `.blend` subset; unsupported files fall back to a local Blender bridge. Only derived `model.glb`, an allowlisted `manifest.json`, and an optional `thumbnail.webp` are published to the cloud.
 
 **Why:**
 
-- **The source never leaves your machine.** `.blend` files only go to a loopback bridge. The Worker rejects them with HTTP 415 — this is enforced in code, not by convention.
+- **The source never reaches the cloud.** Browser conversion keeps `.blend` in the page; fallback conversion keeps it on the user's machine. The Worker rejects `.blend` bodies with HTTP 415.
 - **Reviewers do not need Blender.** A single link opens the model with camera state, display mode, and hidden objects restored from the URL fragment.
 - **No infrastructure bill.** Cloudflare Workers, D1, and private R2 back a 5 GiB public pool with automatic 48-hour cleanup.
 
@@ -68,8 +68,17 @@ Product and account conventions — home page layout, roles, invite codes, and r
 - **Controlled sharing** — `/s/<token>` with read-only or comment permission, optional password, expiry, and revocation. `#view=...` restores the sender's camera, display mode, hidden objects, and selection.
 - **Accounts** — invite-code registration, `admin` / `user` roles, and per-user space accounting.
 - **Admin console** — member usage and deactivation, invite creation/revocation, and platform thresholds inside the 5 GiB / 48-hour ceilings.
-- **Platform status** — persisted uptime, cumulative files/bytes processed, and cleanup counters, refreshed live on the home page.
+- **Review notifications** — the project owner polls for new comments every 15 seconds and sees an in-app unread notice without adding a second realtime service.
+- **Platform status** — persisted uptime, cumulative files/bytes processed, and cleanup counters, refreshed on the home page.
 - **Permanent demo** — `/s/suzanne` serves a read-only example model with the public demo passphrase `tycon`; it counts against no quota and is exempt from cleanup.
+
+Browser-side `.blend` conversion is currently an experimental adapter for static meshes, basic materials, cameras, and scene metadata. Complex files continue to use the local Blender bridge as the compatibility fallback.
+
+### Browser conversion scope and limits
+
+The no-install path supports static Mesh objects, names and transforms, Scene/Collection metadata, UVs, basic Principled material values, file cameras, and evaluated Mirror/Array modifiers. It exports a GLB and manifest for the existing viewer and cloud publishing flow.
+
+It does not reproduce Blender itself: animation playback, armatures, physics, particles, fluids, cloth, simulations, arbitrary Geometry Nodes, compositor/world nodes, plugin data, linked libraries, and pixel-identical Cycles/Eevee rendering are outside this path. Legacy or untested Blender versions may fall back to the local bridge.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -135,9 +144,9 @@ BLENDER_BIN="/Applications/Blender.app/Contents/MacOS/Blender" npm run dev:serve
 ## Usage
 
 1. Start the dev server and open `http://localhost:5173`.
-2. Select a `.blend` file. The bridge converts it in the background; the browser loads the resulting GLB.
-3. Inspect the model — orbit, isolate objects, switch camera and display mode.
-4. Add review comments on the model surface, then resolve or reopen them.
+2. Open the upload workspace from the File menu and select a `.blend` file. The browser attempts local conversion first; unsupported files fall back to the local Blender bridge.
+3. Inspect the model — orbit, pan, isolate objects, switch camera and display mode.
+4. Enter annotation mode, click a model surface, and save a review comment. The owner can resolve or reopen it; new comments are surfaced by the in-app notification badge.
 5. Create a share, copy the link, and open it in a second browser to verify read-only or comment access.
 
 To generate a dependency-free scene for testing (two meshes, ground, light, camera — no Geometry Nodes):

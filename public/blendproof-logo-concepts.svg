@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900" role="img" aria-labelledby="title desc">
+<title id="title">BlendProof logo concept grid</title><desc id="desc">Nine orange Blender-inspired logo directions on a charcoal board.</desc>
+<rect width="900" height="900" fill="#17191c"/><g stroke="#34383d" fill="none"><path d="M300 0v900M600 0v900M0 300h900M0 600h900"/></g>
+<g fill="#f07d16" stroke="#f07d16" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+ <g transform="translate(150 150)"><circle r="76" stroke-width="18"/><path d="M-58 12c48-84 130-54 116 22-12 66-92 72-126 24" fill="none"/><circle r="16" fill="#f4eee7" stroke="none"/></g>
+ <g transform="translate(450 150)"><path d="M-74-66h52l72 66-72 66h-52l72-66z" fill="none"/><path d="M-74-66v132" fill="none"/></g>
+ <g transform="translate(750 150)"><circle r="74" fill="none"/><path d="M-47 5l30 31 66-76" fill="none" stroke="#f4eee7" stroke-width="18"/><circle r="14" fill="#f4eee7" stroke="none"/></g>
+ <g transform="translate(150 450)"><path d="M-64-36 0-74 64-36v72L0 74l-64-38z" fill="none"/><path d="M0-74v72m-64-34 64 34 64-34" fill="none"/></g>
+ <g transform="translate(450 450)"><path d="M0-78c-54 0-76 36-76 78s22 78 76 78c36 0 58-16 70-38" fill="none"/><path d="M-8-8 78-8 42 34" fill="none"/><circle cx="-5" cy="-8" r="12" fill="#f4eee7" stroke="none"/></g>
+ <g transform="translate(750 450)"><path d="M-72-62h60c38 0 60 22 60 50s-22 50-60 50h-60zm0 0v124m0-62h60" fill="none"/><path d="M-10-12 32 30" fill="none"/></g>
+ <g transform="translate(150 750)"><circle r="72" fill="none"/><path d="M0-70a70 70 0 1 1-55 26" fill="none"/><path d="M-55-44v42h42" fill="none"/><path d="M-22 0 8 30" fill="none" stroke="#f4eee7" stroke-width="14"/></g>
+ <g transform="translate(450 750)"><circle r="18" fill="#f4eee7" stroke="none"/><path d="M0-18V-78M0 18v60M-18 0h-60M18 0h60" fill="none"/><path d="M-52-52 52 52M52-52-52 52" fill="none" stroke-width="7" opacity=".8"/></g>
+ <g transform="translate(750 750)"><path d="M-70 14C-28-70 68-48 68 18 68 82-36 92-68 32" fill="none"/><path d="M-30 8c22-38 62-26 56 8-6 28-42 32-58 10" fill="none" stroke="#f4eee7" stroke-width="10"/><circle r="9" fill="#f4eee7" stroke="none"/></g>
+</g><g fill="#8d949c" font-family="system-ui,sans-serif" font-size="18" text-anchor="middle"><text x="150" y="280">01</text><text x="450" y="280">02</text><text x="750" y="280">03</text><text x="150" y="580">04</text><text x="450" y="580">05</text><text x="750" y="580">06</text><text x="150" y="880">07</text><text x="450" y="880">08</text><text x="750" y="880">09</text></g></svg>

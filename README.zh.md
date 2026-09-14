@@ -5,7 +5,7 @@
   <img src="public/blendproof-splash-v1.png" alt="BlendProof" width="640">
   <h3 align="center">BlendProof</h3>
   <p align="center">
-    在浏览器里做 Blender 级别的 3D 审稿，原始工程不出本机。
+    面向协作的 Blender 风格 3D 审稿台，本地转换后即可线上分享。
     <br />
     <a href="https://blendproof.itycon.cn"><strong>打开线上站点 »</strong></a>
     ·
@@ -46,11 +46,11 @@
 
 ## 项目简介
 
-BlendProof 是一个带 Blender 风格外壳的 Web 3D 审稿工具。`.blend` 由你本机的 Blender 转换成 GLB，云端只接收裁剪过的 `model.glb`、裁剪后的 `manifest.json` 和可选的 `thumbnail.webp`。审稿者打开一条链接，在同一个 Viewer 里查看模型，并直接在模型表面写批注。
+BlendProof 是一个专注于协作审稿的 Blender 风格 Web 3D 工作台。浏览器优先在本地解析受支持的静态 `.blend` 子集并生成 GLB；超出范围的文件自动回退到本机 Blender bridge。云端只接收派生的 `model.glb`、允许列表中的 `manifest.json` 和可选的 `thumbnail.webp`。
 
 **为什么需要它：**
 
-- **原始工程不出本机。** `.blend` 只发往 loopback bridge；Worker 直接以 HTTP 415 拒收——这是代码里的硬约束，不是口头约定。
+- **原始工程不进云端。** 浏览器模式在页面内读取，回退模式只发送到用户本机的 bridge；Worker 直接以 HTTP 415 拒收 `.blend`。
 - **审稿者不必装 Blender。** 一条链接就能打开模型，并恢复发送方的相机、显示模式和隐藏对象。
 - **没有基础设施账单。** Cloudflare Workers、D1 与私有 R2 支撑一个 5 GiB 公益池，48 小时自动清理。
 
@@ -68,8 +68,17 @@ BlendProof 是一个带 Blender 风格外壳的 Web 3D 审稿工具。`.blend` �
 - **受控分享** —— `/s/<token>` 支持只读或可评论权限、可选密码、到期与撤销；`#view=...` 恢复发送方的相机、显示模式、隐藏对象与选中项。
 - **账号** —— 邀请码注册、`admin` / `user` 角色、个人空间统计。
 - **管理后台** —— 成员用量与停用、邀请码创建与撤销，以及在 5 GiB / 48 小时上限内调整平台阈值。
+- **批注通知** —— 项目作者每 15 秒检查新批注，右侧显示未读数量和站内提示，无需额外部署实时服务。
 - **平台状态** —— 持久化的运行时长、累计处理文件与字节数、清理计数，在首页实时刷新。
 - **永久演示** —— `/s/suzanne` 提供只读示例模型，公开演示口令 `tycon`；不占配额，也不进入清理。
+
+浏览器端 `.blend` 转换目前以实验适配器形式提供，面向静态 Mesh、基础材质、相机和场景信息；复杂文件仍使用本机 Blender bridge 作为兼容后备。
+
+### 浏览器转换范围与局限
+
+免安装路径目前支持静态 Mesh、对象名称与变换、Scene/Collection 信息、UV、基础 Principled 材质参数、文件相机，以及已评估的 Mirror/Array Modifier。转换后会生成 GLB 和 manifest，并复用现有 Viewer 与线上发布流程。
+
+它不是完整的 Blender 网页版。目前不保证动画、骨骼、物理、粒子、流体、布料、模拟、任意 Geometry Nodes、合成器/世界节点、插件数据、链接库和 Cycles/Eevee 像素级还原。旧版本或未测试的 Blender 文件可能自动回退到本机 bridge。
 
 <p align="right">(<a href="#readme-top">回到顶部</a>)</p>
 
@@ -135,9 +144,9 @@ BLENDER_BIN="/Applications/Blender.app/Contents/MacOS/Blender" npm run dev:serve
 ## 使用方式
 
 1. 启动开发服务器，打开 `http://localhost:5173`。
-2. 选择一个 `.blend` 文件。bridge 在后台转换，浏览器加载生成的 GLB。
-3. 检查模型——旋转、独显对象、切换相机与显示模式。
-4. 在模型表面添加审稿意见，然后解决或重开。
+2. 从“文件”菜单打开上传工作台并选择 `.blend` 文件。浏览器优先本地转换；不支持时自动回退到本机 Blender bridge。
+3. 检查模型——旋转、平移、独显对象、切换相机与显示模式。
+4. 进入批注模式，点击模型表面并保存意见；作者可以解决或重开，新的批注会显示站内未读提示。
 5. 创建分享、复制链接，并在第二个浏览器里打开，验证只读或可评论权限。
 
 如需生成一个不依赖 Geometry Nodes 的测试场景（两个网格、地面、灯光、相机）：
