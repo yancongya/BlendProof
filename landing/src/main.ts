@@ -395,8 +395,9 @@ function initUploadDemo(): void {
   const fileRow = document.getElementById('mk-file')
   const convertButton = document.getElementById('mk-convert') as HTMLButtonElement | null
   const removeButton = document.getElementById('mk-remove')
+  const progressList = document.getElementById('mk-progress')
   const steps = Array.from(document.querySelectorAll<HTMLElement>('.mk-step'))
-  if (!dropzone || !fileRow || !convertButton || !removeButton || steps.length === 0) return
+  if (!dropzone || !fileRow || !convertButton || !removeButton || !progressList || steps.length === 0) return
 
   const reduced = prefersReducedMotion()
   let timers: number[] = []
@@ -408,12 +409,14 @@ function initUploadDemo(): void {
     dropzone.hidden = false
     convertButton.disabled = true
     convertButton.textContent = '由本机 Blender 转换'
+    progressList.hidden = true
     steps.forEach((step) => step.classList.remove('active', 'done'))
     // 重置后保留"可再次选择"的能力：拖放区还在，逻辑回到初始态
   }
 
   const runPipeline = (): void => {
     const pace = reduced ? 0 : 950
+    progressList.hidden = false
     convertButton.disabled = true
     convertButton.textContent = '处理中…'
 
