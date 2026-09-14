@@ -9,6 +9,7 @@
  */
 
 import { initHero3D, createMiniViewer } from './hero3d'
+import { t, ifEn, applyStaticI18n, getLang } from './i18n'
 
 const ORIGIN = 'https://blendproof.itycon.cn'
 
@@ -27,7 +28,7 @@ function initTheme(): void {
   const apply = (theme: 'dark' | 'light'): void => {
     root.dataset.theme = theme
     button.setAttribute('aria-pressed', String(theme === 'light'))
-    button.textContent = theme === 'light' ? '☾ 暗色' : '☀ 亮色'
+    button.textContent = theme === 'light' ? t('☾ 暗色') : t('☀ 亮色')
     try {
       localStorage.setItem('bp-theme', theme)
     } catch {
@@ -45,6 +46,23 @@ function initTheme(): void {
 
   button.addEventListener('click', () => {
     apply(root.dataset.theme === 'light' ? 'dark' : 'light')
+  })
+}
+
+/** Language toggle: persist the choice and reload so every render path re-reads it. */
+function initLangToggle(): void {
+  const button = document.getElementById('lang-toggle')
+  if (!button) return
+  const current = getLang()
+  button.textContent = current === 'en' ? '中文' : 'EN'
+  button.setAttribute('aria-label', current === 'en' ? 'Switch to 中文' : '切换到 English')
+  button.addEventListener('click', () => {
+    try {
+      localStorage.setItem('bp-lang', current === 'en' ? 'zh' : 'en')
+    } catch {
+      /* private mode: language just won't persist */
+    }
+    window.location.reload()
   })
 }
 
@@ -142,7 +160,7 @@ function initReviewDemo(): void {
     const badge = item.querySelector('i')
     status?.addEventListener('click', () => {
       const resolved = badge?.classList.toggle('resolved') ?? false
-      status.textContent = resolved ? '重开' : '解决'
+      status.textContent = resolved ? t('重开') : t('解决')
       updateCounter()
     })
   })
@@ -156,8 +174,8 @@ function initReviewDemo(): void {
     const item = document.createElement('div')
     item.className = 'mk-review-item is-new'
     item.innerHTML =
-      `<i>${number}</i><div><strong></strong><small>Monkey_Head · 我</small></div>` +
-      '<button type="button" class="mk-review-status">解决</button>'
+      `<i>${number}</i><div><strong></strong><small>Monkey_Head · ${t('我')}</small></div>` +
+      `<button type="button" class="mk-review-status">${t('解决')}</button>`
     ;(item.querySelector('strong') as HTMLElement).textContent = text
     root.insertBefore(item, root.querySelector('.mk-compose'))
     input.value = ''
@@ -180,16 +198,21 @@ function initCredDemo(): void {
         .forEach((other) => other.setAttribute('aria-pressed', String(other === chip)))
 
       if (group === 'perm') {
-        const value = chip.textContent === '可评论' ? '可评论' : '只读'
-        document.getElementById('mk-dd-perm')!.textContent = value
-        document.getElementById('mk-rx-perm')!.textContent = value === '可评论' ? '查看与批注' : '仅查看'
+        const value = chip.dataset.v === 'comment' ? t('可评论') : t('只读')
+        const rxPerm = document.getElementById('mk-rx-perm')
+        const ddPerm = document.getElementById('mk-dd-perm')
+        if (ddPerm) ddPerm.textContent = value
+        if (rxPerm) rxPerm.textContent = value === t('可评论') ? t('查看与批注') : t('仅查看')
       } else if (group === 'exp') {
-        const value = `${chip.textContent?.replace('h', '')} 小时后`
-        document.getElementById('mk-dd-exp')!.textContent = value
-        document.getElementById('mk-rx-exp')!.textContent = value
+        const value = ifEn(`in ${chip.dataset.v ?? '24'} hours`, `${chip.dataset.v ?? '24'} 小时后`)
+        const ddExp = document.getElementById('mk-dd-exp')
+        const rxExp = document.getElementById('mk-rx-exp')
+        if (ddExp) ddExp.textContent = value
+        if (rxExp) rxExp.textContent = value
       } else if (group === 'pwd') {
         const pressed = chip.getAttribute('aria-pressed') === 'true'
-        document.getElementById('mk-dd-pwd')!.textContent = pressed ? '已设置' : '无'
+        const ddPwd = document.getElementById('mk-dd-pwd')
+        if (ddPwd) ddPwd.textContent = pressed ? t('已设置') : t('无')
       }
     })
   })
@@ -205,15 +228,15 @@ function initCopyDemo(): void {
     const cred = copyButton.closest<HTMLElement>('.mk-cred')
 
     const stamp = (): void => {
-      copyButton.textContent = '已复制'
+      copyButton.textContent = t('已复制')
       cred?.classList.add('stamped')
       window.setTimeout(() => {
-        copyButton.textContent = '复制链接'
+        copyButton.textContent = t('复制链接')
         cred?.classList.remove('stamped')
       }, 1600)
     }
     void navigator.clipboard?.writeText(link).then(stamp).catch(() => {
-      window.prompt('复制这条演示链接：', link)
+      window.prompt(t('复制这条演示链接：'), link)
     })
 
     // 接收方联动：右卡收到链接（脉冲 + 浏览器状态行提示）
@@ -226,7 +249,7 @@ function initCopyDemo(): void {
     receiverCard.classList.add('receiving')
     if (browserUrl && browserStatus && !browserUrl.value) {
       browserUrl.value = 'blendproof.itycon.cn/s/suzanne'
-      browserStatus.textContent = '已收到链接 · 点「前往」打开'
+      browserStatus.textContent = t('已收到链接 · 点「前往」打开')
       browserStatus.dataset.kind = 'busy'
     }
   })
@@ -304,7 +327,7 @@ function initReceiverBrowser(): void {
   const open = (): void => {
     const value = urlInput.value.trim()
     if (!/s\/suzanne|suzanne/i.test(value)) {
-      setStatus('未找到该分享——试试下面的演示链接。', 'busy')
+      setStatus(t('未找到该分享——试试下面的演示链接。'), 'busy')
       return
     }
     if (opened) return
@@ -313,12 +336,12 @@ function initReceiverBrowser(): void {
     empty.hidden = true
     view.hidden = false
 
-    setStatus('正在验证口令…', 'busy')
+    setStatus(t('正在验证口令…'), 'busy')
     typePassword(() => {
-      setStatus('口令通过 · 正在载入模型…', 'busy')
+      setStatus(t('口令通过 · 正在载入模型…'), 'busy')
       viewer = viewer ?? createMiniViewer(modelHost)
       timers.push(window.setTimeout(() => {
-        setStatus('模型已载入 · 拖拽旋转，滚轮缩放', 'ok')
+        setStatus(t('模型已载入 · 拖拽旋转，滚轮缩放'), 'ok')
         go.disabled = false
       }, reduced ? 0 : 1100))
     })
@@ -345,7 +368,7 @@ function bindReviewItem(item: HTMLElement): void {
   const badge = item.querySelector('i')
   status?.addEventListener('click', () => {
     const resolved = badge?.classList.toggle('resolved') ?? false
-    status.textContent = resolved ? '重开' : '解决'
+    status.textContent = resolved ? t('重开') : t('解决')
   })
 }
 
@@ -408,7 +431,7 @@ function initUploadDemo(): void {
     fileRow.hidden = true
     dropzone.hidden = false
     convertButton.disabled = true
-    convertButton.textContent = '由本机 Blender 转换'
+    convertButton.textContent = t('由本机 Blender 转换')
     progressList.hidden = true
     steps.forEach((step) => step.classList.remove('active', 'done'))
     // 重置后保留"可再次选择"的能力：拖放区还在，逻辑回到初始态
@@ -418,7 +441,7 @@ function initUploadDemo(): void {
     const pace = reduced ? 0 : 950
     progressList.hidden = false
     convertButton.disabled = true
-    convertButton.textContent = '处理中…'
+    convertButton.textContent = t('处理中…')
 
     steps.forEach((step, index) => {
       if (index > 0) {
@@ -435,7 +458,7 @@ function initUploadDemo(): void {
         step.classList.remove('active')
         step.classList.add('done')
       })
-      convertButton.textContent = '已发布 · 审稿凭证已生成'
+      convertButton.textContent = t('已发布 · 审稿凭证已生成')
     }, pace * steps.length))
   }
 
@@ -539,9 +562,9 @@ function formatUptime(launchedAt: string): string {
   const minutes = Math.max(0, Math.floor((Date.now() - started) / 60000))
   const days = Math.floor(minutes / 1440)
   const hours = Math.floor((minutes % 1440) / 60)
-  if (days > 0) return `${days} 天 ${hours} 小时`
-  if (hours > 0) return `${hours} 小时 ${minutes % 60} 分`
-  return `${minutes} 分钟`
+  if (days > 0) return ifEn(`${days} d ${hours} h`, `${days} 天 ${hours} 小时`)
+  if (hours > 0) return ifEn(`${hours} h ${minutes % 60} m`, `${hours} 小时 ${minutes % 60} 分`)
+  return ifEn(`${minutes} min`, `${minutes} 分钟`)
 }
 
 function setStat(key: string, value: string, note?: string): void {
@@ -560,7 +583,7 @@ async function initLiveStatus(): Promise<void> {
   const offline = (reason: string) => {
     note.dataset.state = 'offline'
     note.textContent = reason
-    setStat('health', '未读取', '跨域或网络受限')
+    setStat('health', t('未读取'), t('跨域或网络受限'))
   }
 
   try {
@@ -576,21 +599,21 @@ async function initLiveStatus(): Promise<void> {
         health.d1 ? 'D1' : null,
         health.r2 ? 'R2' : null,
       ]
-      setStat('health', health.d1 && health.r2 ? '运行中' : '部分可用', parts.filter(Boolean).join(' · ') || undefined)
+      setStat('health', health.d1 && health.r2 ? t('运行中') : t('部分可用'), parts.filter(Boolean).join(' · ') || undefined)
     }
 
     if (!statsResponse.ok) {
-      offline(`实时接口返回 ${statsResponse.status}，暂时无法读取平台数据。`)
+      offline(ifEn(`Live API returned ${statsResponse.status}; platform data is temporarily unavailable.`, `实时接口返回 ${statsResponse.status}，暂时无法读取平台数据。`))
       return
     }
 
     const stats = (await statsResponse.json()) as PublicStats
 
-    setStat('uptime', formatUptime(stats.launchedAt), '自 2026-09-12 上线')
-    setStat('capacity', formatBytes(stats.capacityBytes), `已用 ${formatBytes(stats.usedBytes)}`)
-    setStat('projects', String(stats.projectCount), `${stats.activeShareCount} 条活跃分享`)
-    setStat('processed', String(stats.processedFileCount), `累计 ${formatBytes(stats.processedBytes)}`)
-    setStat('cleaned', String(stats.cleanedFileCount), `释放 ${formatBytes(stats.cleanedBytes)}`)
+    setStat('uptime', formatUptime(stats.launchedAt), t('自 2026-09-12 上线'))
+    setStat('capacity', formatBytes(stats.capacityBytes), ifEn(`${formatBytes(stats.usedBytes)} used`, `已用 ${formatBytes(stats.usedBytes)}`))
+    setStat('projects', String(stats.projectCount), ifEn(`${stats.activeShareCount} active shares`, `${stats.activeShareCount} 条活跃分享`))
+    setStat('processed', String(stats.processedFileCount), ifEn(`${formatBytes(stats.processedBytes)} total`, `累计 ${formatBytes(stats.processedBytes)}`))
+    setStat('cleaned', String(stats.cleanedFileCount), ifEn(`${formatBytes(stats.cleanedBytes)} freed`, `释放 ${formatBytes(stats.cleanedBytes)}`))
 
     const meter = document.querySelector<HTMLElement>('[data-stat="meter"]')
     if (meter && stats.capacityBytes > 0) {
@@ -598,11 +621,14 @@ async function initLiveStatus(): Promise<void> {
     }
 
     note.dataset.state = 'online'
-    note.textContent =
+    note.textContent = ifEn(
+      `Live data loaded. Projects are retained up to ${stats.retentionHours} hours, ` +
+      `shares default to ${stats.recommendedShareHours} hours, and cleanup runs hourly.`,
       `实时数据读取成功。项目最长保留 ${stats.retentionHours} 小时，` +
-      `分享默认 ${stats.recommendedShareHours} 小时，每小时定时清理。`
+      `分享默认 ${stats.recommendedShareHours} 小时，每小时定时清理。`,
+    )
   } catch {
-    offline('无法连接生产接口（跨域或网络受限），实时数据仅在线上站点可见。')
+    offline(t('无法连接生产接口（跨域或网络受限），实时数据仅在线上站点可见。'))
   }
 }
 
@@ -610,7 +636,9 @@ async function initLiveStatus(): Promise<void> {
  * Boot
  * ------------------------------------------------------------------ */
 
+applyStaticI18n()
 initTheme()
+initLangToggle()
 initChromeDots()
 initHero3D()
 initMockups()

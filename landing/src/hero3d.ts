@@ -25,6 +25,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js'
 import modelUrl from '../../public/default-monkey.glb?url'
+import { t } from './i18n'
 
 const FRAME_MS = 1000 / 30
 
@@ -54,45 +55,45 @@ interface PinData {
 const PIN_DATA: PinData[] = [
   {
     position: [0.58, 0.42, 0.52],
-    title: '耳朵这圈布线，比我的周报还乱',
-    body: '减两段再发，别让拓扑背锅。',
-    author: '王工', status: 'open',
+    title: t('耳朵这圈布线，比我的周报还乱'),
+    body: t('减两段再发，别让拓扑背锅。'),
+    author: t('王工'), status: 'open',
   },
   {
     position: [-0.52, 0.28, 0.6],
-    title: '眼睛瞪这么大，看见 Deadline 了？',
-    body: '换 3 号灰模，帮它先冷静一下。',
-    author: '李监制', status: 'open',
+    title: t('眼睛瞪这么大，看见 Deadline 了？'),
+    body: t('换 3 号灰模，帮它先冷静一下。'),
+    author: t('李监制'), status: 'open',
   },
   {
     position: [0.12, -0.48, 0.72],
-    title: '这个下巴弧度，天生的表情包圣体',
-    body: '建议原样保留，谁都别动它。',
-    author: '阿烟', status: 'open',
+    title: t('这个下巴弧度，天生的表情包圣体'),
+    body: t('建议原样保留，谁都别动它。'),
+    author: t('阿烟'), status: 'open',
   },
   {
     position: [0.48, -0.12, 0.68],
-    title: '地面反光差点晃瞎甲方',
-    body: '粗糙度拉满，反射压一半。',
-    author: '王工', status: 'open',
+    title: t('地面反光差点晃瞎甲方'),
+    body: t('粗糙度拉满，反射压一半。'),
+    author: t('王工'), status: 'open',
   },
   {
     position: [-0.58, -0.28, 0.48],
-    title: '耳朵后面穿模了',
-    body: '小键盘 . 过来看——就这，一模一眼。',
-    author: '王工', status: 'open',
+    title: t('耳朵后面穿模了'),
+    body: t('小键盘 . 过来看——就这，一模一眼。'),
+    author: t('王工'), status: 'open',
   },
   {
     position: [-0.34, 0.6, 0.42],
-    title: '主光已按 01 号批注调整 ✓',
-    body: '现在照的是颧骨，不是天灵盖。',
-    author: '阿烟', status: 'resolved',
+    title: t('主光已按 01 号批注调整 ✓'),
+    body: t('现在照的是颧骨，不是天灵盖。'),
+    author: t('阿烟'), status: 'resolved',
   },
   {
     position: [0.06, 0.66, 0.4],
-    title: '已按 02 号批注换灰模 ✓',
-    body: '这回的眼睛终于不像欠薪的。',
-    author: '李监制', status: 'resolved',
+    title: t('已按 02 号批注换灰模 ✓'),
+    body: t('这回的眼睛终于不像欠薪的。'),
+    author: t('李监制'), status: 'resolved',
   },
 ]
 
@@ -248,7 +249,7 @@ export function initHero3D(): void {
     bubble.innerHTML =
       `<div class="h3d-bubble__head"><i>#${index + 1}</i>` +
       `<b>${d.title}</b>` +
-      `<em class="${d.status}">${d.status === 'resolved' ? '已解决' : '待处理'}</em></div>` +
+      `<em class="${d.status}">${d.status === 'resolved' ? t('已解决') : t('待处理')}</em></div>` +
       `<p>${d.body}</p>` +
       `<small>Monkey_Head · ${d.author}</small>`
     bubble.hidden = false
