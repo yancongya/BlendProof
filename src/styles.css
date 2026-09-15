@@ -664,3 +664,57 @@ button {
     display: none;
   }
 }
+
+/* ---- Top-right control group: landing link + language toggle ---- */
+.top-actions {
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 320;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+/* The launcher is a transient welcome modal with its own top-right close; hide
+   the global controls there to avoid overlap. */
+.blendproof-start-page ~ .top-actions {
+  display: none;
+}
+.top-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(40, 40, 40, 0.72);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #e6e6e6;
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 6px 20px -10px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+.top-action:hover {
+  border-color: #f0a830;
+  color: #ffd591;
+  transform: translateY(-1px);
+}
+/* Reserve room on the editor menubar so the fixed controls don't overlap it */
+.blender-menubar {
+  padding-right: 174px;
+}
+@media (max-width: 720px) {
+  .blender-menubar {
+    padding-right: 8px;
+  }
+  .top-action span {
+    display: none;
+  }
+  .top-action {
+    padding: 0 9px;
+  }
+}

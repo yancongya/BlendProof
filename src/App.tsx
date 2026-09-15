@@ -51,6 +51,7 @@ import {
   type Object3D,
 } from "three";
 import { BlenderLogo } from "./components/BlenderLogo";
+import { getLang, t, tf, useI18n } from "./i18n";
 import { UploaderPanel, type UploadStage } from "./components/UploaderPanel";
 import { blendProofClient, type AccountStats, type AccountUser, type AdminInvite, type AdminSettings, type AdminUser, type CloudOwnerProject, type OwnerProject, type ProjectTransport, type PublicStats } from "./api/blendProofClient";
 import { ReviewAnnotations } from "./review/ReviewAnnotations";
@@ -111,8 +112,8 @@ const DEMO_SHARE_URL = `/s/${DEMO_SHARE_TOKEN}`;
 const DEMO_SHARE_PASSWORD = "tycon";
 
 function formatShareExpiry(expiresAt: string | null) {
-  if (!expiresAt) return "不限时";
-  return new Intl.DateTimeFormat("zh-CN", {
+  if (!expiresAt) return t("不限时");
+  return new Intl.DateTimeFormat(getLang() === "en" ? "en-US" : "zh-CN", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -201,7 +202,7 @@ function ReceiverShareCard({
       {open && (
         <section className="share-credential-card receiver-card" aria-label="接收方审稿凭证">
           <header><span>审稿通行证</span><b>访问有效</b></header>
-          <p>{publisher ? `${publisher}发布的永久公开示例。` : "此页面只读取派生的 Web 模型，不包含原始 Blender 工程。"}</p>
+          <p>{publisher ? tf("%s发布的永久公开示例。", publisher) : "此页面只读取派生的 Web 模型，不包含原始 Blender 工程。"}</p>
           <dl>
             <div><dt>权限</dt><dd>{permission === "comment" ? "查看与批注" : "仅查看"}</dd></div>
             <div><dt>来源</dt><dd>{sourceLabel ?? (transport === "cloud" ? "云端快递柜" : "本机分享")}</dd></div>
@@ -214,6 +215,7 @@ function ReceiverShareCard({
 }
 
 export function App() {
+  useI18n(); // re-render on language toggle so t()/tf() strings stay in sync
   const [file, setFile] = useState<File | null>(null);
   const [project, setProject] = useState<Project | null>(() => {
     try {
@@ -368,8 +370,8 @@ export function App() {
       setShareId(share.id);
       setShareExpiresAt(share.expiresAt);
       setMessage(sharePermission === "comment"
-        ? `已建立${cloudProject ? "云端" : "本地"}可评论分享链接。`
-        : `已建立${cloudProject ? "云端" : "本地"}只读分享链接。`);
+        ? tf("已建立%s可评论分享链接。", cloudProject ? t("云端") : t("本地"))
+        : tf("已建立%s只读分享链接。", cloudProject ? t("云端") : t("本地")));
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "无法建立分享链接。");
     }
@@ -454,11 +456,11 @@ export function App() {
     setPublishTitle(nextProject.name.replace(/\.blend$/i, ""));
     setUploadStage("ready");
     setUploaderOpen(true);
-    setMessage(`已切换到本地项目：${nextProject.name}`);
+    setMessage(tf("已切换到本地项目：%s", nextProject.name));
   }
   async function deleteCurrentProject() {
     if (!project || cloudProject) return;
-    if (!window.confirm(`确定删除本地项目“${project.name}”吗？此操作会移除转换文件和批注。`)) return;
+    if (!window.confirm(tf("确定删除本地项目“%s”吗？此操作会移除转换文件和批注。", project.name))) return;
     try {
       await blendProofClient.deleteLocalProject(project.id, project.ownerCapability);
       const next = recentProjects.filter((item) => item.id !== project.id);
@@ -912,8 +914,8 @@ function AdminConsole({ accountId, onCreateInvite }: { accountId: string; onCrea
   useEffect(() => { refresh().catch((reason) => setAdminMessage(reason instanceof Error ? reason.message : "无法读取管理信息。")); }, [refresh]);
   return <div className="admin-console">
     <section><div className="admin-section-title"><strong>平台设置</strong><span>安全上限：5 GB / 48 小时</span></div><div className="admin-settings-row"><label>存储阈值<select value={settings.capacityBytes} onChange={(event) => setSettings((current) => ({ ...current, capacityBytes: Number(event.target.value) }))}><option value={1024 ** 3}>1 GB</option><option value={2 * 1024 ** 3}>2 GB</option><option value={3 * 1024 ** 3}>3 GB</option><option value={5 * 1024 ** 3}>5 GB</option></select></label><label>最长分享<select value={settings.maxShareHours} onChange={(event) => setSettings((current) => ({ ...current, maxShareHours: Number(event.target.value) }))}><option value={12}>12 小时</option><option value={24}>24 小时</option><option value={48}>48 小时</option></select></label><button onClick={async () => { try { setSettings(await blendProofClient.updateAdminSettings(settings)); setAdminMessage("平台设置已保存。"); } catch (reason) { setAdminMessage(reason instanceof Error ? reason.message : "保存失败。"); } }}>保存设置</button></div></section>
-    <section><div className="admin-section-title"><strong>成员</strong><span>{users.filter((user) => !user.disabledAt).length} 个有效账号</span></div><div className="admin-table">{users.map((user) => <div className={user.disabledAt ? "disabled" : ""} key={user.id}><span><b>{user.displayName}</b><small>{user.email}</small></span><span>{formatBytes(user.usedBytes)}</span><span>{user.projectCount} 项目</span><span>{user.role === "admin" ? "管理员" : user.disabledAt ? "已停用" : "成员"}</span>{user.id !== accountId && user.role !== "admin" && !user.disabledAt ? <button aria-label={`停用 ${user.displayName}`} onClick={async () => { if (!window.confirm(`停用成员“${user.displayName}”吗？`)) return; await blendProofClient.disableAdminUser(user.id); await refresh(); }}>停用</button> : <i />}</div>)}</div></section>
-    <section><div className="admin-section-title"><strong>邀请码</strong><span>一个管理员可创建多个，每个码独立计算使用次数</span></div><div className="admin-invite-create"><label>有效期<input type="number" min={1} max={720} value={inviteHours} onChange={(event) => setInviteHours(Number(event.target.value))} /> 小时</label><label>可用次数<input type="number" min={1} max={10000} value={inviteUses} onChange={(event) => setInviteUses(Number(event.target.value))} /></label><button onClick={async () => { try { const result = await onCreateInvite(inviteHours, inviteUses); setLatestCode(result.code); await refresh(); } catch (reason) { setAdminMessage(reason instanceof Error ? reason.message : "创建失败。"); } }}><KeyRound size={13} /> 新增邀请码</button></div>{latestCode && <code className="admin-latest-code">{latestCode}</code>}<div className="admin-table invite-table">{invites.map((invite) => { const inactive = Boolean(invite.revokedAt) || invite.usesCount >= invite.maxUses || Date.parse(invite.expiresAt) <= Date.now(); return <div className={inactive ? "disabled" : ""} key={invite.id}><span><b>…{invite.id.slice(-8)}</b><small>{new Date(invite.expiresAt).toLocaleString()}</small></span><span>{invite.usesCount} / {invite.maxUses} 次</span><span>{invite.revokedAt ? "已撤销" : inactive ? "已失效" : "可用"}</span>{!inactive ? <button aria-label={`撤销邀请码 ${invite.id.slice(-8)}`} onClick={async () => { await blendProofClient.revokeAdminInvite(invite.id); await refresh(); }}>撤销</button> : <i />}</div>; })}</div></section>
+    <section><div className="admin-section-title"><strong>成员</strong><span>{users.filter((user) => !user.disabledAt).length} 个有效账号</span></div><div className="admin-table">{users.map((user) => <div className={user.disabledAt ? "disabled" : ""} key={user.id}><span><b>{user.displayName}</b><small>{user.email}</small></span><span>{formatBytes(user.usedBytes)}</span><span>{user.projectCount} 项目</span><span>{user.role === "admin" ? "管理员" : user.disabledAt ? "已停用" : "成员"}</span>{user.id !== accountId && user.role !== "admin" && !user.disabledAt ? <button aria-label={tf("停用 %s", user.displayName)} onClick={async () => { if (!window.confirm(tf("停用成员“%s”吗？", user.displayName))) return; await blendProofClient.disableAdminUser(user.id); await refresh(); }}>停用</button> : <i />}</div>)}</div></section>
+    <section><div className="admin-section-title"><strong>邀请码</strong><span>一个管理员可创建多个，每个码独立计算使用次数</span></div><div className="admin-invite-create"><label>有效期<input type="number" min={1} max={720} value={inviteHours} onChange={(event) => setInviteHours(Number(event.target.value))} /> 小时</label><label>可用次数<input type="number" min={1} max={10000} value={inviteUses} onChange={(event) => setInviteUses(Number(event.target.value))} /></label><button onClick={async () => { try { const result = await onCreateInvite(inviteHours, inviteUses); setLatestCode(result.code); await refresh(); } catch (reason) { setAdminMessage(reason instanceof Error ? reason.message : "创建失败。"); } }}><KeyRound size={13} /> 新增邀请码</button></div>{latestCode && <code className="admin-latest-code">{latestCode}</code>}<div className="admin-table invite-table">{invites.map((invite) => { const inactive = Boolean(invite.revokedAt) || invite.usesCount >= invite.maxUses || Date.parse(invite.expiresAt) <= Date.now(); return <div className={inactive ? "disabled" : ""} key={invite.id}><span><b>…{invite.id.slice(-8)}</b><small>{new Date(invite.expiresAt).toLocaleString(getLang() === "en" ? "en-US" : "zh-CN")}</small></span><span>{invite.usesCount} / {invite.maxUses} 次</span><span>{invite.revokedAt ? "已撤销" : inactive ? "已失效" : "可用"}</span>{!inactive ? <button aria-label={tf("撤销邀请码 %s", invite.id.slice(-8))} onClick={async () => { await blendProofClient.revokeAdminInvite(invite.id); await refresh(); }}>撤销</button> : <i />}</div>; })}</div></section>
     {adminMessage && <p className="admin-message" role="status">{adminMessage}</p>}
   </div>;
 }
@@ -943,6 +945,9 @@ function formatDuration(milliseconds: number) {
   const hours = Math.floor(seconds % 86400 / 3600);
   const minutes = Math.floor(seconds % 3600 / 60);
   const remainingSeconds = seconds % 60;
+  if (getLang() === "en") {
+    return days > 0 ? `${days}d ${hours}h ${minutes}m` : `${hours}h ${minutes}m ${remainingSeconds}s`;
+  }
   return days > 0 ? `${days} 天 ${hours} 时 ${minutes} 分` : `${hours} 时 ${minutes} 分 ${remainingSeconds} 秒`;
 }
 
@@ -1358,8 +1363,32 @@ function BlenderWorkspace({
             <span
               className="project-share-status"
               role="status"
-              aria-label={`已分享，${shareStatus.permission === "comment" ? "可评论" : "只读"}，${formatShareExpiry(shareStatus.expiresAt)}到期`}
-              title={`已分享 · ${shareStatus.permission === "comment" ? "可评论" : "只读"} · ${formatShareExpiry(shareStatus.expiresAt)}到期`}
+              aria-label={
+                shareStatus.expiresAt
+                  ? tf(
+                      "已分享，%s，%s到期",
+                      shareStatus.permission === "comment" ? t("可评论") : t("只读"),
+                      formatShareExpiry(shareStatus.expiresAt),
+                    )
+                  : tf(
+                      "已分享，%s，%s",
+                      shareStatus.permission === "comment" ? t("可评论") : t("只读"),
+                      formatShareExpiry(shareStatus.expiresAt),
+                    )
+              }
+              title={
+                shareStatus.expiresAt
+                  ? tf(
+                      "已分享 · %s · %s到期",
+                      shareStatus.permission === "comment" ? t("可评论") : t("只读"),
+                      formatShareExpiry(shareStatus.expiresAt),
+                    )
+                  : tf(
+                      "已分享 · %s · %s",
+                      shareStatus.permission === "comment" ? t("可评论") : t("只读"),
+                      formatShareExpiry(shareStatus.expiresAt),
+                    )
+              }
             >
               <Share2 size={11} strokeWidth={2.2} />
             </span>
@@ -1454,7 +1483,7 @@ function BlenderWorkspace({
                 <button
                   key={camera.uuid}
                   className={`file-camera ${cameraPreset === `file:${camera.uuid}` ? "active" : ""}`}
-                  title={`使用文件相机：${camera.name || "Camera"}`}
+                  title={tf("使用文件相机：%s", camera.name || "Camera")}
                   onClick={() => onCameraPreset(`file:${camera.uuid}`)}
                 >
                   相机 {camera.name || "Camera"}
@@ -1629,7 +1658,7 @@ function BlenderWorkspace({
                   <span>{object.name}</span>
                   <button
                     type="button"
-                    aria-label={`${hidden.has(object.name) ? "显示" : "隐藏"} ${object.name}`}
+                    aria-label={tf(hidden.has(object.name) ? "显示 %s" : "隐藏 %s", object.name)}
                     className="eye"
                     disabled={readOnly}
                     onClick={(event) => {
@@ -1644,8 +1673,8 @@ function BlenderWorkspace({
                   <button
                     type="button"
                     className={`isolate ${isolated && selected.size === 1 && selected.has(object.name) ? "active" : ""}`}
-                    aria-label={isolated && selected.size === 1 && selected.has(object.name) ? `退出 ${object.name} 的独显` : `独显 ${object.name}`}
-                    title={isolated && selected.size === 1 && selected.has(object.name) ? "退出独显" : "独显此对象"}
+                    aria-label={isolated && selected.size === 1 && selected.has(object.name) ? tf("退出 %s 的独显", object.name) : tf("独显 %s", object.name)}
+                    title={isolated && selected.size === 1 && selected.has(object.name) ? t("退出独显") : t("独显此对象")}
                     onClick={(event) => {
                       event.stopPropagation();
                       isolateOutlinerObject(object.name);
@@ -2349,7 +2378,7 @@ function ReviewPanel({
     <div className="review-panel" data-testid="review-panel" aria-label="审稿批注" aria-readonly={readOnly}>
       <div className="review-panel-title">
         <span>审稿批注</span>
-        <b data-testid="review-count">{comments.length}{newCount > 0 ? ` · 新 ${newCount}` : ""}</b>
+        <b data-testid="review-count">{comments.length}{newCount > 0 ? tf(" · 新 %s", newCount) : ""}</b>
       </div>
       {newCount > 0 && <button className="review-new-notice" onClick={onAcknowledgeNew}>收到新批注，点击查看</button>}
       {pending && canComment && (

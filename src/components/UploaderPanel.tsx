@@ -9,6 +9,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { getLang, t, tf } from "../i18n";
 
 export type UploadStage = "idle" | "selected" | "converting" | "ready" | "uploading" | "published" | "publish_error" | "error";
 
@@ -313,15 +314,21 @@ function SummaryItem({ label, value, wide = false }: { label: string; value: str
 }
 
 function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes < 0) return "未知大小";
+  if (!Number.isFinite(bytes) || bytes < 0) return t("未知大小");
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatExpiry(value?: string | null) {
-  if (!value) return "有效期：不限";
+  if (!value) return t("有效期：不限");
   const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return `有效期：${value}`;
-  return `有效期至 ${new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp)}`;
+  if (!Number.isFinite(timestamp)) return tf("有效期：%s", value);
+  return tf(
+    "有效期至 %s",
+    new Intl.DateTimeFormat(getLang() === "en" ? "en-US" : "zh-CN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(timestamp),
+  );
 }
