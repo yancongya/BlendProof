@@ -29,6 +29,7 @@ import {
   Trash2,
   User,
   X,
+  FileText,
 } from "lucide-react";
 import {
   Suspense,
@@ -704,7 +705,7 @@ export function SharePage() {
     name: DEFAULT_MONKEY_MANIFEST.scene,
     modelUrl: "/default-monkey.glb",
     manifest: DEFAULT_MONKEY_MANIFEST,
-    comments: [],
+    comments: DEMO_COMMENTS,
     commentsPermission: "read_only",
     expiresAt: null,
   } : null);
@@ -1158,6 +1159,7 @@ function BlenderWorkspace({
   const [outlinerCollapsed, setOutlinerCollapsed] = useState(false);
   const [propertyHeight, setPropertyHeight] = useState(132);
   const [propertyCollapsed, setPropertyCollapsed] = useState(false);
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [reviewCollapsed, setReviewCollapsed] = useState(false);
   const [summaryHeight, setSummaryHeight] = useState(180);
   const [overlaysVisible, setOverlaysVisible] = useState(true);
@@ -1455,7 +1457,7 @@ function BlenderWorkspace({
             <div className="editor-type" aria-label="3D 视图">
               <Box size={14} /> 3D 视图
             </div>
-            <div className="review-controls">
+            <div className="header-right">
               {canComment && modelUrl && (
                 <button
                   className={`annotation-tool ${annotationMode ? "active" : ""}`}
@@ -1472,13 +1474,6 @@ function BlenderWorkspace({
                   {annotationMode ? "点击模型放置批注" : "添加批注"}
                 </button>
               )}
-              <div className="review-filters" aria-label="批注状态筛选">
-                {([['all', '全部'], ['open', '待处理'], ['resolved', '已解决']] as const).map(([value, label]) => (
-                  <button key={value} type="button" className={reviewFilter === value ? "active" : ""} onClick={() => setReviewFilter(value)}>{label}</button>
-                ))}
-              </div>
-            </div>
-            <div className="header-right">
               <div className="view-controls" aria-label="视图控制">
               <div className="icon-group" aria-label="显示模式">
                 <button
@@ -1662,8 +1657,8 @@ function BlenderWorkspace({
           </div>
         </section>
         <aside className="right-editors">
-          <section className={`outliner ${outlinerCollapsed ? 'collapsed' : ''}`} style={{ height: outlinerCollapsed ? 28 : outlinerHeight }}>
-            <header>
+          <section className={`panel outliner-panel ${outlinerCollapsed ? 'collapsed' : ''}`} style={{ height: outlinerCollapsed ? 28 : outlinerHeight }}>
+            <div className="panel-header">
               <button type="button" className="panel-toggle" onClick={() => setOutlinerCollapsed((c) => !c)} title="折叠/展开">
                 <span className="panel-icon"><Layers size={13} /></span>
                 <span>场景集合</span>
@@ -1676,43 +1671,44 @@ function BlenderWorkspace({
                 aria-label="聚焦选中对象"
                 onClick={() => setFocusRequest({ names: [...selected], nonce: Date.now() })}
               ><Focus size={12} /></button>
-            </header>
-            <label className="outliner-search">
-              <Search size={12} />
-              <input value={outlinerQuery} onChange={(event) => setOutlinerQuery(event.target.value)} placeholder="搜索对象" aria-label="搜索场景对象" />
-              {outlinerQuery && <button type="button" aria-label="清除对象搜索" onClick={() => setOutlinerQuery("")}><X size={11} /></button>}
-            </label>
-            <div className="tree-root">
-              <span>⌄</span>
-              <strong>{manifest?.scene ?? "Scene Collection"}</strong>
             </div>
-            <div className="tree-children">
-              {filteredObjects.map((object) => (
-                <div
-                  className={`tree-row ${selected.has(object.name) ? "selected" : ""}`}
-                  key={object.name}
-                  role="treeitem"
-                  tabIndex={0}
-                  aria-selected={selected.has(object.name)}
-                  onClick={() => onSelect(object.name)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onSelect(object.name);
-                    }
-                  }}
-                >
-                  <span className="tree-icon">
-                    {object.type === "CAMERA" ? (
-                      <Camera />
-                    ) : object.type === "LIGHT" ? (
-                      <Lightbulb />
-                    ) : (
-                      <Box />
-                    )}
-                  </span>
-                  <span>{object.name}</span>
-                  <button
+            <div className="panel-body">
+              <label className="outliner-search">
+                <Search size={12} />
+                <input value={outlinerQuery} onChange={(event) => setOutlinerQuery(event.target.value)} placeholder="搜索对象" aria-label="搜索场景对象" />
+                {outlinerQuery && <button type="button" aria-label="清除对象搜索" onClick={() => setOutlinerQuery("")}><X size={11} /></button>}
+              </label>
+              <div className="tree-root">
+                <span>⌄</span>
+                <strong>{manifest?.scene ?? "Scene Collection"}</strong>
+              </div>
+              <div className="tree-children">
+                {filteredObjects.map((object) => (
+                  <div
+                    className={`tree-row ${selected.has(object.name) ? "selected" : ""}`}
+                    key={object.name}
+                    role="treeitem"
+                    tabIndex={0}
+                    aria-selected={selected.has(object.name)}
+                    onClick={() => onSelect(object.name)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelect(object.name);
+                      }
+                    }}
+                  >
+                    <span className="tree-icon">
+                      {object.type === "CAMERA" ? (
+                        <Camera />
+                      ) : object.type === "LIGHT" ? (
+                        <Lightbulb />
+                      ) : (
+                        <Box />
+                      )}
+                    </span>
+                    <span>{object.name}</span>
+                    <button
                     type="button"
                     aria-label={tf(hidden.has(object.name) ? "显示 %s" : "隐藏 %s", object.name)}
                     className="eye"
@@ -1742,20 +1738,22 @@ function BlenderWorkspace({
               ))}
               {manifest && filteredObjects.length === 0 && <p className="outliner-empty">没有匹配对象</p>}
             </div>
+            </div>
           </section>
           <PanelResizeHandle
             label="调整场景集合面板高度"
             onDelta={(delta) => setOutlinerHeight((height) => Math.min(560, Math.max(90, height + delta)))}
           />
-          <section className={`properties ${propertyCollapsed ? 'collapsed' : ''}`} style={{ height: propertyCollapsed ? 28 : '100%' }}>
-            <header>
+          <section className={`panel properties-panel ${propertyCollapsed ? 'collapsed' : ''}`} style={{ height: propertyCollapsed ? 28 : propertyHeight + summaryHeight + 56 }}>
+            <div className="panel-header">
               <button type="button" className="panel-toggle" onClick={() => setPropertyCollapsed((c) => !c)} title="折叠/展开属性">
                 <span className="panel-icon"><SlidersHorizontal size={13} /></span>
                 <span>属性</span>
               </button>
-            </header>
-            {active && (
-              <div className="property-body" style={{ height: propertyHeight }}>
+            </div>
+            <div className="panel-body">
+              {active && (
+                <div className="property-body" style={{ height: propertyHeight }}>
                 <p className="property-kicker">{active.type}</p>
                 <label>
                   对象名称
@@ -1770,27 +1768,47 @@ function BlenderWorkspace({
                 </label>
               </div>
             )}
-            {active && (
-              <PanelResizeHandle
-                label="调整对象属性面板高度"
-                onDelta={(delta) => setPropertyHeight((height) => Math.min(360, Math.max(76, height + delta)))}
-              />
-            )}
-            <div className="property-summary-slot" style={{ height: summaryHeight }}>
+            </div>
+          </section>
+          <PanelResizeHandle
+            label="调整属性面板高度"
+            onDelta={(delta) => setPropertyHeight((height) => Math.min(360, Math.max(76, height + delta)))}
+          />
+          <section className={`panel summary-panel ${summaryCollapsed ? 'collapsed' : ''}`} style={{ height: summaryCollapsed ? 28 : summaryHeight }}>
+            <div className="panel-header">
+              <button type="button" className="panel-toggle" onClick={() => setSummaryCollapsed((c) => !c)} title="折叠/展开转换内容">
+                <span className="panel-icon"><FileText size={13} /></span>
+                <span>转换内容</span>
+              </button>
+            </div>
+            <div className="panel-body">
               <ConversionSummary manifest={manifest} />
             </div>
-            <PanelResizeHandle
-              label="调整转换信息面板高度"
-              onDelta={(delta) => setSummaryHeight((height) => Math.min(360, Math.max(82, height + delta)))}
-            />
           </section>
-          <section className={`review-section ${reviewCollapsed ? 'collapsed' : ''}`} style={{ height: reviewCollapsed ? 28 : 'auto' }}>
-            <ReviewPanel
-              comments={visibleComments}
-              newCount={reviewNewCount}
-              onAcknowledgeNew={onAcknowledgeReview}
-              selectedId={selectedCommentId}
-              pending={pendingReview}
+          <PanelResizeHandle
+            label="调整转换信息面板高度"
+            onDelta={(delta) => setSummaryHeight((height) => Math.min(360, Math.max(82, height + delta)))}
+          />
+          <section className={`panel review-panel-section ${reviewCollapsed ? 'collapsed' : ''}`} style={{ flex: 1, minHeight: reviewCollapsed ? 28 : 80 }}>
+            <div className="panel-header">
+              <button type="button" className="panel-toggle" onClick={() => setReviewCollapsed((c) => !c)} title="折叠/展开审稿批注">
+                <span className="panel-icon"><MessageSquarePlus size={13} /></span>
+                <span>审稿批注</span>
+                <b data-testid="review-count">{visibleComments.length}{reviewNewCount > 0 ? ` · 新 ${reviewNewCount}` : ""}</b>
+              </button>
+              <div className="review-filters" aria-label="批注状态筛选">
+                {([['all', '⬡', '全部'], ['open', '●', '待处理'], ['resolved', '✓', '已解决']] as const).map(([value, icon, label]) => (
+                  <button key={value} type="button" title={label} className={reviewFilter === value ? "active" : ""} onClick={() => setReviewFilter(value)}>{icon}</button>
+                ))}
+              </div>
+            </div>
+            <div className="panel-body">
+              <ReviewPanel
+                comments={visibleComments}
+                newCount={reviewNewCount}
+                onAcknowledgeNew={onAcknowledgeReview}
+                selectedId={selectedCommentId}
+                pending={pendingReview}
               body={commentBody}
               readOnly={readOnly}
               canComment={canComment}
@@ -1807,7 +1825,9 @@ function BlenderWorkspace({
               onEdit={(comment, body) => void editReviewComment(comment, body)}
               collapsed={reviewCollapsed}
               onToggleCollapse={() => setReviewCollapsed((c) => !c)}
+              hideTitle
             />
+            </div>
           </section>
         </aside>
       </div>
@@ -2412,6 +2432,7 @@ function ReviewPanel({
   onEdit,
   collapsed,
   onToggleCollapse,
+  hideTitle,
 }: {
   comments: ReviewComment[];
   newCount: number;
@@ -2431,6 +2452,7 @@ function ReviewPanel({
   onEdit: (comment: ReviewComment, body: string) => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  hideTitle?: boolean;
 }) {
   const selectedComment = comments.find((comment) => comment.id === selectedId);
   const [editBody, setEditBody] = useState("");
@@ -2439,7 +2461,7 @@ function ReviewPanel({
   }, [selectedComment]);
   return (
     <div className="review-panel" data-testid="review-panel" aria-label="审稿批注" aria-readonly={readOnly}>
-      <div className="review-panel-title">
+      {!hideTitle && <div className="review-panel-title">
         {onToggleCollapse && <button type="button" className="panel-toggle" onClick={onToggleCollapse}>
           <span className="panel-icon"><MessageSquarePlus size={13} /></span>
           <span>审稿批注</span>
@@ -2450,7 +2472,7 @@ function ReviewPanel({
           <span>审稿批注</span>
           <b data-testid="review-count">{comments.length}{newCount > 0 ? tf(" · 新 %s", newCount) : ""}</b>
         </>}
-      </div>
+      </div>}
       {newCount > 0 && <button className="review-new-notice" onClick={onAcknowledgeNew}>收到新批注，点击查看</button>}
       {pending && canComment && (
         <div className="review-compose" data-testid="review-draft">

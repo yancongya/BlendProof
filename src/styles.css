@@ -215,23 +215,12 @@ button {
   grid-template-rows: 28px minmax(0, 1fr) 28px;
   background: #1e1e1e;
 }
-.editor-header,
-.right-editors header {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  padding: 0 8px;
-  background: #2a2a2a;
-  border-bottom: 1px solid #171717;
-  color: #c3c3c3;
-}
 .editor-header {
-  gap: 10px;
-}
-.review-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  position: relative;
+  z-index: 10;
 }
 .header-right {
   display: flex;
@@ -252,7 +241,6 @@ button {
   color: #a9a9a9;
 }
 .editor-mode {
-  margin-left: auto;
   padding: 3px 6px;
   background: #222;
   border: 1px solid #3c3c3c;
@@ -349,42 +337,52 @@ button {
   min-height: 0;
   background: #252525;
 }
-.outliner,
-.properties {
+/* Panel system: equal-level panels with independent collapse */
+.panel {
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: #252525;
-  transition: height 0.2s ease;
+  order: 0;
 }
-.outliner.collapsed,
-.properties.collapsed {
-  height: auto !important;
+.panel.collapsed {
+  order: 1;
+  flex: 0 0 28px;
   min-height: 28px;
-  flex: none;
+  max-height: 28px;
   overflow: hidden;
 }
-.outliner.collapsed > *:not(header),
-.properties.collapsed > *:not(header) {
+.panel.collapsed .panel-body {
   display: none;
 }
-.review-section {
-  flex: none;
-  overflow: hidden;
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 8px;
+  background: #2a2a2a;
+  border-bottom: 1px solid #171717;
+  font-size: 11px;
+  flex-shrink: 0;
 }
-.review-section.collapsed {
-  height: 28px !important;
-}
-.review-section.collapsed > *:not(.review-panel-title) {
+/* Resize handle after a collapsed panel: hide it */
+.panel.collapsed + .panel-resize-handle {
   display: none;
 }
-.outliner {
-  flex: none;
+.panel-resize-handle {
+  flex-shrink: 0;
 }
-.properties {
+.panel-body {
   flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
+.outliner-panel { flex: 0 0 280px; }
+.properties-panel { flex: 1; }
+.summary-panel { flex: 0 0 180px; }
+.review-panel-section { flex: 1; }
 .right-editors header {
   justify-content: space-between;
   height: 28px;
@@ -411,11 +409,6 @@ button {
   color: #888;
 }
 .panel-toggle:hover .panel-icon { color: #e87d0d; }
-.right-editors header span {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
 .outliner-focus {
   display: grid;
   width: 24px;

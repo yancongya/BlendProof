@@ -585,8 +585,20 @@
   color: #fff;
   background: #a85109;
 }
-.review-filters { display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; }
-.review-filters button { padding: 3px 7px; border: 1px solid transparent; border-radius: 2px; background: transparent; color: #858585; font-size: 10px; cursor: pointer; }
+.review-filters { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.review-filters button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: #858585;
+  font-size: 10px;
+  cursor: pointer;
+}
 .review-filters button:hover { color: #ddd; background: #2a2a2a; }
 .review-filters button.active { border-color: #74410f; background: #33200e; color: #f1a04a; }
 .review-panel {
