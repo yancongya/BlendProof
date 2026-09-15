@@ -52,6 +52,7 @@ import {
 } from "three";
 import { BlenderLogo } from "./components/BlenderLogo";
 import { getLang, t, tf, useI18n } from "./i18n";
+import { MenubarActions, SplashActions } from "./components/TopActions";
 import { UploaderPanel, type UploadStage } from "./components/UploaderPanel";
 import { blendProofClient, type AccountStats, type AccountUser, type AdminInvite, type AdminSettings, type AdminUser, type CloudOwnerProject, type OwnerProject, type ProjectTransport, type PublicStats } from "./api/blendProofClient";
 import { ReviewAnnotations } from "./review/ReviewAnnotations";
@@ -866,6 +867,7 @@ function StartPage({
         </div>
         <nav className="start-tabs" role="tablist" aria-label="启动页导航">
           {([['start', '开始'], ['recent', '最近项目'], ['status', '平台状态'], ['account', '账号']] as const).map(([key, label]) => <button type="button" role="tab" id={`start-tab-${key}`} aria-controls="start-tabpanel" key={key} className={startTab === key ? "active" : ""} aria-selected={startTab === key} onClick={() => setStartTab(key)}>{label}</button>)}
+          <div className="start-tabs-actions"><SplashActions /></div>
         </nav>
         <div className="start-tab-body" id="start-tabpanel" role="tabpanel" aria-labelledby={`start-tab-${startTab}`} tabIndex={0}>
           {startTab === "start" && <div className="start-actions-grid">
@@ -1396,6 +1398,7 @@ function BlenderWorkspace({
         </div>
         <div className="header-actions">
           {children ?? <span>只读审稿</span>}
+          <MenubarActions />
         </div>
       </header>
       <div className="blender-main">

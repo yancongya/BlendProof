@@ -1214,6 +1214,7 @@
 .start-tabs button { min-width: 94px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #969696; font-size: 11px; }
 .start-tabs button:hover { color: #ddd; background: #303030; }
 .start-tabs button.active { border-bottom-color: #ed841b; color: #f0f0f0; }
+.start-tabs-actions { display: flex; margin-left: auto; align-items: center; gap: 8px; }
 .start-tab-body {
   min-height: 245px;
   max-height: 420px;

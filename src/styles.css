@@ -665,56 +665,67 @@ button {
   }
 }
 
-/* ---- Top-right control group: landing link + language toggle ---- */
+/* ---- Landing link + language toggle, rendered inline (not floating) ---- */
 .top-actions {
-  position: fixed;
-  top: 12px;
-  right: 14px;
-  z-index: 320;
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 6px;
 }
-/* The launcher is a transient welcome modal with its own top-right close; hide
-   the global controls there to avoid overlap. */
-.blendproof-start-page ~ .top-actions {
-  display: none;
+
+/* In the Blender menubar: match .menu-item so it blends with 文件 / 分享. */
+.top-actions--menubar {
+  gap: 0;
+  margin-left: 6px;
 }
-.top-action {
+.top-actions--menubar .top-action {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 32px;
-  padding: 0 11px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 8px;
-  background: rgba(40, 40, 40, 0.72);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  color: #e6e6e6;
-  font-size: 12px;
+  height: 22px;
+  padding: 0 9px;
+  border: 0;
+  border-left: 1px solid #414141;
+  background: transparent;
+  color: #d4d4d4;
+  font-size: 11px;
   text-decoration: none;
   cursor: pointer;
-  box-shadow: 0 6px 20px -10px rgba(0, 0, 0, 0.6);
-  transition: border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
-.top-action:hover {
-  border-color: #f0a830;
+.top-actions--menubar .top-action:hover {
+  background: #3b3b3b;
   color: #ffd591;
-  transform: translateY(-1px);
 }
-/* Reserve room on the editor menubar so the fixed controls don't overlap it */
-.blender-menubar {
-  padding-right: 174px;
+
+/* On the welcome / cover page tab strip. */
+.top-actions--splash {
+  gap: 8px;
 }
+.top-actions--splash .top-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid #3d3d3d;
+  border-radius: 4px;
+  background: transparent;
+  color: #bdbdbd;
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.top-actions--splash .top-action:hover {
+  border-color: #ed841b;
+  background: #303030;
+  color: #ffd591;
+}
+
 @media (max-width: 720px) {
-  .blender-menubar {
-    padding-right: 8px;
+  .top-actions--menubar .top-action {
+    padding: 0 7px;
   }
-  .top-action span {
+  .top-actions--menubar .top-action span {
     display: none;
-  }
-  .top-action {
-    padding: 0 9px;
   }
 }
