@@ -52,6 +52,7 @@ import {
   type Object3D,
 } from "three";
 import { BlenderLogo } from "./components/BlenderLogo";
+import { GuidedTour, type GuidedTourStep } from "./components/GuidedTour";
 import { getLang, t, tf, useI18n } from "./i18n";
 import { MenubarActions, SplashActions } from "./components/TopActions";
 import { UploaderPanel, type UploadStage } from "./components/UploaderPanel";
@@ -79,7 +80,15 @@ type Manifest = {
   export?: { sourceBytes?: number; glbBytes?: number; objectCount?: number };
 };
 type DisplayMode = "material" | "gray" | "wire";
+type ShadingMode = "smooth" | "flat";
 type ReviewFilter = "all" | "open" | "resolved";
+const VIEWER_GUIDE_STEPS: GuidedTourStep[] = [
+  { id: "file", title: "打开 Blender 文件", description: "从文件菜单选择 .blend，文件会先在本机转换。", target: '[data-guide="file-menu"]', placement: "bottom", group: "开始" },
+  { id: "viewport", title: "操作 3D 视图", description: "中键旋转，Shift + 中键平移，滚轮缩放；空白区域取消选择。", target: '[data-guide="viewport"]', placement: "right", group: "视图" },
+  { id: "outliner", title: "查看场景结构", description: "在 Outliner 中选择对象、控制显隐，按 / 可独显。", target: '[data-guide="outliner"]', placement: "left", group: "场景" },
+  { id: "annotation", title: "添加批注", description: "进入标注模式，悬停模型表面查看吸附点，右键在当前视角位置创建批注。", target: '[data-guide="annotation-tool"]', placement: "bottom", group: "审稿" },
+  { id: "share", title: "创建分享", description: "选择只读或可评论，设置密码和有效期后复制链接给客户。", target: '[data-guide="share-button"]', placement: "bottom", group: "协作" },
+];
 type CameraPreset =
   "perspective" | "front" | "right" | "top" | `file:${string}`;
 type SelectionBox = {
@@ -89,6 +98,7 @@ type SelectionBox = {
   height: number;
 } | null;
 type PendingReview = Omit<ReviewCommentDraft, "body" | "authorName">;
+type AnnotationHit = { position: Vec3; normal: Vec3; objectName: string | null };
 type ActiveShareStatus = {
   expiresAt: string | null;
   permission: "read_only" | "comment";
@@ -630,6 +640,7 @@ export function App() {
         <button
           type="button"
           className="menu-item share-trigger"
+          data-guide="share-button"
           aria-haspopup="dialog"
           aria-expanded={sharePanelOpen}
           onClick={() => setSharePanelOpen((current) => !current)}
@@ -706,12 +717,13 @@ export function SharePage() {
     modelUrl: "/default-monkey.glb",
     manifest: DEFAULT_MONKEY_MANIFEST,
     comments: DEMO_COMMENTS,
-    commentsPermission: "read_only",
+    commentsPermission: "comment",
     expiresAt: null,
   } : null);
   const [error, setError] = useState<string | null>(null);
   const [passwordRequired, setPasswordRequired] = useState(isDemoShare);
   const [password, setPassword] = useState("");
+  const [guestName, setGuestName] = useState(() => token ? window.localStorage.getItem(`blendproof-guest-name:${token}`) ?? "" : "");
   const [selected, setSelected] = useState<Set<string>>(() => new Set(sharedView?.selected ?? []));
   const [hidden, setHidden] = useState<Set<string>>(() => new Set(sharedView?.hidden ?? []));
   const [displayMode, setDisplayMode] = useState<DisplayMode>(sharedView?.displayMode ?? "material");
@@ -765,13 +777,29 @@ export function SharePage() {
   }
   async function createGuestComment(draft: ReviewCommentDraft) {
     if (!token) throw new Error("缺少分享标识。");
-    const comment = await blendProofClient.createGuestComment(token, draft, transport);
+    const name = guestName.trim() || (isDemoShare ? "访客" : "");
+    if (!name) throw new Error("请先填写审核名称。");
+    if (isDemoShare) {
+      const now = new Date().toISOString();
+      const comment: ReviewComment = { ...draft, id: `demo-${Date.now()}`, projectId: DEMO_SHARE_TOKEN, authorName: name, status: "open", createdAt: now, updatedAt: now };
+      setShare((current) => current ? { ...current, comments: [...current.comments, comment] } : current);
+      return comment;
+    }
+    const comment = await blendProofClient.createGuestComment(token, { ...draft, authorName: name }, transport);
     setShare((current) => current ? { ...current, comments: [...current.comments, comment] } : current);
     return comment;
   }
   if (passwordRequired) return <PasswordNotice password={password} error={error} onPassword={setPassword} onSubmit={unlockShare} />;
   if (error) return <Notice text={error} />;
   if (!share) return <Notice text="正在打开审稿文件。" />;
+  if (!isDemoShare && share.commentsPermission === "comment" && !guestName.trim()) {
+    return <GuestNameNotice value={guestName} onChange={setGuestName} onSubmit={() => {
+      const name = guestName.trim();
+      if (!name || !token) return;
+      window.localStorage.setItem(`blendproof-guest-name:${token}`, name);
+      setGuestName(name);
+    }} />;
+  }
   return (
     <BlenderWorkspace
       title={share.manifest.scene}
@@ -782,7 +810,7 @@ export function SharePage() {
       onSelectMany={(names) => setSelected(new Set(names))}
       onToggle={(name) => setHidden((current) => { const next = new Set(current); next.has(name) ? next.delete(name) : next.add(name); return next; })}
       message={isDemoShare
-        ? "管理员永久公开示例 · 只读 · 不限时。"
+        ? "管理员永久公开示例 · 可评论 · 不限时。"
         : share.commentsPermission === "comment"
           ? "访客可在模型表面添加批注。"
           : transport === "cloud"
@@ -791,7 +819,7 @@ export function SharePage() {
       modelUrl={share.modelUrl}
       readOnly
       canComment={share.commentsPermission === "comment"}
-      commentAuthorName="访客"
+      commentAuthorName={guestName.trim() || "访客"}
       displayMode={displayMode}
       onDisplayMode={setDisplayMode}
       cameraPreset={cameraPreset}
@@ -814,6 +842,10 @@ export function SharePage() {
 
 function PasswordNotice({ password, error, onPassword, onSubmit }: { password: string; error: string | null; onPassword: (value: string) => void; onSubmit: () => void }) {
   return <div className="notice"><BlenderLogo /><h1>受保护的审稿链接</h1><p>{error ?? "请输入分享密码后继续。"}</p><input aria-label="访问密码" type="password" value={password} autoFocus onChange={(event) => onPassword(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") onSubmit(); }} /><button className="primary" onClick={onSubmit}>打开审稿</button></div>;
+}
+
+function GuestNameNotice({ value, onChange, onSubmit }: { value: string; onChange: (value: string) => void; onSubmit: () => void }) {
+  return <div className="notice"><BlenderLogo /><h1>进入审稿</h1><p>填写一个名称，批注会以此名称显示给项目作者。</p><input aria-label="审核名称" autoFocus maxLength={40} value={value} placeholder="例如：客户 A" onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") onSubmit(); }} /><button className="primary" disabled={!value.trim()} onClick={onSubmit}>继续审稿</button></div>;
 }
 
 function Notice({ text }: { text: string }) {
@@ -907,6 +939,7 @@ function StartPage({
       <section className="start-launcher" onMouseDown={(event) => event.stopPropagation()}>
         <button type="button" className="start-launcher-close" aria-label="关闭欢迎页" onClick={onClose}><X size={16} /></button>
         <div className="start-splash">
+          <video className="start-splash-video" autoPlay muted loop playsInline preload="metadata" poster="/blendproof-splash-v2.jpg" aria-hidden="true"><source src="/intro.mp4" type="video/mp4" /></video>
           <div className="start-splash-brand"><BlenderLogo /><span>BlendProof</span></div>
           <span className="start-splash-version">Web 0.1</span>
           <div className="start-splash-copy"><strong>Blender 工程的轻量审稿台</strong><span>本机转换 · 原始工程不上传</span></div>
@@ -1142,6 +1175,8 @@ function BlenderWorkspace({
   const [sceneRoot, setSceneRoot] = useState<Object3D | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox>(null);
   const [annotationMode, setAnnotationMode] = useState(false);
+  const [annotationHover, setAnnotationHover] = useState<AnnotationHit | null>(null);
+  const [annotationPopover, setAnnotationPopover] = useState<{ x: number; y: number } | null>(null);
   const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
   const [commentBody, setCommentBody] = useState("");
@@ -1150,6 +1185,7 @@ function BlenderWorkspace({
   const [annotationsVisible, setAnnotationsVisible] = useState(true);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [navigationTarget, setNavigationTarget] = useState<Vec3>([0, 0, 0]);
   const visibleComments = useMemo(
     () => reviewFilter === "all" ? comments : comments.filter((comment) => comment.status === reviewFilter),
@@ -1163,6 +1199,7 @@ function BlenderWorkspace({
   const [reviewCollapsed, setReviewCollapsed] = useState(false);
   const [summaryHeight, setSummaryHeight] = useState(180);
   const [overlaysVisible, setOverlaysVisible] = useState(true);
+  const [shadingMode, setShadingMode] = useState<ShadingMode>("smooth");
   const [outlinerQuery, setOutlinerQuery] = useState("");
   const [focusRequest, setFocusRequest] = useState<{ names: string[]; nonce: number } | null>(null);
   const [reviewCameraRequest, setReviewCameraRequest] = useState<{
@@ -1197,6 +1234,8 @@ function BlenderWorkspace({
   );
   useEffect(() => {
     setAnnotationMode(false);
+    setAnnotationHover(null);
+    setAnnotationPopover(null);
     setPendingReview(null);
     setSelectedCommentId(null);
     setCommentBody("");
@@ -1220,6 +1259,15 @@ function BlenderWorkspace({
       const target = event.target as HTMLElement | null;
       if (target?.matches("input, textarea, select, [contenteditable='true']"))
         return;
+      if (event.key === "Escape" && (annotationMode || pendingReview)) {
+        event.preventDefault();
+        setAnnotationMode(false);
+        setAnnotationHover(null);
+        setAnnotationPopover(null);
+        setPendingReview(null);
+        setCommentBody("");
+        return;
+      }
       if (
         (event.code === "NumpadDivide" || event.key === "/") &&
         selected.size > 0
@@ -1250,7 +1298,7 @@ function BlenderWorkspace({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onCameraPreset, selected, toggleIsolation]);
+  }, [annotationMode, onCameraPreset, pendingReview, selected, toggleIsolation]);
   useEffect(() => {
     if (!uploaderOpen) {
       if (uploaderWasOpenRef.current && onOpenUploader) uploaderTriggerRef.current?.focus();
@@ -1312,6 +1360,7 @@ function BlenderWorkspace({
       });
       setSelectedCommentId(comment.id);
       setPendingReview(null);
+      setAnnotationPopover(null);
       setCommentBody("");
       setReviewMessage("批注已保存。");
     } catch (reason) {
@@ -1369,7 +1418,7 @@ function BlenderWorkspace({
             <button
               ref={uploaderTriggerRef}
               type="button"
-              className="menu-item file-menu-trigger"
+              className="menu-item file-menu-trigger" data-guide="file-menu"
               data-testid="open-uploader"
               aria-haspopup="menu"
               aria-expanded={fileMenuOpen}
@@ -1445,33 +1494,38 @@ function BlenderWorkspace({
               <Share2 size={11} strokeWidth={2.2} />
             </span>
           )}
+          <button type="button" className="guide-trigger" title="打开操作指南" onClick={() => setGuideOpen(true)}>?</button>
         </div>
         <div className="header-actions">
           {children ?? <span>只读审稿</span>}
           <MenubarActions />
         </div>
       </header>
+      {guideOpen && <GuidedTour steps={VIEWER_GUIDE_STEPS.filter((step) => step.id !== "annotation" || canComment)} onClose={() => setGuideOpen(false)} onStepChange={(step) => { if (step.id === "annotation") { setAnnotationsVisible(true); setReviewFilter("all"); } }} />}
       <div className="blender-main">
         <section className="editor">
           <div className="editor-header">
-            <div className="editor-type" aria-label="3D 视图">
+            <div className="editor-type" aria-label="3D 视图" data-guide="viewport">
               <Box size={14} /> 3D 视图
             </div>
             <div className="header-right">
               {canComment && modelUrl && (
                 <button
                   className={`annotation-tool ${annotationMode ? "active" : ""}`}
-                  data-testid="annotation-toggle"
+                data-testid="annotation-toggle" data-guide="annotation-tool"
+                  title="进入标注模式：悬停吸附，右键添加"
                   aria-pressed={annotationMode}
                   onClick={() => {
                     setAnnotationMode((current) => !current);
+                    setAnnotationHover(null);
+                    setAnnotationPopover(null);
                     setPendingReview(null);
                     setReviewFilter("all");
                     setAnnotationsVisible(true);
                   }}
                 >
                   <MessageSquarePlus size={13} />
-                  {annotationMode ? "点击模型放置批注" : "添加批注"}
+                  {annotationMode ? "悬停吸附 · 右键添加" : "添加批注"}
                 </button>
               )}
               <div className="view-controls" aria-label="视图控制">
@@ -1556,15 +1610,23 @@ function BlenderWorkspace({
               >
                 <MessageSquarePlus size={12} /> 批注
               </button>
+              <button
+                type="button"
+                className={`editor-mode overlay-toggle shading-toggle ${shadingMode === "flat" ? "active" : ""}`}
+                aria-pressed={shadingMode === "flat"}
+                title={shadingMode === "smooth" ? "切换为平直着色" : "切换为平滑着色"}
+                onClick={() => setShadingMode((mode) => mode === "smooth" ? "flat" : "smooth")}
+              >{shadingMode === "smooth" ? "平滑" : "平直"}</button>
             </div>
             </div>
           </div>
-          <div className="viewport" data-testid="viewer-viewport" aria-label="3D 模型视图">
+          <div className={`viewport ${annotationMode ? "annotation-mode" : ""}`} data-testid="viewer-viewport" aria-label="3D 模型视图">
             {modelUrl ? (
               <Canvas
                 camera={{ position: [7, 7, 5], fov: 45 }}
                 dpr={[1, 2]}
                 onPointerMissed={() => onSelect(null)}
+                onContextMenu={(event) => event.preventDefault()}
                 onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
               >
                 <color attach="background" args={["#1e1e1e"]} />
@@ -1576,6 +1638,7 @@ function BlenderWorkspace({
                     url={modelUrl}
                     hidden={hidden}
                     displayMode={displayMode}
+                    shadingMode={shadingMode}
                     selected={selected}
                     isolated={isolated}
                     onIsolationInvalid={() => setIsolated(false)}
@@ -1586,14 +1649,19 @@ function BlenderWorkspace({
                     onCameras={collectCameras}
                     onSceneReady={setSceneRoot}
                     annotationMode={annotationMode}
+                    hoveredName={annotationHover?.objectName ?? null}
                     navigationTarget={navigationTarget}
-                    onAnnotation={(draft) => {
+                    onHoverAnnotation={setAnnotationHover}
+                    onAnnotation={(draft, screen) => {
                       setPendingReview(draft);
+                      setAnnotationHover(null);
+                      setAnnotationPopover({ x: screen.x > 700 ? screen.x - 270 : screen.x, y: Math.min(Math.max(12, screen.y), Math.max(12, window.innerHeight - 260)) });
                       setCommentBody("");
                       setAnnotationMode(false);
                       setReviewMessage("已定位批注，请填写内容。");
                     }}
                   />
+                  {annotationMode && annotationHover && <AnnotationHoverMarker hit={annotationHover} />}
                   {annotationsVisible && <ReviewAnnotations
                     comments={visibleComments}
                     selectedId={selectedCommentId}
@@ -1645,9 +1713,17 @@ function BlenderWorkspace({
                 }}
               />
             )}
+            {pendingReview && annotationPopover && (
+              <div className="annotation-popover" style={{ left: annotationPopover.x, top: annotationPopover.y }} onPointerDown={(event) => event.stopPropagation()}>
+                <div className="annotation-popover-title"><MessageSquarePlus size={13} /> 添加批注 <button type="button" aria-label="取消" onClick={() => { setPendingReview(null); setAnnotationPopover(null); setCommentBody(""); }}><X size={13} /></button></div>
+                <small>落点：{pendingReview.objectName ?? "模型表面"}</small>
+                <textarea aria-label="批注内容" autoFocus value={commentBody} placeholder="输入需要修改或确认的内容" onChange={(event) => setCommentBody(event.target.value)} />
+                <div><button type="button" onClick={() => { setPendingReview(null); setAnnotationPopover(null); setCommentBody(""); }}>取消</button><button type="button" className="primary" disabled={!commentBody.trim() || reviewBusy} onClick={() => void savePendingReview()}>保存批注</button></div>
+              </div>
+            )}
           </div>
           <div className="viewport-hints">
-            左键拖拽框选 <span>·</span> 中键旋转 <span>·</span> Shift + 中键平移{" "}
+            {annotationMode ? <>悬停模型显示吸附点 <span>·</span> 右键创建批注 <span>·</span> Esc 退出</> : <>左键拖拽框选 <span>·</span> 中键旋转 <span>·</span> Shift + 中键平移{" "}</>}
             <span>·</span> 滚轮缩放 <span>·</span>/{" "}
             {selected.size > 0
               ? isolated
@@ -1657,7 +1733,7 @@ function BlenderWorkspace({
           </div>
         </section>
         <aside className="right-editors">
-          <section className={`panel outliner-panel ${outlinerCollapsed ? 'collapsed' : ''}`} style={{ height: outlinerCollapsed ? 28 : outlinerHeight }}>
+          <section className={`panel outliner-panel ${outlinerCollapsed ? 'collapsed' : ''}`} data-guide="outliner" style={{ height: outlinerCollapsed ? 28 : outlinerHeight }}>
             <div className="panel-header">
               <button type="button" className="panel-toggle" onClick={() => setOutlinerCollapsed((c) => !c)} title="折叠/展开">
                 <span className="panel-icon"><Layers size={13} /></span>
@@ -1808,7 +1884,7 @@ function BlenderWorkspace({
                 newCount={reviewNewCount}
                 onAcknowledgeNew={onAcknowledgeReview}
                 selectedId={selectedCommentId}
-                pending={pendingReview}
+                pending={null}
               body={commentBody}
               readOnly={readOnly}
               canComment={canComment}
@@ -1876,10 +1952,29 @@ function BlenderWorkspace({
     </main>
   );
 }
+
+function AnnotationHoverMarker({ hit }: { hit: AnnotationHit }) {
+  const position = useMemo(() => new Vector3(...hit.position), [hit.position]);
+  const normal = useMemo(() => new Vector3(...hit.normal).normalize(), [hit.normal]);
+  return (
+    <group position={position} userData={{ annotationHover: true }} raycast={() => null}>
+      <mesh position={normal.clone().multiplyScalar(0.025)} renderOrder={20}>
+        <sphereGeometry args={[0.075, 16, 16]} />
+        <meshBasicMaterial color="#f59e0b" depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh position={normal.clone().multiplyScalar(0.02)} renderOrder={19}>
+        <ringGeometry args={[0.1, 0.125, 24]} />
+        <meshBasicMaterial color="#f59e0b" transparent opacity={0.9} depthTest={false} depthWrite={false} side={DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
 function Model({
   url,
   hidden,
   displayMode,
+  shadingMode,
   selected,
   isolated,
   onIsolationInvalid,
@@ -1888,12 +1983,15 @@ function Model({
   onCameras,
   onSceneReady,
   annotationMode,
+  hoveredName,
   navigationTarget,
+  onHoverAnnotation,
   onAnnotation,
 }: {
   url: string;
   hidden: Set<string>;
   displayMode: DisplayMode;
+  shadingMode: ShadingMode;
   selected: Set<string>;
   isolated: boolean;
   onIsolationInvalid: () => void;
@@ -1902,8 +2000,10 @@ function Model({
   onCameras: (cameras: ThreeCamera[]) => void;
   onSceneReady: (scene: Object3D) => void;
   annotationMode: boolean;
+  hoveredName: string | null;
   navigationTarget: Vec3;
-  onAnnotation: (draft: PendingReview) => void;
+  onHoverAnnotation: (hit: AnnotationHit | null) => void;
+  onAnnotation: (draft: PendingReview, screen: { x: number; y: number }) => void;
 }) {
   const { camera } = useThree();
   const requestHeaders = useMemo(() => blendProofClient.assetRequestHeaders(url), [url]);
@@ -2004,9 +2104,14 @@ function Model({
           material.wireframe = saved.wireframe;
           if (saved.color !== undefined) material.color?.setHex(saved.color);
         }
-        if (belongsToAnySelected(node, selected)) {
+        const meshMaterial = material as typeof material & { flatShading?: boolean };
+        if (meshMaterial.flatShading !== (shadingMode === "flat")) {
+          meshMaterial.flatShading = shadingMode === "flat";
+          material.needsUpdate = true;
+        }
+        if (belongsToAnySelected(node, selected) || (hoveredName !== null && objectIdentity(node) === hoveredName)) {
           material.emissive?.setHex(0xe87d0d);
-          material.emissiveIntensity = 0.52;
+          material.emissiveIntensity = hoveredName === objectIdentity(node) ? 0.75 : 0.52;
         } else {
           if (saved.emissive !== undefined)
             material.emissive?.setHex(saved.emissive);
@@ -2017,50 +2122,49 @@ function Model({
     });
   }, [
     displayMode,
+    shadingMode,
     effectiveIsolation,
     hidden,
     isolationHierarchy,
     scene,
     selected,
+    hoveredName,
   ]);
+  const resolveSelectableNode = (object: Object3D | null) => {
+    let node = object;
+    while (node && !selectableNames.has(objectIdentity(node))) node = node.parent;
+    return node;
+  };
+  const placeAnnotation = (event: any) => {
+    if (!annotationMode || !event.point) return false;
+    event.stopPropagation();
+    const node = resolveSelectableNode(event.object);
+    const normal = event.face?.normal
+      ? event.face.normal.clone().applyMatrix3(new Matrix3().getNormalMatrix(event.object.matrixWorld)).normalize()
+      : new Vector3().copy(camera.position).sub(event.point).normalize();
+    const towardCamera = new Vector3().copy(camera.position).sub(event.point).normalize();
+    if (normal.dot(towardCamera) < 0) normal.negate();
+    const perspective = (camera as any).isPerspectiveCamera;
+    onAnnotation({ objectName: node ? objectIdentity(node) : null, position: event.point.toArray() as Vec3, normal: normal.toArray() as Vec3, camera: { projection: perspective ? "perspective" : "orthographic", position: camera.position.toArray() as Vec3, quaternion: camera.quaternion.toArray() as [number, number, number, number], target: navigationTarget, ...(perspective ? { fov: (camera as any).fov } : { zoom: (camera as any).zoom, orthographicHeight: (camera as any).top - (camera as any).bottom }) } }, { x: event.nativeEvent?.offsetX ?? event.clientX ?? 0, y: event.nativeEvent?.offsetY ?? event.clientY ?? 0 });
+    return true;
+  };
   return (
     <primitive
       object={scene}
+      onPointerMove={(event: any) => {
+        if (!annotationMode || !event.point) return onHoverAnnotation(null);
+        const normal = event.face?.normal
+          ? event.face.normal.clone().applyMatrix3(new Matrix3().getNormalMatrix(event.object.matrixWorld)).normalize()
+          : new Vector3().copy(camera.position).sub(event.point).normalize();
+        const node = resolveSelectableNode(event.object);
+        onHoverAnnotation({ position: event.point.toArray() as Vec3, normal: normal.toArray() as Vec3, objectName: node ? objectIdentity(node) : null });
+      }}
+      onPointerOut={() => onHoverAnnotation(null)}
+      onPointerDown={(event: any) => { if (annotationMode && (event.button === 2 || event.nativeEvent?.button === 2)) placeAnnotation(event); }}
       onClick={(event: any) => {
         event.stopPropagation();
-        let node: Object3D | null = event.object;
-        while (node && !selectableNames.has(objectIdentity(node))) node = node.parent;
-        if (annotationMode && event.face) {
-          const normal = event.face.normal
-            .clone()
-            .applyMatrix3(new Matrix3().getNormalMatrix(event.object.matrixWorld))
-            .normalize();
-          const towardCamera = new Vector3()
-            .copy(camera.position)
-            .sub(event.point)
-            .normalize();
-          if (normal.dot(towardCamera) < 0) normal.negate();
-          const perspective = (camera as any).isPerspectiveCamera;
-          onAnnotation({
-            objectName: node ? objectIdentity(node) : null,
-            position: event.point.toArray() as Vec3,
-            normal: normal.toArray() as Vec3,
-            camera: {
-              projection: perspective ? "perspective" : "orthographic",
-              position: camera.position.toArray() as Vec3,
-              quaternion: camera.quaternion.toArray() as [number, number, number, number],
-              target: navigationTarget,
-              ...(perspective
-                ? { fov: (camera as any).fov }
-                : {
-                    zoom: (camera as any).zoom,
-                    orthographicHeight:
-                      (camera as any).top - (camera as any).bottom,
-                  }),
-            },
-          });
-          return;
-        }
+        if (annotationMode) return;
+        const node = resolveSelectableNode(event.object);
         onObjectClick(node ? objectIdentity(node) : null);
       }}
     />

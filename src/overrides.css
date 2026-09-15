@@ -619,6 +619,25 @@
   color: #aaa;
 }
 .review-new-notice { width: 100%; margin: 4px 0 8px; padding: 6px 8px; border: 1px solid #8a4d12; border-radius: 3px; background: #2b1b0d; color: #f2a04b; text-align: left; font-size: 10px; cursor: pointer; }
+.guided-tour { position: fixed; inset: 0; z-index: 300; }
+.guided-tour-backdrop { position: absolute; inset: 0; border: 0; background: #0009; cursor: default; pointer-events: none; }
+.guided-tour-highlight { position: absolute; z-index: 1; border: 2px solid #e87d0d; border-radius: 4px; box-shadow: 0 0 0 9999px #0008; pointer-events: none; }
+.guided-tour-popover { position: absolute; z-index: 2; width: 320px; padding: 14px; border: 1px solid #4a4a4a; border-radius: 6px; background: #252525; color: #ddd; box-shadow: 0 16px 45px #000b; pointer-events: auto; }
+.guided-tour-popover header,.guided-tour-popover footer,.guided-tour-popover nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.guided-tour-popover header { color: #e87d0d; font-size: 10px; }.guided-tour-popover header button { border: 0; background: none; color: #999; }
+.guided-tour-popover h3 { margin: 12px 0 5px; color: #fff; font-size: 14px; }.guided-tour-popover p { margin: 0 0 14px; color: #aaa; font-size: 11px; line-height: 1.6; }
+.guided-tour-popover footer { border-top: 1px solid #3a3a3a; padding-top: 10px; }.guided-tour-popover footer > div { display: flex; gap: 4px; }.guided-tour-popover footer > div button { width: 16px; height: 4px; border: 0; border-radius: 4px; background: #555; }.guided-tour-popover footer > div button.active { width: 24px; background: #e87d0d; }
+.guided-tour-popover nav button { display: inline-flex; align-items: center; gap: 3px; padding: 4px 7px; border: 1px solid #555; border-radius: 3px; background: #303030; color: #bbb; font-size: 10px; }.guided-tour-popover nav button.primary { border-color: #a85b10; background: #a85b10; color: white; }.guided-tour-popover nav button:disabled { opacity: .35; }
+.annotation-popover { position: absolute; z-index: 12; transform: translate(12px, 12px); width: 248px; padding: 10px; border: 1px solid #6b4a27; border-radius: 5px; background: rgba(31, 31, 31, .97); box-shadow: 0 10px 28px #0009; color: #ddd; }
+.annotation-popover-title { display: flex; align-items: center; gap: 5px; color: #f59e0b; font-size: 12px; font-weight: 600; }
+.annotation-popover-title button { margin-left: auto; border: 0; background: transparent; color: #999; cursor: pointer; }
+.annotation-popover small { display: block; margin: 7px 0; color: #999; font-size: 10px; }
+.annotation-popover textarea { width: 100%; min-height: 66px; box-sizing: border-box; resize: vertical; border: 1px solid #4a4a4a; border-radius: 3px; background: #181818; color: #eee; padding: 7px; font: inherit; font-size: 11px; }
+.annotation-popover > div:last-child { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.annotation-popover > div:last-child button { border: 1px solid #4a4a4a; border-radius: 3px; background: #2b2b2b; color: #bbb; padding: 5px 8px; font-size: 10px; cursor: pointer; }
+.annotation-popover > div:last-child button.primary { border-color: #a85b10; background: #a85b10; color: #fff; }
+.annotation-popover > div:last-child button:disabled { opacity: .45; cursor: not-allowed; }
+.viewport.annotation-mode { cursor: crosshair; }
 .review-compose {
   display: grid;
   gap: 7px;
@@ -1220,7 +1239,12 @@
   background-image: linear-gradient(180deg, #06101b0d 35%, #0b101ad9 100%), url('/blendproof-splash-v2.jpg');
   background-position: center;
   background-size: cover;
+  overflow: hidden;
 }
+.start-splash-video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; opacity: .9; pointer-events: none; }
+.start-splash::after { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, #06101b1c 35%, #0b101ad9 100%); content: ""; pointer-events: none; }
+.start-splash > :not(.start-splash-video) { z-index: 2; }
+@media (prefers-reduced-motion: reduce) { .start-splash-video { display: none; } }
 .start-splash-brand {
   position: absolute;
   top: 25px;
@@ -1473,3 +1497,5 @@
   width: 100%;
   min-height: 0;
 }
+.guide-trigger { margin-left: 8px; width: 18px; height: 18px; border: 1px solid #555; border-radius: 50%; background: #292929; color: #aaa; font-size: 11px; cursor: pointer; }
+.guide-trigger:hover { border-color: #e87d0d; color: #f0a04a; }

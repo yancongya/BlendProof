@@ -70,9 +70,11 @@ Product and account conventions — home page layout, roles, invite codes, and r
 - **Admin console** — member usage and deactivation, invite creation/revocation, and platform thresholds inside the 5 GiB / 48-hour ceilings.
 - **Review notifications** — the project owner polls for new comments every 15 seconds and sees an in-app unread notice without adding a second realtime service.
 - **Platform status** — persisted uptime, cumulative files/bytes processed, and cleanup counters, refreshed on the home page.
-- **Permanent demo** — `/s/suzanne` serves a read-only example model with the public demo passphrase `tycon`; it counts against no quota and is exempt from cleanup.
+- **Guest review access** — clients can enter a share with a password and display name, add comments without registering, and remain isolated to that share.
+- **Splash media** — the welcome card can use `public/intro.mp4` as a video background, with the existing splash image retained as a poster/fallback for reduced-motion and unsupported-video browsers.
+- **Permanent demo** — `/s/suzanne` serves a public example model with the demo passphrase `tycon`; visitors can add surface comments as “Guest”. It counts against no quota and is exempt from cleanup.
 
-Browser-side `.blend` conversion is currently an experimental adapter for static meshes, basic materials, cameras, and scene metadata. Complex files continue to use the local Blender bridge as the compatibility fallback.
+Browser-side `.blend` conversion is currently an experimental adapter for static meshes, basic materials, cameras, and scene metadata. It applies Blender's Z-up to glTF/Three.js Y-up basis during conversion so uploaded models keep the same overall orientation, and the viewer provides a smooth/flat shading toggle. Complex files continue to use the local Blender bridge as the compatibility fallback.
 
 ### Browser conversion scope and limits
 
@@ -131,7 +133,7 @@ Open `http://localhost:5173`. Three ports are involved:
 |---|---|
 | 5173 | Vite web app |
 | 8788 | Local Blender bridge |
-| 8787 | Local Cloudflare Worker (`npm run worker:dev`, optional) |
+| 8787 | Local Cloudflare Worker (started by `npm run dev`; required for account, share and admin APIs) |
 
 `npm run dev` injects a fixed local pairing code so the browser can reach the bridge. To point at a specific Blender build:
 
@@ -146,7 +148,7 @@ BLENDER_BIN="/Applications/Blender.app/Contents/MacOS/Blender" npm run dev:serve
 1. Start the dev server and open `http://localhost:5173`.
 2. Open the upload workspace from the File menu and select a `.blend` file. The browser attempts local conversion first; unsupported files fall back to the local Blender bridge.
 3. Inspect the model — orbit, pan, isolate objects, switch camera and display mode.
-4. Enter annotation mode, click a model surface, and save a review comment. The owner can resolve or reopen it; new comments are surfaced by the in-app notification badge.
+4. Click **Add annotation** to enter mark mode. Hover a surface for the orange snap highlight, right-click to place a comment at that view point, then write and save it in the popover. The owner can resolve or reopen it; new comments are surfaced by the in-app notification badge.
 5. Create a share, copy the link, and open it in a second browser to verify read-only or comment access.
 
 To generate a dependency-free scene for testing (two meshes, ground, light, camera — no Geometry Nodes):
@@ -194,7 +196,7 @@ blendproof/
 ├── migrations/     D1 schema, 0001 through 0009
 ├── tests/          Local backend tests (node:test)
 ├── docs/           Long-form design, acceptance, and deployment records
-├── public/         Default demo GLB, manifest, and splash art
+├── public/         Default demo GLB, manifest, splash art, and optional intro video
 ├── test-assets/    Development fixtures; excluded from runtime storage
 └── storage/        Local project data (git-ignored)
 ```
@@ -324,7 +326,7 @@ No. They need a browser and the share link. Blender is only required on the mach
 24 hours by default. Projects are hard-capped at 48 hours regardless of sharing, and an hourly cron deletes expired derived assets.
 
 **What is `/s/suzanne`?**
-A permanent read-only demo model with the public passphrase `tycon`. It is exempt from quota and cleanup and cannot accumulate unowned annotations.
+A permanent public demo model with the passphrase `tycon`. It is exempt from quota and cleanup; visitors may add comments, attributed to “Guest”.
 
 **Why do I need a Node version so new?**
 `>= 22.12.0` is required for `node:sqlite`, which the local bridge uses as its development database.

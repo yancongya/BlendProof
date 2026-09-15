@@ -70,13 +70,15 @@ BlendProof 是一个专注于协作审稿的 Blender 风格 Web 3D 工作台。�
 - **管理后台** —— 成员用量与停用、邀请码创建与撤销，以及在 5 GiB / 48 小时上限内调整平台阈值。
 - **批注通知** —— 项目作者每 15 秒检查新批注，右侧显示未读数量和站内提示，无需额外部署实时服务。
 - **平台状态** —— 持久化的运行时长、累计处理文件与字节数、清理计数，在首页实时刷新。
-- **永久演示** —— `/s/suzanne` 提供只读示例模型，公开演示口令 `tycon`；不占配额，也不进入清理。
+- **访客快速审阅** —— 客户使用分享密码和审核名称即可进入，无需注册账号；批注只属于当前分享。
+- **封面视频** —— 欢迎卡片可以使用 `public/intro.mp4` 作为视频背景，并保留封面图作为海报、低动态模式和不支持视频浏览器的降级方案。
+- **永久演示** —— `/s/suzanne` 提供公开示例模型，访问口令 `tycon`；访客可添加批注，不占配额，也不进入清理。
 
 浏览器端 `.blend` 转换目前以实验适配器形式提供，面向静态 Mesh、基础材质、相机和场景信息；复杂文件仍使用本机 Blender bridge 作为兼容后备。
 
 ### 浏览器转换范围与局限
 
-免安装路径目前支持静态 Mesh、对象名称与变换、Scene/Collection 信息、UV、基础 Principled 材质参数、文件相机，以及已评估的 Mirror/Array Modifier。转换后会生成 GLB 和 manifest，并复用现有 Viewer 与线上发布流程。
+免安装路径目前支持静态 Mesh、对象名称与变换、Scene/Collection 信息、UV、基础 Principled 材质参数、文件相机，以及已评估的 Mirror/Array Modifier。转换时会同步 Blender 的 Z-up → glTF/Three.js Y-up 坐标基准，避免上传后的模型出现整体旋转偏差。Viewer 还提供“平滑/平直”着色切换；转换后会生成 GLB 和 manifest，并复用现有 Viewer 与线上发布流程。
 
 它不是完整的 Blender 网页版。目前不保证动画、骨骼、物理、粒子、流体、布料、模拟、任意 Geometry Nodes、合成器/世界节点、插件数据、链接库和 Cycles/Eevee 像素级还原。旧版本或未测试的 Blender 文件可能自动回退到本机 bridge。
 
@@ -131,7 +133,7 @@ npm run dev
 |---|---|
 | 5173 | Vite Web 应用 |
 | 8788 | 本机 Blender bridge |
-| 8787 | 本地 Cloudflare Worker（`npm run worker:dev`，可选） |
+| 8787 | 本地 Cloudflare Worker（`npm run dev` 会自动启动；账号、分享与管理 API 必需） |
 
 `npm run dev` 会注入固定的本地配对码，让浏览器能访问 bridge。如需指定其他 Blender 版本：
 
@@ -146,7 +148,7 @@ BLENDER_BIN="/Applications/Blender.app/Contents/MacOS/Blender" npm run dev:serve
 1. 启动开发服务器，打开 `http://localhost:5173`。
 2. 从“文件”菜单打开上传工作台并选择 `.blend` 文件。浏览器优先本地转换；不支持时自动回退到本机 Blender bridge。
 3. 检查模型——旋转、平移、独显对象、切换相机与显示模式。
-4. 进入批注模式，点击模型表面并保存意见；作者可以解决或重开，新的批注会显示站内未读提示。
+4. 点击「添加批注」进入标注模式；悬停模型表面会显示橙色吸附高光，右键在当前落点创建批注，在弹窗中填写并保存。作者可以解决或重开，新的批注会显示站内未读提示。
 5. 创建分享、复制链接，并在第二个浏览器里打开，验证只读或可评论权限。
 
 如需生成一个不依赖 Geometry Nodes 的测试场景（两个网格、地面、灯光、相机）：
@@ -194,7 +196,7 @@ blendproof/
 ├── migrations/     D1 schema，0001 至 0009
 ├── tests/          本机后端测试（node:test）
 ├── docs/           设计、验收与部署长文记录
-├── public/         默认演示 GLB、manifest 与封面图
+├── public/         默认演示 GLB、manifest、封面图与可选封面视频
 ├── test-assets/    开发样例，不进入运行时存储
 └── storage/        本地项目数据（已 git 忽略）
 ```
@@ -324,7 +326,7 @@ D1 作为原子配额账本：上传意图时预留、finalize 时结算、失�
 默认 24 小时。无论是否创建分享，项目硬上限是 48 小时，每小时 cron 会删除过期的派生资产。
 
 **`/s/suzanne` 是什么？**
-一个永久只读演示模型，公开口令为 `tycon`。它不计配额、不进入清理，也不会产生无归属批注。
+一个永久公开演示模型，访问口令为 `tycon`。它不计配额、不进入清理；访客可直接在模型表面添加批注，默认显示为「访客」。
 
 **为什么要求这么新的 Node 版本？**
 本地 bridge 用 `node:sqlite` 作为开发数据库，因此要求 `>= 22.12.0`。

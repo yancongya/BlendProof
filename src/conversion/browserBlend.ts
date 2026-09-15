@@ -19,6 +19,7 @@ import {
   Group,
   Mesh,
   MeshStandardMaterial,
+  Matrix4,
   Object3D,
   Color,
 } from "three";
@@ -49,6 +50,11 @@ export async function convertBlendInBrowser(file: File): Promise<BrowserBlendRes
   const cameras = extractCameras(blend);
   const meshes = evaluateAllMeshes(blend);
   const root = new Group();
+  // Blender stores scenes Z-up, while glTF/Three.js scenes are Y-up. The
+  // native Blender glTF exporter applies this basis change to vertex data;
+  // apply the same conversion to browser-converted scenes so both paths show
+  // the model with the same orientation.
+  root.rotation.x = -Math.PI / 2;
   const material = (materials[0] ? toMaterial(materials[0]) : new MeshStandardMaterial({ color: 0xb8bec4 }));
 
   for (const object of objects) {
@@ -63,7 +69,9 @@ export async function convertBlendInBrowser(file: File): Promise<BrowserBlendRes
     if (!source.vertexNormals?.length) geometry.computeVertexNormals();
     const mesh = new Mesh(geometry, material.clone());
     mesh.name = object.name;
-    mesh.matrix.fromArray(object.worldMatrix);
+    // jsblender's composed transform uses the same column-major layout as
+    // Three.js Matrix4 (despite the package's older README wording).
+    mesh.matrix.copy(new Matrix4().fromArray(object.worldMatrix));
     mesh.matrixAutoUpdate = false;
     root.add(mesh);
   }
