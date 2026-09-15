@@ -597,7 +597,8 @@
 }
 .review-panel-title {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
   padding: 9px 12px;
   color: #e87d0d;
   font-weight: 700;

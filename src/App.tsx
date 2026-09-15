@@ -1661,9 +1661,10 @@ function BlenderWorkspace({
         <aside className="right-editors">
           <section className="outliner" style={{ height: outlinerHeight }}>
             <header>
-              <span>
-                <Layers size={13} /> 场景集合
-              </span>
+              <button type="button" className="panel-toggle" onClick={() => setOutlinerHeight((h) => h > 50 ? 0 : 240)} title="折叠/展开">
+                <span className="panel-icon"><Layers size={13} /></span>
+                <span>场景集合</span>
+              </button>
               <button
                 type="button"
                 className="outliner-focus"
@@ -1745,9 +1746,10 @@ function BlenderWorkspace({
           />
           <section className="properties">
             <header>
-              <span>
-                <SlidersHorizontal size={13} /> 属性
-              </span>
+              <button type="button" className="panel-toggle" onClick={() => setPropertyHeight((h) => h > 50 ? 0 : 160)} title="折叠/展开属性">
+                <span className="panel-icon"><SlidersHorizontal size={13} /></span>
+                <span>属性</span>
+              </button>
             </header>
             {active && (
               <div className="property-body" style={{ height: propertyHeight }}>
@@ -2429,6 +2431,7 @@ function ReviewPanel({
   return (
     <div className="review-panel" data-testid="review-panel" aria-label="审稿批注" aria-readonly={readOnly}>
       <div className="review-panel-title">
+        <span className="panel-icon"><MessageSquarePlus size={13} /></span>
         <span>审稿批注</span>
         <b data-testid="review-count">{comments.length}{newCount > 0 ? tf(" · 新 %s", newCount) : ""}</b>
       </div>

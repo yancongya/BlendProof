@@ -369,6 +369,26 @@ button {
   flex: none;
   font-size: 11px;
 }
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #c3c3c3;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+.panel-toggle:hover { color: #fff; }
+.panel-icon {
+  display: flex;
+  align-items: center;
+  color: #888;
+}
+.panel-toggle:hover .panel-icon { color: #e87d0d; }
 .right-editors header span {
   display: flex;
   align-items: center;
