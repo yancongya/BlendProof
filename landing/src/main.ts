@@ -332,86 +332,55 @@ function initHeroCopyDemo(): void {
   })
 }
 
-/** Quick start panel: auto-play 3-step animation when visible, clickable steps. */
+/** Quick start panel: click steps to show corresponding mockup. No auto-play. */
 function initQuickstart(): void {
-  if (prefersReducedMotion()) return
-
   const panels = Array.from(document.querySelectorAll<HTMLElement>('.quickstart'))
   if (panels.length === 0) return
 
   panels.forEach((panel) => {
     const steps = Array.from(panel.querySelectorAll<HTMLElement>('.quickstart__step'))
     const mocks = Array.from(panel.querySelectorAll<HTMLElement>('.quickstart__mock'))
-    if (steps.length === 0 || mocks.length === 0) return
+    const browser = panel.querySelector<HTMLElement>('.quickstart__browser')
+    const states = browser ? Array.from(browser.querySelectorAll<HTMLElement>('.qs-browser__state')) : []
 
-    let currentStep = 0
-    let timer = 0
-    let running = false
-    let pausedByUser = false
+    let currentStep = -1 // No step selected by default
 
     const showStep = (index: number): void => {
       currentStep = index
       steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
+
+      // For creator perspective: show/hide mockups
       mocks.forEach((mock, i) => {
         mock.hidden = i !== index
       })
+
+      // For reviewer perspective: show browser states
+      states.forEach((state, i) => {
+        state.hidden = i !== index
+      })
     }
 
-    const stop = (): void => {
-      running = false
-      window.clearTimeout(timer)
-    }
-
-    const advance = (): void => {
-      if (!running || pausedByUser) return
-      currentStep++
-      if (currentStep >= steps.length) {
-        // Pause before restart
-        timer = window.setTimeout(() => {
-          currentStep = 0
-          showStep(0)
-          timer = window.setTimeout(advance, 1200)
-        }, 2000)
-        return
-      }
-      showStep(currentStep)
-      timer = window.setTimeout(advance, 1200)
-    }
-
-    const play = (): void => {
-      if (running) return
-      running = true
-      pausedByUser = false
-      currentStep = 0
-      showStep(0)
-      timer = window.setTimeout(advance, 1200)
-    }
-
-    // Click on step card: jump to that step, pause auto-play
+    // Click on step card: show that step
     steps.forEach((step, index) => {
       step.addEventListener('click', () => {
-        // If clicking the currently active step, resume auto-play
-        if (index === currentStep && pausedByUser) {
-          pausedByUser = false
-          running = false // Reset so play() can start fresh
-          play()
+        // Toggle: clicking the same step again hides it
+        if (index === currentStep) {
+          currentStep = -1
+          steps.forEach((s) => s.classList.remove('is-active'))
+          mocks.forEach((m) => { m.hidden = true })
+          states.forEach((s) => { s.hidden = true })
           return
         }
-
-        // Jump to clicked step, pause auto-play
-        pausedByUser = true
-        stop()
         showStep(index)
       })
     })
 
-    // Interactive chips in mockup
+    // Interactive chips in mockup (creator perspective)
     panel.querySelectorAll<HTMLElement>('.quickstart__mock .mk-chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         const group = chip.closest('.mk-cred-chips')
         if (!group) return
         group.querySelectorAll<HTMLElement>('.mk-chip').forEach((other) => {
-          // Only toggle chips in the same group (same type)
           const otherText = other.textContent?.trim()
           const chipText = chip.textContent?.trim()
           if (otherText !== chipText) {
@@ -422,19 +391,113 @@ function initQuickstart(): void {
       })
     })
 
-    // IntersectionObserver: play when visible, stop when hidden
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !pausedByUser) {
-          play()
-        } else {
-          stop()
-        }
-      },
-      { threshold: 0.3 }
-    )
+    // Reviewer perspective: browser interactions
+    if (browser) {
+      const urlInput = browser.querySelector<HTMLInputElement>('#qs-browser-url')
+      const goBtn = browser.querySelector<HTMLButtonElement>('#qs-browser-go')
+      const fillBtn = browser.querySelector('.qs-browser__fill')
 
-    observer.observe(panel)
+      // Step 1: Fill demo link and go to step 2
+      fillBtn?.addEventListener('click', () => {
+        if (urlInput) urlInput.value = 'blendproof.itycon.cn/s/suzanne'
+        showStep(1) // Go to step 2 (password)
+      })
+
+      goBtn?.addEventListener('click', () => {
+        if (urlInput?.value.includes('suzanne')) {
+          showStep(1) // Go to step 2 (password)
+        }
+      })
+
+      // Step 2: "Open" button (simulated) goes to step 3
+      const passState = browser.querySelector('[data-state="2"]')
+      passState?.addEventListener('click', () => {
+        showStep(2) // Go to step 3 (3D view)
+        // Initialize mini viewer if not already
+        initQsMiniViewer()
+      })
+    }
+  })
+}
+
+/** Initialize mini 3D viewer in quick start panel */
+let qsMiniViewerInitialized = false
+function initQsMiniViewer(): void {
+  if (qsMiniViewerInitialized) return
+  const host = document.getElementById('qs-mini-viewer')
+  if (!host) return
+
+  // Dynamic import three.js
+  import('three').then((THREE) => {
+    import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
+      import('three/examples/jsm/controls/OrbitControls.js').then(({ OrbitControls }) => {
+        qsMiniViewerInitialized = true
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+        renderer.setClearColor(0x000000, 0)
+        renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%'
+        host.appendChild(renderer.domElement)
+
+        const scene = new THREE.Scene()
+        const camera = new THREE.PerspectiveCamera(40, host.clientWidth / host.clientHeight, 0.1, 50)
+        camera.position.set(2.4, 1.2, 3.1)
+
+        scene.add(new THREE.HemisphereLight(0x3a3f46, 0x141414, 1.1))
+        const key = new THREE.DirectionalLight(0xffffff, 1.6)
+        key.position.set(3, 4, 2.5)
+        scene.add(key)
+        const rim = new THREE.DirectionalLight(0x5b9ee0, 0.6)
+        rim.position.set(-4, 1, -3)
+        scene.add(rim)
+
+        const material = new THREE.MeshStandardMaterial({
+          color: 0xd6d6d6,
+          metalness: 0.45,
+          roughness: 0.38,
+          flatShading: true,
+        })
+
+        const controls = new OrbitControls(camera, renderer.domElement)
+        controls.enableDamping = true
+        controls.dampingFactor = 0.08
+        controls.minDistance = 2.2
+        controls.maxDistance = 7
+        controls.autoRotate = true
+        controls.autoRotateSpeed = 0.8
+
+        // Load model
+        new GLTFLoader().load('../../public/default-monkey.glb', (gltf) => {
+          const root = gltf.scene
+          const box = new THREE.Box3().setFromObject(root)
+          const size = box.getSize(new THREE.Vector3())
+          const center = box.getCenter(new THREE.Vector3())
+          root.position.sub(center)
+          root.scale.setScalar(2.0 / Math.max(size.x, size.y, size.z))
+          root.traverse((child) => {
+            if (child instanceof THREE.Mesh) child.material = material
+          })
+          scene.add(root)
+        })
+
+        // Render loop
+        let raf = 0
+        const tick = (): void => {
+          raf = requestAnimationFrame(tick)
+          controls.update()
+          renderer.render(scene, camera)
+        }
+        raf = requestAnimationFrame(tick)
+
+        // Cleanup on page hide
+        window.addEventListener('pagehide', () => {
+          cancelAnimationFrame(raf)
+          controls.dispose()
+          material.dispose()
+          renderer.dispose()
+        }, { once: true })
+      })
+    })
   })
 }
 
