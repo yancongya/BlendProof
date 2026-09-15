@@ -35,6 +35,7 @@ export default defineConfig({
   publicDir: false,
   plugins: [react(), dropModulePreload()],
   server: {
+    port: 5174,
     // The demo model is imported from the app's own public/ directory so the
     // landing page and the product cannot drift apart.
     fs: { allow: [projectRoot] },

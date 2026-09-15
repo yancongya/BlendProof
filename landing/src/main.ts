@@ -466,9 +466,9 @@ function initQsMiniViewer(): void {
         controls.autoRotate = true
         controls.autoRotateSpeed = 0.8
 
-        // Load model - use path relative to landing page
+        // Load model - use absolute path from project root
         // The model is in projectRoot/public/, accessible via fs.allow
-        new GLTFLoader().load('../public/default-monkey.glb', (gltf) => {
+        new GLTFLoader().load('/default-monkey.glb', (gltf) => {
           const root = gltf.scene
           const box = new THREE.Box3().setFromObject(root)
           const size = box.getSize(new THREE.Vector3())
