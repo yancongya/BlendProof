@@ -343,9 +343,17 @@ function initQuickstart(): void {
     const browser = panel.querySelector<HTMLElement>('.quickstart__browser')
     const states = browser ? Array.from(browser.querySelectorAll<HTMLElement>('.qs-browser__state')) : []
 
+    console.log('Quickstart init:', {
+      stepsCount: steps.length,
+      mocksCount: mocks.length,
+      hasBrowser: !!browser,
+      statesCount: states.length
+    })
+
     let currentStep = -1 // No step selected by default
 
     const showStep = (index: number): void => {
+      console.log('showStep:', index)
       currentStep = index
       steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
 
@@ -363,6 +371,7 @@ function initQuickstart(): void {
     // Click on step card: show that step
     steps.forEach((step, index) => {
       step.addEventListener('click', () => {
+        console.log('Step clicked:', index)
         // Toggle: clicking the same step again hides it
         if (index === currentStep) {
           currentStep = -1
