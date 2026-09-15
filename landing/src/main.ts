@@ -371,7 +371,14 @@ function initQuickstart(): void {
       // Initialize 3D viewer when showing step 3 (index 2)
       if (index === 2 && browser) {
         console.log('Step 3 shown, initializing 3D viewer')
-        initQsMiniViewer()
+        // Delay initialization to ensure container is visible and has size
+        setTimeout(() => {
+          console.log('Delayed init, host size:', {
+            width: document.getElementById('qs-mini-viewer')?.clientWidth,
+            height: document.getElementById('qs-mini-viewer')?.clientHeight
+          })
+          initQsMiniViewer()
+        }, 100)
       }
     }
 
