@@ -367,6 +367,12 @@ function initQuickstart(): void {
         console.log('Setting state', i, 'hidden:', i !== index)
         state.hidden = i !== index
       })
+
+      // Initialize 3D viewer when showing step 3 (index 2)
+      if (index === 2 && browser) {
+        console.log('Step 3 shown, initializing 3D viewer')
+        initQsMiniViewer()
+      }
     }
 
     // Click on step card: show that step
