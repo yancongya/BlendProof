@@ -496,6 +496,26 @@ function initQsMiniViewer(): void {
         controls.autoRotate = true
         controls.autoRotateSpeed = 0.8
 
+        // Blender-style navigation: middle-drag to orbit, shift+middle to pan, right-drag to pan
+        controls.mouseButtons = {
+          LEFT: undefined, // Reserved for annotations
+          MIDDLE: THREE.MOUSE.ROTATE,
+          RIGHT: THREE.MOUSE.PAN
+        }
+
+        // Handle middle button modifier
+        const chooseMiddleAction = (event: PointerEvent): void => {
+          if (event.button !== 1) return
+          controls.mouseButtons.MIDDLE = !event.shiftKey && (event.ctrlKey || event.metaKey)
+            ? THREE.MOUSE.PAN
+            : THREE.MOUSE.ROTATE
+        }
+        const restoreMiddleAction = (): void => {
+          controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE
+        }
+        renderer.domElement.addEventListener('pointerdown', chooseMiddleAction, true)
+        window.addEventListener('pointerup', restoreMiddleAction)
+
         // Load model - use absolute path from project root
         // The model is in projectRoot/public/, accessible via fs.allow
         new GLTFLoader().load('/default-monkey.glb', (gltf) => {
