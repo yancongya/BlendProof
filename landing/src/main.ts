@@ -20,6 +20,56 @@ const prefersReducedMotion = (): boolean =>
  * Theme (dark default, light optional, persisted)
  * ------------------------------------------------------------------ */
 
+/** Perspective toggle: switch between creator and reviewer views. */
+function initPerspectiveToggle(): void {
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('.perspective-btn'))
+  if (buttons.length === 0) return
+
+  const root = document.documentElement
+
+  // Default to creator perspective
+  root.dataset.view = 'creator'
+
+  const apply = (view: 'creator' | 'reviewer'): void => {
+    root.dataset.view = view
+    buttons.forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.view === view))
+    })
+
+    // Re-trigger card animations for newly visible cards
+    document.querySelectorAll<HTMLElement>('[data-anim]').forEach((card) => {
+      const perspective = card.dataset.perspective
+      if (!perspective || perspective === view) {
+        card.classList.remove('pre')
+        card.classList.add('in')
+      }
+    })
+  }
+
+  buttons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view as 'creator' | 'reviewer'
+      apply(view)
+      try {
+        localStorage.setItem('bp-perspective', view)
+      } catch {
+        /* private mode */
+      }
+    })
+  })
+
+  // Restore persisted perspective
+  let stored: string | null = null
+  try {
+    stored = localStorage.getItem('bp-perspective')
+  } catch {
+    /* ignore */
+  }
+  if (stored === 'creator' || stored === 'reviewer') {
+    apply(stored)
+  }
+}
+
 function initTheme(): void {
   const button = document.getElementById('theme-toggle')
   if (!button) return
@@ -203,14 +253,20 @@ function initCredDemo(): void {
         const zh = chip.dataset.v === 'comment' ? '可评论' : '只读'
         const ddPerm = document.getElementById('mk-dd-perm')
         if (ddPerm) setNodeText(ddPerm, zh)
+        const ddPermHero = document.getElementById('mk-dd-perm-hero')
+        if (ddPermHero) setNodeText(ddPermHero, zh)
       } else if (group === 'exp') {
         const zh = `${chip.dataset.v ?? '24'} 小时后`
         const ddExp = document.getElementById('mk-dd-exp')
         if (ddExp) setNodeText(ddExp, zh)
+        const ddExpHero = document.getElementById('mk-dd-exp-hero')
+        if (ddExpHero) setNodeText(ddExpHero, zh)
       } else if (group === 'pwd') {
         const pressed = chip.getAttribute('aria-pressed') === 'true'
         const ddPwd = document.getElementById('mk-dd-pwd')
         if (ddPwd) setNodeText(ddPwd, pressed ? '已设置' : '无')
+        const ddPwdHero = document.getElementById('mk-dd-pwd-hero')
+        if (ddPwdHero) setNodeText(ddPwdHero, pressed ? '已设置' : '无')
       }
     })
   })
@@ -250,6 +306,29 @@ function initCopyDemo(): void {
       setNodeText(browserStatus, '已收到链接 · 点「前往」打开')
       browserStatus.dataset.kind = 'busy'
     }
+  })
+}
+
+/** Hero credential card: copy button for hero perspective. */
+function initHeroCopyDemo(): void {
+  const copyButton = document.getElementById('mk-copy-hero')
+  if (!copyButton) return
+
+  copyButton.addEventListener('click', () => {
+    const link = 'https://blendproof.itycon.cn/s/suzanne'
+    const cred = copyButton.closest<HTMLElement>('.mk-cred')
+
+    const stamp = (): void => {
+      setNodeText(copyButton, '已复制')
+      cred?.classList.add('stamped')
+      window.setTimeout(() => {
+        setNodeText(copyButton, '复制链接')
+        cred?.classList.remove('stamped')
+      }, 1600)
+    }
+    void navigator.clipboard?.writeText(link).then(stamp).catch(() => {
+      window.prompt(t('复制这条演示链接：'), link)
+    })
   })
 }
 
@@ -637,9 +716,11 @@ async function initLiveStatus(): Promise<void> {
 applyStaticI18n()
 initTheme()
 initLangToggle()
+initPerspectiveToggle()
 initChromeDots()
 initHero3D()
 initMockups()
+initHeroCopyDemo()
 initCardInteractions()
 initCards()
 void initLiveStatus()

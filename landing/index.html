@@ -261,7 +261,48 @@
   .hero h1 em { font-style: normal; color: var(--accent); }
 
   .hero__lead { margin: 0 0 30px; max-width: 44ch; color: var(--muted); font-size: 16px; }
-  .hero__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 36px; }
+  .hero__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+
+  .hero__subline {
+    margin: 0 0 36px;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+  }
+
+  /* ---------- Perspective toggle (creator / reviewer) ---------- */
+  .perspective-toggle {
+    display: flex; gap: 6px; margin-bottom: 16px;
+  }
+
+  .perspective-btn {
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: var(--input); color: var(--ink);
+    font-size: 13px; padding: 6px 14px; cursor: pointer;
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+  }
+
+  .perspective-btn:hover { background: var(--hover-bg); border-color: var(--hover-border); }
+
+  .perspective-btn[aria-pressed="true"] {
+    border-color: var(--accent); background: var(--accent-well); color: var(--accent-warm);
+    font-weight: 600;
+  }
+
+  /* 默认客户视角，创作者视角隐藏 */
+  [data-perspective] { transition: opacity .3s ease; }
+
+  html:not([data-view="creator"]) [data-perspective="creator"],
+  html[data-view="reviewer"] [data-perspective="creator"] { display: none; }
+
+  html:not([data-view="reviewer"]) [data-perspective="reviewer"],
+  html[data-view="creator"] [data-perspective="reviewer"] { display: none; }
+
+  /* 视口切换容器 */
+  .hero__viewport { position: relative; min-height: 452px; }
+  .hero__viewport > * { position: absolute; inset: 0; }
+  .hero__viewport > [hidden] { display: none; }
 
   .btn {
     display: inline-flex; align-items: center; height: 42px; padding: 0 20px;
@@ -1694,60 +1735,110 @@ grid-template-columns: minmax(0, 1fr);
   <section class="hero">
     <div class="wrap hero__grid">
       <div>
-        <p class="eyebrow">Blender 风格 3D 审稿</p>
-        <h1>原始工程，<br><em>不出本机</em>。</h1>
-        <p class="hero__lead">
-          <code>.blend</code> 在浏览器里就地转成 GLB，复杂文件才回退到你本机的 Blender；云端只接收派生后的模型与清单。
-          审稿的人打开一条链接就能查看、能在模型表面写批注——不需要安装 Blender。
-        </p>
-        <div class="hero__actions">
-          <a class="btn btn--primary" href="https://blendproof.itycon.cn">打开线上站点</a>
-          <!-- TODO: 登录注册链接待补充 -->
-          <a class="btn" href="#">登录注册</a>
+        <div class="perspective-toggle" role="group" aria-label="切换视角">
+          <button type="button" class="perspective-btn" data-view="creator" aria-pressed="true">我是创作者</button>
+          <button type="button" class="perspective-btn" data-view="reviewer" aria-pressed="false">我是客户</button>
         </div>
+
+        <!-- 创作者视角文案 -->
+        <div data-perspective="creator">
+          <p class="eyebrow">创作者 · 3D 审稿</p>
+          <h1>再也不用，<br><em>截图发来发去了</em>。</h1>
+          <p class="hero__lead">
+            一个链接发给客户，模型直接在浏览器里转。原件从头到尾留在你电脑上，云端拿不走。
+          </p>
+        </div>
+
+        <!-- 客户视角文案 -->
+        <div data-perspective="reviewer">
+          <p class="eyebrow">客户 · 3D 审稿</p>
+          <h1>打开链接，<br><em>就能看模型</em>。</h1>
+          <p class="hero__lead">
+            不用装 Blender，不用装任何东西。模型在浏览器里直接转，点一下就能写批注。
+          </p>
+        </div>
+
+        <!-- 两个视角共用按钮组 -->
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="https://blendproof.itycon.cn/s/suzanne">立即体验</a>
+          <a class="btn" href="https://blendproof.itycon.cn">进入工作台</a>
+        </div>
+
+        <!-- 两个视角共用小字 -->
+        <p class="hero__subline" data-perspective="creator">源文件不出本机 · 客户无需安装 · 一条链接搞定审稿</p>
+        <p class="hero__subline" data-perspective="reviewer">零安装 · 链接直达 · 点击模型写批注</p>
         <ul class="facts">
-          <li><b>5 GiB</b>公益存储池</li>
-          <li><b>48 小时</b>自动清理</li>
-          <li><b>415</b>拒绝源文件</li>
-          <li><b>0 元</b>免费使用</li>
+          <li><b>5 GiB</b>共享空间，大家共用</li>
+          <li><b>48 h</b>到期自动清空，一件不留</li>
+          <li><b>415</b>服务器硬拒 .blend，想绕也绕不过</li>
+          <li><b>¥0</b>注册和审稿都不收费</li>
         </ul>
       </div>
 
-      <div>
-        <!-- Simplified 3D viewport. The static splash is the no-JS / reduced-motion
-             / WebGL-failure fallback and stays until the model is ready. -->
-        <figure class="hero3d" aria-label="演示视口：Suzanne 模型，可拖拽旋转">
-          <div class="hero3d__view" id="hero3d">
-            <div class="hero3d__fallback">
-              <img src="../public/blendproof-splash-v2.jpg" alt="BlendProof 审稿视口，展示可旋转的 3D 模型" width="1600" height="899">
+      <div class="hero__viewport">
+        <!-- 客户视角：3D 视口 -->
+        <div data-perspective="reviewer">
+          <figure class="hero3d" aria-label="演示视口：Suzanne 模型，可拖拽旋转">
+            <div class="hero3d__view" id="hero3d">
+              <div class="hero3d__fallback">
+                <img src="../public/blendproof-splash-v2.jpg" alt="BlendProof 审稿视口，展示可旋转的 3D 模型" width="1600" height="899">
+              </div>
+              <div class="hero3d__states" role="group" aria-label="演示状态">
+                <button type="button" class="hero3d__state" data-state="solid" aria-pressed="true">实体</button>
+                <button type="button" class="hero3d__state" data-state="review" aria-pressed="false">审稿中</button>
+                <button type="button" class="hero3d__state" data-state="resolved" aria-pressed="false">已批示</button>
+              </div>
+              <span class="hero3d__chip">Suzanne · 演示模型</span>
+              <p class="hero3d__hint"><span class="hero3d__hint--mouse">中键旋转 · 点击模型表面添加批注 · 右侧可解决/重开</span><span class="hero3d__hint--touch">单指旋转 · 点击模型表面添加批注</span></p>
             </div>
-            <div class="hero3d__states" role="group" aria-label="演示状态">
-              <button type="button" class="hero3d__state" data-state="solid" aria-pressed="true">实体</button>
-              <button type="button" class="hero3d__state" data-state="review" aria-pressed="false">审稿中</button>
-              <button type="button" class="hero3d__state" data-state="resolved" aria-pressed="false">已批示</button>
+            <figcaption class="hero3d__status">
+              <span><span class="dot-live"></span>线上审稿视口即此观感 · <b>GLB 69.7 KB</b></span>
+              <span class="mono">Blender Nav</span>
+            </figcaption>
+          </figure>
+        </div>
+
+        <!-- 创作者视角：分享凭证面板 -->
+        <div data-perspective="creator">
+          <figure class="mockup" style="height:100%">
+            <div class="mk-chrome"><span>审稿凭证</span><i>配置权限 · 设置有效期 · 复制链接</i></div>
+            <div class="mk-cred">
+              <div class="mk-cred-chips">
+                <button type="button" class="mk-chip" data-k="perm" data-v="comment" aria-pressed="true">可评论</button>
+                <button type="button" class="mk-chip" data-k="perm" data-v="readonly" aria-pressed="false">只读</button>
+                <span class="mk-chip-sep"></span>
+                <button type="button" class="mk-chip" data-k="exp" data-v="24" aria-pressed="true">24h</button>
+                <button type="button" class="mk-chip" data-k="exp" data-v="48" aria-pressed="false">48h</button>
+                <span class="mk-chip-sep"></span>
+                <button type="button" class="mk-chip" data-k="pwd" data-v="pwd" aria-pressed="true">密码</button>
+              </div>
+              <div class="mk-cred-code">/s/suzanne</div>
+              <dl>
+                <div><dt>权限</dt><dd id="mk-dd-perm-hero">可评论</dd></div>
+                <div><dt>到期</dt><dd id="mk-dd-exp-hero">24 小时后</dd></div>
+                <div><dt>密码</dt><dd id="mk-dd-pwd-hero">已设置</dd></div>
+              </dl>
+              <div class="mk-cred-actions">
+                <button type="button" id="mk-copy-hero">复制链接</button>
+                <a href="https://blendproof.itycon.cn/s/suzanne" target="_blank" rel="noreferrer">打开检查</a>
+              </div>
             </div>
-            <span class="hero3d__chip">Suzanne · 演示模型</span>
-            <p class="hero3d__hint"><span class="hero3d__hint--mouse">中键旋转 · Shift+中键平移 · 滚轮缩放</span><span class="hero3d__hint--touch">单指旋转 · 双指缩放平移</span></p>
-          </div>
-          <figcaption class="hero3d__status">
-            <span><span class="dot-live"></span>线上审稿视口即此观感 · <b>GLB 69.7 KB</b></span>
-            <span class="mono">Blender Nav</span>
-          </figcaption>
-        </figure>
+            <figcaption><b>分享凭证。</b>权限、有效期、密码都在这里定，发出之后随时可以撤销。</figcaption>
+          </figure>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- ===== Pain → outcome ===== -->
-  <section class="band">
+  <section class="band" data-perspective="creator" data-perspective="reviewer">
     <div class="wrap">
       <div class="card" data-anim>
         <div class="card__chrome"><span class="card__index">01</span><span class="card__name">为什么要有它</span><i class="card__tag">Pain → Outcome</i></div>
         <div class="card__body">
       <h2>把工程发出去审稿，本来不该这么别扭。</h2>
       <p class="lead">
-        给客户或外包看一个模型，常见做法是把工程文件整个发过去，或者截一堆图来回传。
-        BlendProof 把审稿放进浏览器，同时把原始工程留在你自己的机器上。
+        给客户或外包看模型，常见做法是甩工程文件或截图来回传。BlendProof 把审稿搬进浏览器，原始工程留在你自己机器上。
       </p>
 
       <div class="pains reveal">
@@ -1797,15 +1888,14 @@ grid-template-columns: minmax(0, 1fr);
   </section>
 
   <!-- ===== Features ===== -->
-  <section class="band">
+  <section class="band" data-perspective="creator">
     <div class="wrap">
       <div class="card" data-anim>
         <div class="card__chrome"><span class="card__index">02</span><span class="card__name">能力</span><i class="card__tag">Feature Matrix</i></div>
         <div class="card__body">
           <h2>一个能真正干活的审稿台。</h2>
           <p class="lead">
-            下面这些不是功能清单，是你实际会做的事——全部在浏览器里完成，不需要装任何东西。
-            操作方式以 Blender 为基线，你的手不用换一套肌肉记忆。
+            以下不是功能清单——是你实际会做的事。全部在浏览器里完成，操作方式以 Blender 为基线，手感不用换。
           </p>
 
           <div class="mockup-duo reveal">
@@ -2048,16 +2138,14 @@ grid-template-columns: minmax(0, 1fr);
   </section>
 
   <!-- ===== Boundary ===== -->
-  <section class="band band--deep" id="boundary">
+  <section class="band band--deep" id="boundary" data-perspective="creator">
     <div class="wrap">
       <div class="card" data-anim>
         <div class="card__chrome"><span class="card__index">03</span><span class="card__name">信任边界</span><i class="card__tag">415 · Hard Gate</i></div>
         <div class="card__body">
       <h2>你的工程文件，云端拿不到。</h2>
       <p class="lead">
-        服务器只收两样东西：转换后的展示模型，和一份「怎么摆、怎么转」的小清单。
-        你的 <code>.blend</code> 原件——没发布的资产、贴图、工程结构——从头到尾都留在你自己的电脑上。
-        这不是隐私条款里的措辞：真把 <code>.blend</code> 传过来，服务器门口直接弹回 415，想绕都绕不过去。
+        服务器只收两样东西：转换后的展示模型，和一份「怎么摆、怎么转」的小清单。你的 <code>.blend</code> 原件从头到尾留在自己电脑上——真传过来，服务器直接 415 弹回，想绕也绕不过。
       </p>
 
       <div class="crossing reveal">
@@ -2124,14 +2212,14 @@ grid-template-columns: minmax(0, 1fr);
   </section>
 
   <!-- ===== Share: sender + receiver (two independent cards) ===== -->
-  <section class="band">
+  <section class="band" data-perspective="creator" data-perspective="reviewer">
     <div class="wrap share-duo">
 
       <div class="card" data-anim id="mk-sender-card">
         <div class="card__chrome"><span class="card__index">04</span><span class="card__name">发出分享</span><i class="card__tag">Sender Credential</i></div>
         <div class="card__body">
           <h2>配置一张审稿凭证。</h2>
-          <p class="lead" style="margin-bottom:18px">上一步生成的审稿凭证，权限、有效期、密码都在这里定，发出之后随时可以撤销。</p>
+          <p class="lead" style="margin-bottom:18px">权限、有效期、密码都在这里定，发出之后随时可以撤销。</p>
           <div class="mk-cred">
             <div class="mk-cred-chips">
               <button type="button" class="mk-chip" data-k="perm" data-v="comment" aria-pressed="true">可评论</button>
@@ -2161,7 +2249,7 @@ grid-template-columns: minmax(0, 1fr);
         <div class="card__chrome"><span class="card__index">05</span><span class="card__name">读取分享</span><i class="card__tag">Receiver Pass</i></div>
         <div class="card__body">
           <h2>对方打开链接，看到的是这个。</h2>
-          <p class="lead" style="margin-bottom:18px">这就是审稿者的浏览器：输入链接、通过口令，模型就地载入——复用的正是上方那只猴头。</p>
+          <p class="lead" style="margin-bottom:18px">输入链接、通过口令，模型就地载入——复用的正是上方那只猴头。</p>
           <div class="mk-browser">
             <div class="mk-browser__bar">
               <span class="mk-browser__dots" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -2192,15 +2280,14 @@ grid-template-columns: minmax(0, 1fr);
   </section>
 
   <!-- ===== Public good ===== -->
-  <section class="band band--deep">
+  <section class="band band--deep" data-perspective="creator">
     <div class="wrap">
       <div class="card" data-anim>
         <div class="card__chrome"><span class="card__index">06</span><span class="card__name">公益性质</span><i class="card__tag">Public Pool · 5 GiB</i></div>
         <div class="card__body">
           <h2>一个不打算收费的存储池。</h2>
           <p class="lead" style="margin-bottom:0">
-            BlendProof 更像一个<b>审稿件的临时快递柜</b>：包裹只在转运期间被持有，到期自动清空，
-            全程无人开箱查看。它目前是个人维护的公益项目，不做付费档位，也不靠留存用户数据运营。
+            BlendProof 更像一个<b>审稿件的临时快递柜</b>：包裹到期自动清空，全程无人开箱。个人维护的公益项目，不做付费档位。
           </p>
 
           <ul class="points reveal">
@@ -2219,15 +2306,14 @@ grid-template-columns: minmax(0, 1fr);
 
 
   <!-- ===== Live status ===== -->
-  <section class="band">
+  <section class="band" data-perspective="reviewer">
     <div class="wrap">
       <div class="card" data-anim>
         <div class="card__chrome"><span class="card__index">07</span><span class="card__name">运行状态</span><i class="card__tag">Live · /api/public/stats</i></div>
         <div class="card__body">
       <h2>平台此刻的真实状态。</h2>
       <p class="lead">
-        以下数据直接来自生产接口 <code>/api/public/stats</code>，随页面加载实时读取，不做缓存包装。
-        项目刚上线，累计用量从零开始增长。
+        数据直接来自生产接口 <code>/api/public/stats</code>，随页面加载实时读取，不缓存。
       </p>
 
       <dl class="live">
@@ -2271,7 +2357,7 @@ grid-template-columns: minmax(0, 1fr);
         <div class="card__chrome"><span class="card__index">08</span><span class="card__name">技术栈与支持范围</span><i class="card__tag">Under the Hood</i></div>
         <div class="card__body">
       <h2>它是怎么工作的，以及能覆盖多少。</h2>
-      <p class="lead">没有魔法——就是浏览器的标准能力、Blender 的官方能力和一层薄薄的服务端。免安装路径覆盖静态场景，复杂文件自动回退本机 Blender。项目开源，每一行都欢迎审阅。</p>
+      <p class="lead">没有魔法——浏览器标准能力 + Blender 官方能力 + 一层薄服务端。免安装路径覆盖静态场景，复杂文件自动回退本机 Blender。</p>
 
       <div class="stack-grid reveal">
         <div class="stack-item"><b>前端</b><span>React 19 · three.js / R3F · Vite</span></div>

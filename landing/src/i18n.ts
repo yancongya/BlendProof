@@ -82,8 +82,49 @@ const EN: Record<string, string> = {
   '原始工程，': 'Your source file,',
   '不出本机': 'never leaves your machine',
   '。': '.',
+  '打开链接，': 'Open a link,',
+  '就能看模型': 'start reviewing',
+  '就能审稿': 'start reviewing',
+  '打开链接，\n就能看模型': 'Open a link,\nstart reviewing',
+  '打开链接，\n就能审稿': 'Open a link,\nstart reviewing',
+  '再也不用，': 'No more',
+  '截图发来发去了': 'sending screenshots back and forth',
+  '再也不用，\n截图发来发去了': 'No more\nsending screenshots back and forth',
   '在浏览器里就地转成 GLB，复杂文件才回退到你本机的 Blender；云端只接收派生后的模型与清单。 审稿的人打开一条链接就能查看、能在模型表面写批注——不需要安装 Blender。':
     'is converted to GLB right in the browser — only complex files fall back to the Blender on your own machine, and the cloud only ever receives the derived model and manifest. Reviewers open one link to inspect and annotate on the model surface. No Blender install required.',
+  '客户不装 Blender，打开链接就能查看模型并写批注。上传方只需处理 .blend 转换，原件永不离开本机。':
+    'Clients skip the Blender install — open a link to view the model and leave comments. Uploaders convert .blend locally; the source never leaves your machine.',
+  '客户视角 · 立即体验审批': 'Try as reviewer · view & annotate',
+  '我是上传方 · 选择 .blend 转换': "I'm uploading · convert .blend",
+  '我是创作者': "I'm a creator",
+  '我是客户': "I'm a client",
+  '创作者 · 3D 审稿': 'Creator · 3D review',
+  '客户 · 3D 审稿': 'Reviewer · 3D review',
+  '一个链接发给客户，模型直接在浏览器里转。原件从头到尾留在你电脑上，云端拿不走。':
+    'Send one link to your client — the model loads directly in the browser. Your source file stays on your machine; the cloud never gets it.',
+  '不用装 Blender，不用装任何东西。模型在浏览器里直接转，点一下就能写批注。':
+    "No Blender, no installs. The model loads directly in your browser — click the surface to leave a comment.",
+  '审稿凭证': 'Review credential',
+  '配置权限 · 设置有效期 · 复制链接': 'Set permissions · configure expiry · copy link',
+  '分享凭证。': 'Share credential.',
+  '权限、有效期、密码都在这里定，发出之后随时可以撤销。':
+    'Set permission, expiry and password here — revocable anytime after you send it.',
+  '立即体验': 'Try it now',
+  '进入工作台': 'Open workspace',
+  '源文件不出本机 · 客户无需安装 · 一条链接搞定审稿':
+    'Source stays local · no installs for reviewers · one link to review',
+  '零安装 · 链接直达 · 点击模型写批注':
+    'Zero installs · link直达 · click model to comment',
+  '原件永不上传 · 客户只需一条链接 · 支持批注与解决闭环':
+    'Source stays local · one link for reviewers · comment & resolve loop',
+  '共享空间，大家共用': 'shared pool, capped at 5 GiB',
+  '到期自动清空，一件不留': 'auto-cleaned after 48 h, nothing kept',
+  '服务器硬拒 .blend，想绕也绕不过': 'server rejects .blend at HTTP 415, no exceptions',
+  '注册和审稿都不收费': 'registration and review are free',
+  '中键旋转 · 点击模型表面添加批注 · 右侧可解决/重开':
+    'Middle-drag orbit · click surface to annotate · resolve / reopen on the right',
+  '单指旋转 · 点击模型表面添加批注':
+    'One-finger orbit · tap surface to annotate',
   '打开线上站点': 'Open the live site',
   '登录注册': 'Sign in',
   '公益存储池': 'public storage pool',
@@ -107,6 +148,8 @@ const EN: Record<string, string> = {
   '把工程发出去审稿，本来不该这么别扭。': 'Sending a file out for review was never supposed to be this awkward.',
   '给客户或外包看一个模型，常见做法是把工程文件整个发过去，或者截一堆图来回传。 BlendProof 把审稿放进浏览器，同时把原始工程留在你自己的机器上。':
     'To show a model to a client or contractor, the usual move is shipping the whole project file — or trading screenshots back and forth. BlendProof moves the review into the browser while your source project stays on your own machine.',
+  '给客户或外包看模型，常见做法是甩工程文件或截图来回传。BlendProof 把审稿搬进浏览器，原始工程留在你自己机器上。':
+    'To show a model to a client or contractor, you usually ship the project file or trade screenshots. BlendProof moves the review into the browser; your source stays on your machine.',
   '旧做法': 'The old way',
   '对方得先装 Blender': 'They must install Blender first',
   '先甩一个 3 GB 的安装包过去，装完还可能因为版本不对打不开。':
@@ -136,6 +179,8 @@ const EN: Record<string, string> = {
   '一个能真正干活的审稿台。': 'A review desk that actually works.',
   '下面这些不是功能清单，是你实际会做的事——全部在浏览器里完成，不需要装任何东西。 操作方式以 Blender 为基线，你的手不用换一套肌肉记忆。':
     "These aren't bullet points — they're things you'll actually do, entirely in the browser with nothing to install. The controls follow Blender, so your muscle memory carries over.",
+  '以下不是功能清单——是你实际会做的事。全部在浏览器里完成，操作方式以 Blender 为基线，手感不用换。':
+    "Not a feature list — these are things you'll actually do, all in the browser. Controls follow Blender, so your muscle memory carries over.",
   '场景集合': 'Scene Collection',
   '已选择': 'Selected',
   '产品内的 Outliner。': 'The in-product Outliner.',
@@ -221,6 +266,10 @@ const EN: Record<string, string> = {
     ' — unpublished assets, textures, project structure — stays on your machine from start to finish. This is not privacy-policy wording: actually send a',
   '传过来，服务器门口直接弹回 415，想绕都绕不过去。':
     ' and the server bounces it at the door with HTTP 415. There is no way around it.',
+  '服务器只收两样东西：转换后的展示模型，和一份「怎么摆、怎么转」的小清单。你的':
+    'The server accepts exactly two things: the converted display model and a small manifest. Your',
+  '原件从头到尾留在自己电脑上——真传过来，服务器直接 415 弹回，想绕也绕不过。':
+    ' source stays on your machine — send a .blend and the server bounces it with HTTP 415, no exceptions.',
   '你的电脑': 'Your computer',
   '没拿走的：你的原件': 'What stays: your originals',
   '文件不会离开你的电脑': 'The .blend never leaves your computer',
@@ -253,6 +302,8 @@ const EN: Record<string, string> = {
   '配置一张审稿凭证。': 'Configure a review credential.',
   '上一步生成的审稿凭证，权限、有效期、密码都在这里定，发出之后随时可以撤销。':
     'Permission, expiry and password for the credential you just generated are set here — and it stays revocable after you send it.',
+  '权限、有效期、密码都在这里定，发出之后随时可以撤销。':
+    'Set permission, expiry and password here — revocable anytime after you send it.',
   '可评论': 'Can comment',
   '只读': 'Read-only',
   '密码': 'Password',
@@ -273,6 +324,8 @@ const EN: Record<string, string> = {
   '对方打开链接，看到的是这个。': "This is what the reviewer sees.",
   '这就是审稿者的浏览器：输入链接、通过口令，模型就地载入——复用的正是上方那只猴头。':
     "This is the reviewer's browser: enter the link, pass the check, and the model loads in place — reusing the very monkey head above.",
+  '输入链接、通过口令，模型就地载入——复用的正是上方那只猴头。':
+    'Enter the link, pass the check, and the model loads in place — reusing the very monkey head above.',
   '前往': 'Go',
   '输入分享链接，或': 'Enter a share link, or',
   '填入演示链接 /s/suzanne': 'Fill in the demo link /s/suzanne',
@@ -291,6 +344,8 @@ const EN: Record<string, string> = {
   '审稿件的临时快递柜': 'temporary parcel locker for review files',
   '：包裹只在转运期间被持有，到期自动清空， 全程无人开箱查看。它目前是个人维护的公益项目，不做付费档位，也不靠留存用户数据运营。':
     ': parcels are held only in transit, auto-purged on expiry, and nobody opens the box along the way. It is a personally maintained public-good project — no paid tiers, and it does not run on retained user data.',
+  '：包裹到期自动清空，全程无人开箱。个人维护的公益项目，不做付费档位。':
+    ': parcels are auto-purged on expiry, nobody opens the box. A personally maintained public-good project with no paid tiers.',
   '免费使用。': 'Free to use.',
   '注册与审稿都不收费，也没有付费解锁的功能。': 'Sign-up and review cost nothing, and no features sit behind a paywall.',
   '5 GiB 共享容量。': '5 GiB shared capacity.',
@@ -318,6 +373,8 @@ const EN: Record<string, string> = {
   '以下数据直接来自生产接口': 'The figures below come straight from the production endpoint',
   '，随页面加载实时读取，不做缓存包装。 项目刚上线，累计用量从零开始增长。':
     ', read live on page load with no cache dressing. The project just launched — cumulative usage is growing from zero.',
+  '，随页面加载实时读取，不缓存。':
+    ', read live on page load with no caching.',
   '服务状态': 'Service',
   '未读取': 'Not read',
   '跨域或网络受限': 'CORS or network restricted',
@@ -343,6 +400,8 @@ const EN: Record<string, string> = {
   '它是怎么工作的，以及能覆盖多少。': 'How it works, and how far it reaches.',
   '没有魔法——就是浏览器的标准能力、Blender 的官方能力和一层薄薄的服务端。免安装路径覆盖静态场景，复杂文件自动回退本机 Blender。项目开源，每一行都欢迎审阅。':
     'No magic — just standard browser capabilities, official Blender capabilities, and a thin server layer. The install-free path covers static scenes; complex files fall back to your local Blender automatically. The project is open source — audit every line.',
+  '没有魔法——浏览器标准能力 + Blender 官方能力 + 一层薄服务端。免安装路径覆盖静态场景，复杂文件自动回退本机 Blender。':
+    'No magic — standard browser APIs + official Blender capabilities + a thin server layer. The install-free path covers static scenes; complex files fall back to your local Blender.',
   '前端': 'Frontend',
   '转换': 'Conversion',
   '浏览器解析优先 · 复杂回退本机 Blender': 'In-browser parsing first · complex files fall back locally',
