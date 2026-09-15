@@ -379,6 +379,14 @@ function initQuickstart(): void {
     steps.forEach((step, index) => {
       step.addEventListener('click', () => {
         console.log('Step clicked:', index)
+
+        // For reviewer perspective: clicking step 1 shows blank page,
+        // clicking step 2 shows password page, clicking step 3 shows 3D view
+        if (browser) {
+          showStep(index)
+          return
+        }
+
         // Toggle: clicking the same step again hides it
         if (index === currentStep) {
           currentStep = -1
@@ -425,12 +433,10 @@ function initQuickstart(): void {
         }
       })
 
-      // Step 2: "Open" button (simulated) goes to step 3
+      // Step 2: Click anywhere on the state to go to step 3
       const passState = browser.querySelector('[data-state="2"]')
       passState?.addEventListener('click', () => {
         showStep(2) // Go to step 3 (3D view)
-        // Initialize mini viewer if not already
-        initQsMiniViewer()
       })
     }
   })
