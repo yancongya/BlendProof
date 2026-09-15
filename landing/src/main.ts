@@ -473,18 +473,21 @@ function initQsMiniViewer(): void {
         const camera = new THREE.PerspectiveCamera(40, host.clientWidth / host.clientHeight, 0.1, 50)
         camera.position.set(2.4, 1.2, 3.1)
 
-        scene.add(new THREE.HemisphereLight(0x3a3f46, 0x141414, 1.1))
-        const key = new THREE.DirectionalLight(0xffffff, 1.6)
+        scene.add(new THREE.HemisphereLight(0x6a6f76, 0x1c1c1c, 1.5))
+        const key = new THREE.DirectionalLight(0xffffff, 2.0)
         key.position.set(3, 4, 2.5)
         scene.add(key)
-        const rim = new THREE.DirectionalLight(0x5b9ee0, 0.6)
+        const rim = new THREE.DirectionalLight(0x5b9ee0, 0.8)
         rim.position.set(-4, 1, -3)
         scene.add(rim)
+        const fill = new THREE.DirectionalLight(0xffffff, 0.4)
+        fill.position.set(-2, 2, 4)
+        scene.add(fill)
 
         const material = new THREE.MeshStandardMaterial({
-          color: 0xd6d6d6,
-          metalness: 0.45,
-          roughness: 0.38,
+          color: 0xe0e0e0,
+          metalness: 0.3,
+          roughness: 0.4,
           flatShading: true,
         })
 
