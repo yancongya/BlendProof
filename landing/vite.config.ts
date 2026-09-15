@@ -31,7 +31,7 @@ function dropModulePreload(): Plugin {
 
 export default defineConfig({
   root: here,
-  base: './',
+  base: '/landing/',
   publicDir: false,
   plugins: [react(), dropModulePreload()],
   server: {
