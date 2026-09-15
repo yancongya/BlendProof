@@ -343,6 +343,8 @@ function initQuickstart(): void {
     const browser = panel.querySelector<HTMLElement>('.quickstart__browser')
     const states = browser ? Array.from(browser.querySelectorAll<HTMLElement>('.qs-browser__state')) : []
 
+    console.log('Quickstart panel:', { steps: steps.length, mocks: mocks.length, browser: !!browser, states: states.length })
+
     let currentStep = -1 // No step selected by default
 
     const showStep = (index: number): void => {
