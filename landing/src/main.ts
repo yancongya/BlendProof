@@ -435,12 +435,20 @@ let qsMiniViewerInitialized = false
 function initQsMiniViewer(): void {
   if (qsMiniViewerInitialized) return
   const host = document.getElementById('qs-mini-viewer')
-  if (!host) return
+  if (!host) {
+    console.error('qs-mini-viewer host not found')
+    return
+  }
+
+  console.log('Initializing 3D viewer...')
 
   // Dynamic import three.js
   import('three').then((THREE) => {
+    console.log('Three.js loaded')
     import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
+      console.log('GLTFLoader loaded')
       import('three/examples/jsm/controls/OrbitControls.js').then(({ OrbitControls }) => {
+        console.log('OrbitControls loaded')
         qsMiniViewerInitialized = true
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
@@ -479,6 +487,7 @@ function initQsMiniViewer(): void {
         // Load model - use absolute path from project root
         // The model is in projectRoot/public/, accessible via fs.allow
         new GLTFLoader().load('/default-monkey.glb', (gltf) => {
+          console.log('Model loaded')
           const root = gltf.scene
           const box = new THREE.Box3().setFromObject(root)
           const size = box.getSize(new THREE.Vector3())
