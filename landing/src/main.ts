@@ -466,8 +466,9 @@ function initQsMiniViewer(): void {
         controls.autoRotate = true
         controls.autoRotateSpeed = 0.8
 
-        // Load model
-        new GLTFLoader().load('../../public/default-monkey.glb', (gltf) => {
+        // Load model - use path relative to landing page
+        // The model is in projectRoot/public/, accessible via fs.allow
+        new GLTFLoader().load('../public/default-monkey.glb', (gltf) => {
           const root = gltf.scene
           const box = new THREE.Box3().setFromObject(root)
           const size = box.getSize(new THREE.Vector3())
@@ -478,7 +479,23 @@ function initQsMiniViewer(): void {
             if (child instanceof THREE.Mesh) child.material = material
           })
           scene.add(root)
+        }, undefined, (error) => {
+          console.error('Failed to load model:', error)
         })
+
+        // Resize handler
+        const resize = (): void => {
+          const w = host.clientWidth
+          const h = host.clientHeight
+          if (w === 0 || h === 0) return
+          renderer.setSize(w, h, false)
+          camera.aspect = w / h
+          camera.updateProjectionMatrix()
+        }
+
+        const resizeObserver = new ResizeObserver(resize)
+        resizeObserver.observe(host)
+        resize()
 
         // Render loop
         let raf = 0
@@ -492,6 +509,7 @@ function initQsMiniViewer(): void {
         // Cleanup on page hide
         window.addEventListener('pagehide', () => {
           cancelAnimationFrame(raf)
+          resizeObserver.disconnect()
           controls.dispose()
           material.dispose()
           renderer.dispose()
