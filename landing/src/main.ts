@@ -9,7 +9,7 @@
  */
 
 import { initHero3D, createMiniViewer } from './hero3d'
-import { t, ifEn, applyStaticI18n, getLang } from './i18n'
+import { t, ifEn, applyStaticI18n, getLang, setNodeText } from './i18n'
 
 const ORIGIN = 'https://blendproof.itycon.cn'
 
@@ -49,20 +49,18 @@ function initTheme(): void {
   })
 }
 
-/** Language toggle: persist the choice and reload so every render path re-reads it. */
+/** Language toggle: persist the choice and re-localize in place — no reload. */
 function initLangToggle(): void {
   const button = document.getElementById('lang-toggle')
   if (!button) return
-  const current = getLang()
-  button.textContent = current === 'en' ? '中文' : 'EN'
-  button.setAttribute('aria-label', current === 'en' ? 'Switch to 中文' : '切换到 English')
   button.addEventListener('click', () => {
+    const next = getLang() === 'en' ? 'zh' : 'en'
     try {
-      localStorage.setItem('bp-lang', current === 'en' ? 'zh' : 'en')
+      localStorage.setItem('bp-lang', next)
     } catch {
       /* private mode: language just won't persist */
     }
-    window.location.reload()
+    applyStaticI18n()
   })
 }
 
@@ -160,7 +158,7 @@ function initReviewDemo(): void {
     const badge = item.querySelector('i')
     status?.addEventListener('click', () => {
       const resolved = badge?.classList.toggle('resolved') ?? false
-      status.textContent = resolved ? t('重开') : t('解决')
+      setNodeText(status, resolved ? '重开' : '解决')
       updateCounter()
     })
   })
@@ -174,9 +172,13 @@ function initReviewDemo(): void {
     const item = document.createElement('div')
     item.className = 'mk-review-item is-new'
     item.innerHTML =
-      `<i>${number}</i><div><strong></strong><small>Monkey_Head · ${t('我')}</small></div>` +
-      `<button type="button" class="mk-review-status">${t('解决')}</button>`
+      `<i>${number}</i><div><strong></strong><small>Monkey_Head · 我</small></div>` +
+      '<button type="button" class="mk-review-status">解决</button>'
     ;(item.querySelector('strong') as HTMLElement).textContent = text
+    const composeSmall = item.querySelector('small') as HTMLElement | null
+    if (composeSmall) setNodeText(composeSmall, 'Monkey_Head · 我')
+    const composeStatus = item.querySelector<HTMLButtonElement>('.mk-review-status')
+    if (composeStatus) setNodeText(composeStatus, '解决')
     root.insertBefore(item, root.querySelector('.mk-compose'))
     input.value = ''
     bindReviewItem(item)
@@ -198,21 +200,17 @@ function initCredDemo(): void {
         .forEach((other) => other.setAttribute('aria-pressed', String(other === chip)))
 
       if (group === 'perm') {
-        const value = chip.dataset.v === 'comment' ? t('可评论') : t('只读')
-        const rxPerm = document.getElementById('mk-rx-perm')
+        const zh = chip.dataset.v === 'comment' ? '可评论' : '只读'
         const ddPerm = document.getElementById('mk-dd-perm')
-        if (ddPerm) ddPerm.textContent = value
-        if (rxPerm) rxPerm.textContent = value === t('可评论') ? t('查看与批注') : t('仅查看')
+        if (ddPerm) setNodeText(ddPerm, zh)
       } else if (group === 'exp') {
-        const value = ifEn(`in ${chip.dataset.v ?? '24'} hours`, `${chip.dataset.v ?? '24'} 小时后`)
+        const zh = `${chip.dataset.v ?? '24'} 小时后`
         const ddExp = document.getElementById('mk-dd-exp')
-        const rxExp = document.getElementById('mk-rx-exp')
-        if (ddExp) ddExp.textContent = value
-        if (rxExp) rxExp.textContent = value
+        if (ddExp) setNodeText(ddExp, zh)
       } else if (group === 'pwd') {
         const pressed = chip.getAttribute('aria-pressed') === 'true'
         const ddPwd = document.getElementById('mk-dd-pwd')
-        if (ddPwd) ddPwd.textContent = pressed ? t('已设置') : t('无')
+        if (ddPwd) setNodeText(ddPwd, pressed ? '已设置' : '无')
       }
     })
   })
@@ -228,10 +226,10 @@ function initCopyDemo(): void {
     const cred = copyButton.closest<HTMLElement>('.mk-cred')
 
     const stamp = (): void => {
-      copyButton.textContent = t('已复制')
+      setNodeText(copyButton, '已复制')
       cred?.classList.add('stamped')
       window.setTimeout(() => {
-        copyButton.textContent = t('复制链接')
+        setNodeText(copyButton, '复制链接')
         cred?.classList.remove('stamped')
       }, 1600)
     }
@@ -249,7 +247,7 @@ function initCopyDemo(): void {
     receiverCard.classList.add('receiving')
     if (browserUrl && browserStatus && !browserUrl.value) {
       browserUrl.value = 'blendproof.itycon.cn/s/suzanne'
-      browserStatus.textContent = t('已收到链接 · 点「前往」打开')
+      setNodeText(browserStatus, '已收到链接 · 点「前往」打开')
       browserStatus.dataset.kind = 'busy'
     }
   })
@@ -304,8 +302,8 @@ function initReceiverBrowser(): void {
   let opened = false
   let timers: number[] = []
 
-  const setStatus = (text: string, kind: '' | 'busy' | 'ok'): void => {
-    status.textContent = text
+  const setStatus = (zh: string, kind: '' | 'busy' | 'ok'): void => {
+    setNodeText(status, zh)
     status.dataset.kind = kind
   }
 
@@ -327,7 +325,7 @@ function initReceiverBrowser(): void {
   const open = (): void => {
     const value = urlInput.value.trim()
     if (!/s\/suzanne|suzanne/i.test(value)) {
-      setStatus(t('未找到该分享——试试下面的演示链接。'), 'busy')
+      setStatus('未找到该分享——试试下面的演示链接。', 'busy')
       return
     }
     if (opened) return
@@ -336,12 +334,12 @@ function initReceiverBrowser(): void {
     empty.hidden = true
     view.hidden = false
 
-    setStatus(t('正在验证口令…'), 'busy')
+    setStatus('正在验证口令…', 'busy')
     typePassword(() => {
-      setStatus(t('口令通过 · 正在载入模型…'), 'busy')
+      setStatus('口令通过 · 正在载入模型…', 'busy')
       viewer = viewer ?? createMiniViewer(modelHost)
       timers.push(window.setTimeout(() => {
-        setStatus(t('模型已载入 · 拖拽旋转，滚轮缩放'), 'ok')
+        setStatus('模型已载入 · 拖拽旋转，滚轮缩放', 'ok')
         go.disabled = false
       }, reduced ? 0 : 1100))
     })
@@ -368,7 +366,7 @@ function bindReviewItem(item: HTMLElement): void {
   const badge = item.querySelector('i')
   status?.addEventListener('click', () => {
     const resolved = badge?.classList.toggle('resolved') ?? false
-    status.textContent = resolved ? t('重开') : t('解决')
+    setNodeText(status, resolved ? '重开' : '解决')
   })
 }
 
@@ -431,7 +429,7 @@ function initUploadDemo(): void {
     fileRow.hidden = true
     dropzone.hidden = false
     convertButton.disabled = true
-    convertButton.textContent = t('由本机 Blender 转换')
+    setNodeText(convertButton, '由本机 Blender 转换')
     progressList.hidden = true
     steps.forEach((step) => step.classList.remove('active', 'done'))
     // 重置后保留"可再次选择"的能力：拖放区还在，逻辑回到初始态
@@ -441,7 +439,7 @@ function initUploadDemo(): void {
     const pace = reduced ? 0 : 950
     progressList.hidden = false
     convertButton.disabled = true
-    convertButton.textContent = t('处理中…')
+    setNodeText(convertButton, '处理中…')
 
     steps.forEach((step, index) => {
       if (index > 0) {
@@ -458,7 +456,7 @@ function initUploadDemo(): void {
         step.classList.remove('active')
         step.classList.add('done')
       })
-      convertButton.textContent = t('已发布 · 审稿凭证已生成')
+      setNodeText(convertButton, '已发布 · 审稿凭证已生成')
     }, pace * steps.length))
   }
 

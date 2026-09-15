@@ -56,6 +56,27 @@ const EN: Record<string, string> = {
   'GitHub 仓库': 'GitHub repository',
   '切换到 English': 'Switch to 中文',
 
+  /* interactive demo copy (injected after boot) */
+  '由本机 Blender 转换': 'Convert via local Blender',
+  '处理中…': 'Processing…',
+  '已发布 · 审稿凭证已生成': 'Published · review credential generated',
+  '已复制': 'Copied',
+  '复制链接': 'Copy link',
+  '复制这条演示链接：': 'Copy this demo link:',
+  '已收到链接 · 点「前往」打开': 'Link received · press Go to open',
+  '未找到该分享——试试下面的演示链接。': 'Share not found — try the demo link below.',
+  '正在验证口令…': 'Verifying passphrase…',
+  '口令通过 · 正在载入模型…': 'Passphrase accepted · loading model…',
+  '模型已载入 · 拖拽旋转，滚轮缩放': 'Model loaded · drag to orbit, scroll to zoom',
+  '重开': 'Reopen',
+  '解决': 'Resolve',
+  '查看与批注': 'View & comment',
+  '仅查看': 'View only',
+  'Monkey_Head · 王工': 'Monkey_Head · Wang',
+  'Monkey_Head · 李监制': 'Monkey_Head · Li',
+  'Monkey_Head · 阿烟': 'Monkey_Head · Yan',
+  'Monkey_Head · 我': 'Monkey_Head · Me',
+
   /* hero */
   'Blender 风格 3D 审稿': 'Blender-style 3D review',
   '原始工程，': 'Your source file,',
@@ -419,36 +440,96 @@ export function ifEn(en: string, zh: string): string {
 
 const ATTRS = ['title', 'aria-label', 'placeholder'] as const
 
+/** Backups so language can toggle back and forth without losing the source. */
+const textBackup = new WeakMap<Text, string>()
+const attrBackup = new WeakMap<Element, Partial<Record<string, string>>>()
+
 /**
- * Overlay English onto the static document. Chinese stays the no-JS / crawler
- * view; this only runs after the module boots.
+ * Set an element's text while remembering the Chinese source, so a later
+ * language switch can re-translate or restore it. Use this for any copy that
+ * is injected after boot (demo status lines, annotation bubbles, …).
+ */
+export function setNodeText(el: HTMLElement, zh: string): void {
+  const key = normalize(zh)
+  el.dataset.i18nKey = key
+  el.textContent = getLang() === 'en' ? (EN[key] ?? zh) : zh
+}
+
+/** Controls handled manually so their bilingual labels never get walked. */
+const CONTROL_IDS = ['lang-toggle', 'theme-toggle']
+
+/**
+ * Overlay English onto the document (or restore Chinese), in place — no reload.
+ * Chinese stays the no-JS / crawler view; this runs on boot and on every
+ * language switch. Text nodes and elements carrying `data-i18n-key` are both
+ * covered, and Chinese sources are backed up so toggling back is lossless.
  */
 export function applyStaticI18n(): void {
-  if (getLang() !== 'en') return
+  const en = getLang() === 'en'
 
+  // 1. Every text node in <body>.
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
-  const hits: Text[] = []
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Text
-    if (node.nodeValue && /[\u4e00-\u9fff]/.test(node.nodeValue)) hits.push(node)
-  }
-  for (const node of hits) {
+  const nodes: Text[] = []
+  while (walker.nextNode()) nodes.push(walker.currentNode as Text)
+  for (const node of nodes) {
+    if (node.parentElement?.closest(CONTROL_IDS.map((id) => `#${id}`).join(','))) continue
     const raw = node.nodeValue ?? ''
-    const en = EN[normalize(raw)]
-    if (en === undefined) continue
-    const lead = raw.slice(0, raw.length - raw.trimStart().length)
-    const trail = raw.slice(raw.trimEnd().length)
-    node.nodeValue = `${lead}${en}${trail}`
+    const hasZh = /[\u4e00-\u9fff]/.test(raw)
+    if (en) {
+      if (!hasZh) continue
+      if (!textBackup.has(node)) textBackup.set(node, raw)
+      const lead = raw.slice(0, raw.length - raw.trimStart().length)
+      const trail = raw.slice(raw.trimEnd().length)
+      const tr = EN[normalize(raw)]
+      if (tr !== undefined) node.nodeValue = `${lead}${tr}${trail}`
+    } else {
+      const orig = textBackup.get(node)
+      if (orig !== undefined) node.nodeValue = orig
+    }
   }
 
+  // 2. Elements that opted in with data-i18n-key (dynamic content).
+  document.querySelectorAll<HTMLElement>('[data-i18n-key]').forEach((el) => {
+    if (el.closest(CONTROL_IDS.map((id) => `#${id}`).join(','))) return
+    const key = el.dataset.i18nKey
+    if (!key) return
+    el.textContent = en ? (EN[key] ?? key) : key
+  })
+
+  // 3. Localizable attributes.
   document.querySelectorAll<HTMLElement>('body [title], body [aria-label], body [placeholder]').forEach((el) => {
     for (const attr of ATTRS) {
       const value = el.getAttribute(attr)
       if (!value) continue
-      const en = EN[normalize(value)]
-      if (en !== undefined) el.setAttribute(attr, en)
+      const norm = normalize(value)
+      if (en) {
+        const b = attrBackup.get(el) ?? {}
+        if (b[attr] === undefined) {
+          b[attr] = value
+          attrBackup.set(el, b)
+        }
+        const tr = EN[norm]
+        if (tr !== undefined) el.setAttribute(attr, tr)
+      } else {
+        const b = attrBackup.get(el)
+        if (b && b[attr] !== undefined) el.setAttribute(attr, b[attr])
+      }
     }
   })
 
-  document.documentElement.lang = 'en'
+  document.documentElement.lang = en ? 'en' : 'zh'
+
+  // 4. The two top controls, kept out of the walker above.
+  const langBtn = document.getElementById('lang-toggle')
+  if (langBtn) {
+    langBtn.textContent = en ? '中文' : 'EN'
+    langBtn.setAttribute('aria-label', en ? 'Switch to 中文' : '切换到 English')
+  }
+  const themeBtn = document.getElementById('theme-toggle')
+  if (themeBtn) {
+    const light = document.documentElement.dataset.theme === 'light'
+    const zh = light ? '☾ 暗色' : '☀ 亮色'
+    themeBtn.textContent = en ? (EN[normalize(zh)] ?? zh) : zh
+    themeBtn.setAttribute('aria-label', en ? 'Toggle light / dark theme' : '切换亮色 / 暗色模式')
+  }
 }
