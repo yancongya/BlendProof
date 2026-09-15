@@ -332,7 +332,7 @@ function initHeroCopyDemo(): void {
   })
 }
 
-/** Quick start panel: auto-play 3-step animation when visible. */
+/** Quick start panel: auto-play 3-step animation when visible, clickable steps. */
 function initQuickstart(): void {
   if (prefersReducedMotion()) return
 
@@ -347,48 +347,85 @@ function initQuickstart(): void {
     let currentStep = 0
     let timer = 0
     let running = false
+    let pausedByUser = false
 
     const showStep = (index: number): void => {
+      currentStep = index
       steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
       mocks.forEach((mock, i) => {
         mock.hidden = i !== index
       })
     }
 
-    const play = (): void => {
-      if (running) return
-      running = true
-      currentStep = 0
-      showStep(0)
-
-      const advance = (): void => {
-        currentStep++
-        if (currentStep >= steps.length) {
-          // Pause before restart
-          timer = window.setTimeout(() => {
-            currentStep = 0
-            showStep(0)
-            timer = window.setTimeout(advance, 1200)
-          }, 2000)
-          return
-        }
-        showStep(currentStep)
-        timer = window.setTimeout(advance, 1200)
-      }
-
-      timer = window.setTimeout(advance, 1200)
-    }
-
     const stop = (): void => {
       running = false
       window.clearTimeout(timer)
-      steps.forEach((step) => step.classList.remove('is-active'))
     }
+
+    const advance = (): void => {
+      if (!running || pausedByUser) return
+      currentStep++
+      if (currentStep >= steps.length) {
+        // Pause before restart
+        timer = window.setTimeout(() => {
+          currentStep = 0
+          showStep(0)
+          timer = window.setTimeout(advance, 1200)
+        }, 2000)
+        return
+      }
+      showStep(currentStep)
+      timer = window.setTimeout(advance, 1200)
+    }
+
+    const play = (): void => {
+      if (running) return
+      running = true
+      pausedByUser = false
+      currentStep = 0
+      showStep(0)
+      timer = window.setTimeout(advance, 1200)
+    }
+
+    // Click on step card: jump to that step, pause auto-play
+    steps.forEach((step, index) => {
+      step.addEventListener('click', () => {
+        // If clicking the currently active step, resume auto-play
+        if (index === currentStep && pausedByUser) {
+          pausedByUser = false
+          running = false // Reset so play() can start fresh
+          play()
+          return
+        }
+
+        // Jump to clicked step, pause auto-play
+        pausedByUser = true
+        stop()
+        showStep(index)
+      })
+    })
+
+    // Interactive chips in mockup
+    panel.querySelectorAll<HTMLElement>('.quickstart__mock .mk-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const group = chip.closest('.mk-cred-chips')
+        if (!group) return
+        group.querySelectorAll<HTMLElement>('.mk-chip').forEach((other) => {
+          // Only toggle chips in the same group (same type)
+          const otherText = other.textContent?.trim()
+          const chipText = chip.textContent?.trim()
+          if (otherText !== chipText) {
+            other.setAttribute('aria-pressed', 'false')
+          }
+        })
+        chip.setAttribute('aria-pressed', 'true')
+      })
+    })
 
     // IntersectionObserver: play when visible, stop when hidden
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (entry.isIntersecting && !pausedByUser) {
           play()
         } else {
           stop()

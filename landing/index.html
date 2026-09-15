@@ -489,12 +489,18 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--panel);
-    transition: border-color .2s ease, background-color .2s ease;
+    cursor: pointer;
+    transition: border-color .2s ease, background-color .2s ease, transform .15s ease;
   }
 
   .quickstart__step:hover {
     border-color: var(--accent);
     background: var(--hover-bg);
+    transform: translateY(-2px);
+  }
+
+  .quickstart__step:active {
+    transform: translateY(0);
   }
 
   .quickstart__num {
