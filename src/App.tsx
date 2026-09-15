@@ -1155,7 +1155,10 @@ function BlenderWorkspace({
     [comments, reviewFilter],
   );
   const [outlinerHeight, setOutlinerHeight] = useState(280);
+  const [outlinerCollapsed, setOutlinerCollapsed] = useState(false);
   const [propertyHeight, setPropertyHeight] = useState(132);
+  const [propertyCollapsed, setPropertyCollapsed] = useState(false);
+  const [reviewCollapsed, setReviewCollapsed] = useState(false);
   const [summaryHeight, setSummaryHeight] = useState(180);
   const [overlaysVisible, setOverlaysVisible] = useState(true);
   const [outlinerQuery, setOutlinerQuery] = useState("");
@@ -1659,9 +1662,9 @@ function BlenderWorkspace({
           </div>
         </section>
         <aside className="right-editors">
-          <section className="outliner" style={{ height: outlinerHeight }}>
+          <section className={`outliner ${outlinerCollapsed ? 'collapsed' : ''}`} style={{ height: outlinerCollapsed ? 28 : outlinerHeight }}>
             <header>
-              <button type="button" className="panel-toggle" onClick={() => setOutlinerHeight((h) => h > 50 ? 0 : 240)} title="折叠/展开">
+              <button type="button" className="panel-toggle" onClick={() => setOutlinerCollapsed((c) => !c)} title="折叠/展开">
                 <span className="panel-icon"><Layers size={13} /></span>
                 <span>场景集合</span>
               </button>
@@ -1744,9 +1747,9 @@ function BlenderWorkspace({
             label="调整场景集合面板高度"
             onDelta={(delta) => setOutlinerHeight((height) => Math.min(560, Math.max(90, height + delta)))}
           />
-          <section className="properties">
+          <section className={`properties ${propertyCollapsed ? 'collapsed' : ''}`} style={{ height: propertyCollapsed ? 28 : '100%' }}>
             <header>
-              <button type="button" className="panel-toggle" onClick={() => setPropertyHeight((h) => h > 50 ? 0 : 160)} title="折叠/展开属性">
+              <button type="button" className="panel-toggle" onClick={() => setPropertyCollapsed((c) => !c)} title="折叠/展开属性">
                 <span className="panel-icon"><SlidersHorizontal size={13} /></span>
                 <span>属性</span>
               </button>
@@ -1780,29 +1783,31 @@ function BlenderWorkspace({
               label="调整转换信息面板高度"
               onDelta={(delta) => setSummaryHeight((height) => Math.min(360, Math.max(82, height + delta)))}
             />
-            <div className="review-panel-slot">
-              <ReviewPanel
-                comments={visibleComments}
-                newCount={reviewNewCount}
-                onAcknowledgeNew={onAcknowledgeReview}
-                selectedId={selectedCommentId}
-                pending={pendingReview}
-                body={commentBody}
-                readOnly={readOnly}
-                canComment={canComment}
-                message={reviewMessage ?? reviewError}
-                onBody={setCommentBody}
-                onSelect={selectReviewComment}
-                onSave={() => void savePendingReview()}
-                busy={reviewBusy}
-                onCancel={() => {
-                  setPendingReview(null);
-                  setCommentBody("");
-                }}
-                onToggleStatus={(comment) => void toggleReviewStatus(comment)}
-                onEdit={(comment, body) => void editReviewComment(comment, body)}
-              />
-            </div>
+          </section>
+          <section className={`review-section ${reviewCollapsed ? 'collapsed' : ''}`} style={{ height: reviewCollapsed ? 28 : 'auto' }}>
+            <ReviewPanel
+              comments={visibleComments}
+              newCount={reviewNewCount}
+              onAcknowledgeNew={onAcknowledgeReview}
+              selectedId={selectedCommentId}
+              pending={pendingReview}
+              body={commentBody}
+              readOnly={readOnly}
+              canComment={canComment}
+              message={reviewMessage ?? reviewError}
+              onBody={setCommentBody}
+              onSelect={selectReviewComment}
+              onSave={() => void savePendingReview()}
+              busy={reviewBusy}
+              onCancel={() => {
+                setPendingReview(null);
+                setCommentBody("");
+              }}
+              onToggleStatus={(comment) => void toggleReviewStatus(comment)}
+              onEdit={(comment, body) => void editReviewComment(comment, body)}
+              collapsed={reviewCollapsed}
+              onToggleCollapse={() => setReviewCollapsed((c) => !c)}
+            />
           </section>
         </aside>
       </div>
@@ -2405,6 +2410,8 @@ function ReviewPanel({
   onCancel,
   onToggleStatus,
   onEdit,
+  collapsed,
+  onToggleCollapse,
 }: {
   comments: ReviewComment[];
   newCount: number;
@@ -2422,6 +2429,8 @@ function ReviewPanel({
   onCancel: () => void;
   onToggleStatus: (comment: ReviewComment) => void;
   onEdit: (comment: ReviewComment, body: string) => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   const selectedComment = comments.find((comment) => comment.id === selectedId);
   const [editBody, setEditBody] = useState("");
@@ -2431,9 +2440,16 @@ function ReviewPanel({
   return (
     <div className="review-panel" data-testid="review-panel" aria-label="审稿批注" aria-readonly={readOnly}>
       <div className="review-panel-title">
-        <span className="panel-icon"><MessageSquarePlus size={13} /></span>
-        <span>审稿批注</span>
-        <b data-testid="review-count">{comments.length}{newCount > 0 ? tf(" · 新 %s", newCount) : ""}</b>
+        {onToggleCollapse && <button type="button" className="panel-toggle" onClick={onToggleCollapse}>
+          <span className="panel-icon"><MessageSquarePlus size={13} /></span>
+          <span>审稿批注</span>
+          <b data-testid="review-count">{comments.length}{newCount > 0 ? tf(" · 新 %s", newCount) : ""}</b>
+        </button>}
+        {!onToggleCollapse && <>
+          <span className="panel-icon"><MessageSquarePlus size={13} /></span>
+          <span>审稿批注</span>
+          <b data-testid="review-count">{comments.length}{newCount > 0 ? tf(" · 新 %s", newCount) : ""}</b>
+        </>}
       </div>
       {newCount > 0 && <button className="review-new-notice" onClick={onAcknowledgeNew}>收到新批注，点击查看</button>}
       {pending && canComment && (
