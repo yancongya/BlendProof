@@ -99,6 +99,47 @@ type SharedViewState = {
   hidden: string[];
   selected: string[];
 };
+const DEMO_COMMENTS: ReviewComment[] = [
+  {
+    id: "demo-1",
+    projectId: "demo",
+    objectName: "苏珊娜",
+    position: [0, 0.5, 1.2],
+    normal: [0, 0, 1],
+    camera: { projection: "perspective", position: [0, 0, 3], quaternion: [0, 0, 0, 1], target: [0, 0, 0] },
+    body: "头顶多边形密度偏高，建议减面以降低 Web 端渲染负担。",
+    authorName: "平台管理员",
+    status: "open",
+    createdAt: "2026-09-14T10:30:00Z",
+    updatedAt: "2026-09-14T10:30:00Z",
+  },
+  {
+    id: "demo-2",
+    projectId: "demo",
+    objectName: "苏珊娜",
+    position: [0.8, 0.2, 0.3],
+    normal: [1, 0, 0],
+    camera: { projection: "perspective", position: [2, 1, 2], quaternion: [0, 0, 0, 1], target: [0, 0, 0] },
+    body: "右耳边缘法线翻转，渲染时出现黑色伪影。",
+    authorName: "张工",
+    status: "resolved",
+    createdAt: "2026-09-13T15:12:00Z",
+    updatedAt: "2026-09-14T09:00:00Z",
+  },
+  {
+    id: "demo-3",
+    projectId: "demo",
+    objectName: null,
+    position: [0, -0.3, 0.8],
+    normal: [0, -1, 0],
+    camera: { projection: "perspective", position: [0, 0.5, 3], quaternion: [0, 0, 0, 1], target: [0, 0, 0] },
+    body: "整体模型质量不错，可直接用于审稿演示。",
+    authorName: "李审核",
+    status: "open",
+    createdAt: "2026-09-15T08:00:00Z",
+    updatedAt: "2026-09-15T08:00:00Z",
+  },
+];
 const DEFAULT_MONKEY_MANIFEST: Manifest = {
   scene: "Suzanne 演示",
   camera: null,
@@ -270,6 +311,7 @@ export function App() {
   const closeUploader = useCallback(() => setUploaderOpen(false), []);
   const reviewProject = cloudProject ?? project;
   const reviews = useReviewComments(reviewProject?.id ?? null, reviewProject?.ownerCapability ?? null, cloudProject ? "cloud" : "local");
+  const displayComments = reviewProject ? reviews.comments : DEMO_COMMENTS;
   useEffect(() => {
     let active = true;
     setManifest(null);
@@ -496,7 +538,7 @@ export function App() {
         onSelect={(name) => setSelected(name ? new Set([name]) : new Set())} onSelectMany={(names) => setSelected(new Set(names))}
         onToggle={toggle} message={message} modelUrl={workspaceModelUrl} readOnly={false} canComment={Boolean(project)}
         displayMode={displayMode} onDisplayMode={setDisplayMode} cameraPreset={cameraPreset} onCameraPreset={setCameraPreset}
-        comments={reviews.comments} reviewError={reviews.error} reviewNewCount={reviews.newCount} onAcknowledgeReview={reviews.acknowledgeNew} onCreateComment={reviews.create} onUpdateComment={reviews.update}
+        comments={displayComments} reviewError={reviews.error} reviewNewCount={reviews.newCount} onAcknowledgeReview={reviews.acknowledgeNew} onCreateComment={reviews.create} onUpdateComment={reviews.update}
         onViewStateChange={setCurrentCamera}
         onOpenUploader={openUploader} onHome={() => setHomeOpen(true)} recentProjects={recentProjects} onProjectSelect={switchProject}
       />
@@ -549,7 +591,7 @@ export function App() {
       onDisplayMode={setDisplayMode}
       cameraPreset={cameraPreset}
       onCameraPreset={setCameraPreset}
-      comments={reviews.comments}
+      comments={displayComments}
       reviewError={reviews.error}
       reviewNewCount={reviews.newCount}
       onAcknowledgeReview={reviews.acknowledgeNew}
@@ -594,6 +636,8 @@ export function App() {
           <Share2 size={13} /> 分享
         </button>
         {sharePanelOpen && (
+          <>
+          <div className="share-panel-backdrop" onClick={() => setSharePanelOpen(false)} />
           <form className="share-panel" role="dialog" aria-label="分享设置" onSubmit={(event) => { event.preventDefault(); void createShare(); }}>
             {!project ? <>
               <div className="share-panel-title"><Share2 size={14} /> 管理员公开示例</div>
@@ -637,6 +681,7 @@ export function App() {
             {shareId && <button type="button" className="share-panel-revoke" onClick={() => void revokeShare()}>撤销分享</button>}
             </>}
           </form>
+          </>
         )}
       </div>
     </BlenderWorkspace>
@@ -886,7 +931,7 @@ function StartPage({
           </section>}
           {startTab === "account" && <section className="start-user-panel"><div className="start-panel-heading"><span><User size={14} /> {account ? "我的账号" : "账号入口"}</span>{account?.role === "admin" && <i className="admin-badge"><ShieldCheck size={12} /> 管理员</i>}</div>{account ? <><div className="account-identity"><b>{account.displayName.slice(0, 1).toUpperCase()}</b><span><strong>{account.displayName}</strong><small>{account.email}</small></span><button className="account-logout" onClick={() => void onLogout()}><LogOut size={13} /> 退出</button></div><dl className="account-usage"><div><dt>个人占用</dt><dd>{accountStats ? formatBytes(accountStats.usedBytes) : "—"}</dd></div><div><dt>项目</dt><dd>{accountStats?.projectCount ?? "—"}</dd></div><div><dt>有效分享</dt><dd>{accountStats?.activeShareCount ?? "—"}</dd></div></dl>{account.role === "admin" && <AdminConsole accountId={account.id} onCreateInvite={onCreateInvite} />}</> : <><p>登录后可以查看自己的项目、分享数量和空间占用。为了控制公益资源，注册需要管理员发放的邀请码。</p><div className="account-buttons"><button onClick={() => { setAuthMode("login"); setAuthOpen(true); }}><LogIn size={13} /> 登录</button><button onClick={() => { setAuthMode("register"); setAuthOpen(true); }}><KeyRound size={13} /> 使用邀请码注册</button></div></>}</section>}
         </div>
-        <footer className="start-launcher-footer"><span>BlendProof 公益 3D 审稿</span><span>容量 {stats ? formatBytes(stats.capacityBytes) : "—"} · 最长分享 {stats?.retentionHours ?? 48} 小时</span></footer>
+        <footer className="start-launcher-footer"><span>BlendProof 公益 3D 审稿</span><span>{stats ? `${stats.projectCount} 项目 · ${stats.activeShareCount} 分享 · ${stats.userCount} 用户` : "—"} · 容量 {stats ? formatBytes(stats.capacityBytes) : "—"} · 最长分享 {stats?.retentionHours ?? 48} 小时</span></footer>
       </section>
       {authOpen && <div className="uploader-modal-backdrop account-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuthOpen(false); }}><form className="account-modal" role="dialog" aria-label={authMode === "login" ? "登录" : "邀请码注册"} onSubmit={submitAccount}><div className="account-modal-head"><strong>{authMode === "login" ? "登录 BlendProof" : "使用邀请码注册"}</strong><button type="button" aria-label="关闭账号面板" onClick={() => setAuthOpen(false)}>×</button></div><div className="account-tabs"><button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAccountError(null); }}>登录</button><button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setAccountError(null); }}>注册</button></div>{authMode === "register" && <><label>显示名称<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label><label>邀请码<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} required /></label></>}<label>邮箱<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>密码<input type="password" value={password} minLength={8} onChange={(event) => setPassword(event.target.value)} required /></label>{accountError && <p role="alert">{accountError}</p>}<button className="account-submit" disabled={accountBusy}>{accountBusy ? "处理中…" : authMode === "login" ? "登录" : "创建账号"}</button><small>注册只接受管理员发放的邀请码。</small></form></div>}
       {legalDocument && <LegalDocument kind={legalDocument} onClose={() => setLegalDocument(null)} />}
@@ -1407,28 +1452,31 @@ function BlenderWorkspace({
             <div className="editor-type" aria-label="3D 视图">
               <Box size={14} /> 3D 视图
             </div>
-            {canComment && modelUrl && (
-              <button
-                className={`annotation-tool ${annotationMode ? "active" : ""}`}
-                data-testid="annotation-toggle"
-                aria-pressed={annotationMode}
-                onClick={() => {
-                  setAnnotationMode((current) => !current);
-                  setPendingReview(null);
-                  setReviewFilter("all");
-                  setAnnotationsVisible(true);
-                }}
-              >
-                <MessageSquarePlus size={13} />
-                {annotationMode ? "点击模型放置批注" : "添加批注"}
-              </button>
-            )}
-            <div className="review-filters" aria-label="批注状态筛选">
-              {([['all', '全部'], ['open', '待处理'], ['resolved', '已解决']] as const).map(([value, label]) => (
-                <button key={value} type="button" className={reviewFilter === value ? "active" : ""} onClick={() => setReviewFilter(value)}>{label}</button>
-              ))}
+            <div className="review-controls">
+              {canComment && modelUrl && (
+                <button
+                  className={`annotation-tool ${annotationMode ? "active" : ""}`}
+                  data-testid="annotation-toggle"
+                  aria-pressed={annotationMode}
+                  onClick={() => {
+                    setAnnotationMode((current) => !current);
+                    setPendingReview(null);
+                    setReviewFilter("all");
+                    setAnnotationsVisible(true);
+                  }}
+                >
+                  <MessageSquarePlus size={13} />
+                  {annotationMode ? "点击模型放置批注" : "添加批注"}
+                </button>
+              )}
+              <div className="review-filters" aria-label="批注状态筛选">
+                {([['all', '全部'], ['open', '待处理'], ['resolved', '已解决']] as const).map(([value, label]) => (
+                  <button key={value} type="button" className={reviewFilter === value ? "active" : ""} onClick={() => setReviewFilter(value)}>{label}</button>
+                ))}
+              </div>
             </div>
-            <div className="view-controls" aria-label="视图控制">
+            <div className="header-right">
+              <div className="view-controls" aria-label="视图控制">
               <div className="icon-group" aria-label="显示模式">
                 <button
                   title="线框"
@@ -1492,25 +1540,26 @@ function BlenderWorkspace({
                   相机 {camera.name || "Camera"}
                 </button>
               ))}
+              <button
+                type="button"
+                className={`editor-mode overlay-toggle ${overlaysVisible ? "active" : ""}`}
+                aria-pressed={overlaysVisible}
+                title="显示或隐藏网格与坐标轴"
+                onClick={() => setOverlaysVisible((visible) => !visible)}
+              >
+                <Grid2X2 size={12} /> 叠加层
+              </button>
+              <button
+                type="button"
+                className={`editor-mode overlay-toggle ${annotationsVisible ? "active" : ""}`}
+                aria-pressed={annotationsVisible}
+                title="显示或隐藏全部批注 Pin"
+                onClick={() => setAnnotationsVisible((visible) => !visible)}
+              >
+                <MessageSquarePlus size={12} /> 批注
+              </button>
             </div>
-            <button
-              type="button"
-              className={`editor-mode overlay-toggle ${overlaysVisible ? "active" : ""}`}
-              aria-pressed={overlaysVisible}
-              title="显示或隐藏网格与坐标轴"
-              onClick={() => setOverlaysVisible((visible) => !visible)}
-            >
-              <Grid2X2 size={12} /> 叠加层
-            </button>
-            <button
-              type="button"
-              className={`editor-mode overlay-toggle ${annotationsVisible ? "active" : ""}`}
-              aria-pressed={annotationsVisible}
-              title="显示或隐藏全部批注 Pin"
-              onClick={() => setAnnotationsVisible((visible) => !visible)}
-            >
-              <MessageSquarePlus size={12} /> 批注
-            </button>
+            </div>
           </div>
           <div className="viewport" data-testid="viewer-viewport" aria-label="3D 模型视图">
             {modelUrl ? (

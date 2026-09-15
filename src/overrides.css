@@ -504,7 +504,6 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  margin-left: auto;
 }
 .icon-group {
   display: flex;
@@ -743,9 +742,9 @@
 .file-menu-wrap,
 .share-menu-wrap {
   position: relative;
-  height: 100%;
   display: flex;
   align-items: center;
+  z-index: auto;
 }
 .file-menu-trigger,
 .share-trigger {
@@ -754,8 +753,7 @@
 .file-menu-trigger svg:last-child {
   margin-left: -2px;
 }
-.file-menu,
-.share-panel {
+.file-menu {
   position: absolute;
   z-index: 60;
   top: calc(100% + 1px);
@@ -829,6 +827,30 @@
   gap: 8px;
   min-width: 292px;
   padding: 10px;
+}
+.share-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+.share-menu-wrap .share-panel {
+  position: fixed;
+  z-index: 200;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 380px;
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid #363636;
+  border-radius: 10px;
+  background: #242424;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65);
 }
 .share-panel-title {
   display: flex;
