@@ -12,6 +12,15 @@
 - 已验收 `/api/health`、`/api/public/stats`、D1 migration/管理员记录、生产首页及 `/s/suzanne` + `tycon`。
 - 待验收：管理员登录、真实 `.blend` 发布、跨浏览器评论/撤销/过期/清理。
 
+## 2026-09-15 部署记录
+
+- 触发：线上仍是旧产物（`assets/index-89e5z4X7.js`）。原因是本仓库为 Worker（非 Pages），且未接入 Git 自动部署，`git push` 不会发布；按用户授权执行人工 `npx wrangler deploy`。
+- 变更内容：主应用全量中英国际化（`src/i18n/*`，中文为源、英文 overlay + `MutationObserver`）、封面页与菜单栏的落地页入口/语言切换、以及构建脚本修复（`npm run build` 现产出含 `/landing/` 的完整 `dist`）。
+- 发布：`npx wrangler deploy`（wrangler 4.130.0），上传 7 个新增/变更静态资源，Worker `blendproof` + custom domain + cron 重新发布。Version ID `163651c3-0924-4a4c-a59c-2e47ee0cf628`。
+- 无 D1 schema 变更，未执行 migration。
+- 验收：`/`、`/landing/`、`/api/health` 均 200；线上 index 已引用新产物；真实 Chrome 校验封面页 中↔英 双向切换、菜单栏控件与 `分享` 同行同高、页面 0 报错。
+- 待办：在 Cloudflare 控制台为 Worker 接入 Workers Builds（Settings → Builds → Connect；branch `main`；Build command `npm ci && npm run build`；Deploy command `npx wrangler deploy`），之后 push 即自动发布。
+
 ## 0. 授权闸门（必须由用户确认）
 
 - [ ] 指定 Cloudflare 账户、Worker 名称、环境（production/staging）、D1 数据库、R2 bucket、部署域名，以及谁可以执行发布和回滚。
