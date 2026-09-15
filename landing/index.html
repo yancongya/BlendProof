@@ -293,11 +293,20 @@
   /* 默认客户视角，创作者视角隐藏 */
   [data-perspective] { transition: opacity .3s ease; }
 
-  html:not([data-view="creator"]) [data-perspective="creator"],
-  html[data-view="reviewer"] [data-perspective="creator"] { display: none; }
+  /* 创作者视角：隐藏 */
+  html[data-view="reviewer"] [data-perspective="creator"],
+  html:not([data-view="creator"]) [data-perspective="creator"] {
+    display: none !important;
+  }
 
-  html:not([data-view="reviewer"]) [data-perspective="reviewer"],
-  html[data-view="creator"] [data-perspective="reviewer"] { display: none; }
+  /* 客户视角：隐藏 */
+  html[data-view="creator"] [data-perspective="reviewer"],
+  html:not([data-view="reviewer"]) [data-perspective="reviewer"] {
+    display: none !important;
+  }
+
+  /* data-perspective-all 始终显示 */
+  [data-perspective-all] { display: block !important; }
 
   /* 视口切换容器 */
   .hero__viewport { position: relative; min-height: 452px; }
@@ -465,6 +474,102 @@
   }
   .h3d-bubble.is-below { transform: translate(-50%, 0); }
   .h3d-bubble[hidden] { display: none; }
+
+  /* ---------- Quick start panel ---------- */
+  .quickstart { margin-top: 28px; }
+
+  .quickstart__steps {
+    display: flex; align-items: flex-start; gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .quickstart__step {
+    display: flex; gap: 10px; flex: 1;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    transition: border-color .2s ease, background-color .2s ease;
+  }
+
+  .quickstart__step:hover {
+    border-color: var(--accent);
+    background: var(--hover-bg);
+  }
+
+  .quickstart__num {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .quickstart__text b {
+    display: block;
+    color: var(--ink-bright);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .quickstart__text span {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .quickstart__arrow {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px;
+    margin-top: 14px;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 14px;
+  }
+
+  .quickstart__mockup {
+    position: relative;
+    height: 120px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    overflow: hidden;
+  }
+
+  .quickstart__mock {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    transition: opacity .3s ease;
+  }
+
+  .quickstart__mock[hidden] { display: none; }
+
+  .quickstart__mock .mk-dropzone,
+  .quickstart__mock .mk-cred,
+  .quickstart__mock .mk-browser,
+  .quickstart__mock .mk-browser__pass {
+    width: 100%; max-width: 400px;
+  }
+
+  .quickstart__copy-btn {
+    border: 1px solid var(--accent-edge); border-radius: 3px;
+    background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 600; padding: 8px 16px; cursor: pointer;
+    transition: background-color .15s ease;
+  }
+
+  .quickstart__copy-btn:hover { background: #c5630b; }
+
+  /* Animation: step highlight */
+  .quickstart__step.is-active {
+    border-color: var(--accent);
+    background: var(--accent-well);
+  }
+
+  .quickstart__step.is-active .quickstart__num {
+    color: var(--accent-warm);
+  }
 
   .h3d-bubble__head {
     display: flex; align-items: center; gap: 6px;
@@ -1830,8 +1935,131 @@ grid-template-columns: minmax(0, 1fr);
     </div>
   </section>
 
+  <!-- ===== Quick start: 3-step guide ===== -->
+  <section class="band band--deep" id="quickstart" data-perspective-all>
+    <div class="wrap">
+      <div class="card" data-anim>
+        <div class="card__chrome"><span class="card__index">00</span><span class="card__name">快速上手</span><i class="card__tag">3 Steps</i></div>
+        <div class="card__body">
+          <h2>3 步搞定审稿</h2>
+          <p class="lead" style="margin-bottom:0">从上传到客户收到链接，整个过程不超过一分钟。</p>
+
+          <!-- 创作者视角：3 步流程 -->
+          <div class="quickstart" data-perspective="creator">
+            <div class="quickstart__steps">
+              <div class="quickstart__step" data-step="1">
+                <div class="quickstart__num">①</div>
+                <div class="quickstart__text">
+                  <b>选择 .blend</b>
+                  <span>浏览器就地转换，原件不出本机</span>
+                </div>
+              </div>
+              <div class="quickstart__arrow">→</div>
+              <div class="quickstart__step" data-step="2">
+                <div class="quickstart__num">②</div>
+                <div class="quickstart__text">
+                  <b>配置凭证</b>
+                  <span>权限、有效期、密码，随时可撤销</span>
+                </div>
+              </div>
+              <div class="quickstart__arrow">→</div>
+              <div class="quickstart__step" data-step="3">
+                <div class="quickstart__num">③</div>
+                <div class="quickstart__text">
+                  <b>发给客户</b>
+                  <span>一条链接，客户无需安装任何软件</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="quickstart__mockup">
+              <div class="quickstart__mock" data-show="1">
+                <div class="mk-dropzone" style="height:80px">
+                  <b>⇪</b>
+                  <strong>点击选择 .blend 文件</strong>
+                  <small>仅接受 .blend · 文件不会上传</small>
+                </div>
+              </div>
+              <div class="quickstart__mock" data-show="2" hidden>
+                <div class="mk-cred" style="margin:0">
+                  <div class="mk-cred-chips">
+                    <button type="button" class="mk-chip" aria-pressed="true">可评论</button>
+                    <button type="button" class="mk-chip" aria-pressed="false">只读</button>
+                    <span class="mk-chip-sep"></span>
+                    <button type="button" class="mk-chip" aria-pressed="true">24h</button>
+                    <button type="button" class="mk-chip" aria-pressed="false">48h</button>
+                  </div>
+                  <div class="mk-cred-code">/s/suzanne</div>
+                </div>
+              </div>
+              <div class="quickstart__mock" data-show="3" hidden>
+                <div class="mk-cred-actions" style="border:0;border-radius:3px;overflow:hidden">
+                  <button type="button" class="quickstart__copy-btn">复制链接</button>
+                  <a href="https://blendproof.itycon.cn/s/suzanne" target="_blank" rel="noreferrer">打开检查</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 客户视角：3 步流程 -->
+          <div class="quickstart" data-perspective="reviewer">
+            <div class="quickstart__steps">
+              <div class="quickstart__step" data-step="1">
+                <div class="quickstart__num">①</div>
+                <div class="quickstart__text">
+                  <b>打开链接</b>
+                  <span>不用装 Blender，不用装任何东西</span>
+                </div>
+              </div>
+              <div class="quickstart__arrow">→</div>
+              <div class="quickstart__step" data-step="2">
+                <div class="quickstart__num">②</div>
+                <div class="quickstart__text">
+                  <b>口令验证</b>
+                  <span>输入对方给的口令，一键进入</span>
+                </div>
+              </div>
+              <div class="quickstart__arrow">→</div>
+              <div class="quickstart__step" data-step="3">
+                <div class="quickstart__num">③</div>
+                <div class="quickstart__text">
+                  <b>查看 + 批注</b>
+                  <span>中键旋转，点击模型表面写批注</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="quickstart__mockup">
+              <div class="quickstart__mock" data-show="1">
+                <div class="mk-browser" style="height:100px">
+                  <div class="mk-browser__bar">
+                    <span class="mk-browser__dots"><i></i><i></i><i></i></span>
+                    <input type="text" class="mk-browser__url" value="blendproof.itycon.cn/s/suzanne" readonly>
+                    <button type="button" class="mk-browser__go">前往</button>
+                  </div>
+                </div>
+              </div>
+              <div class="quickstart__mock" data-show="2" hidden>
+                <div class="mk-browser__pass" style="border:1px solid var(--mk-line);border-radius:3px;margin:0;padding:12px">
+                  <span>口令已自动填充</span>
+                  <input type="password" value="tycon" readonly style="border:1px solid var(--mk-line-2);border-radius:2px;background:var(--input);color:var(--ink);font-family:var(--mono);font-size:10px;padding:4px 8px;width:80px;text-align:center">
+                </div>
+              </div>
+              <div class="quickstart__mock" data-show="3" hidden>
+                <div class="hero3d__hint" style="position:static;text-align:center;padding:20px;color:var(--muted);font-size:12px">
+                  中键旋转 · 点击模型表面添加批注 · 右侧可解决/重开
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== Pain → outcome ===== -->
-  <section class="band" data-perspective="creator" data-perspective="reviewer">
+  <section class="band" data-perspective-all>
     <div class="wrap">
       <div class="card" data-anim>
         <div class="card__chrome"><span class="card__index">01</span><span class="card__name">为什么要有它</span><i class="card__tag">Pain → Outcome</i></div>
@@ -2212,7 +2440,7 @@ grid-template-columns: minmax(0, 1fr);
   </section>
 
   <!-- ===== Share: sender + receiver (two independent cards) ===== -->
-  <section class="band" data-perspective="creator" data-perspective="reviewer">
+  <section class="band" data-perspective-all>
     <div class="wrap share-duo">
 
       <div class="card" data-anim id="mk-sender-card">

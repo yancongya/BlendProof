@@ -332,6 +332,75 @@ function initHeroCopyDemo(): void {
   })
 }
 
+/** Quick start panel: auto-play 3-step animation when visible. */
+function initQuickstart(): void {
+  if (prefersReducedMotion()) return
+
+  const panels = Array.from(document.querySelectorAll<HTMLElement>('.quickstart'))
+  if (panels.length === 0) return
+
+  panels.forEach((panel) => {
+    const steps = Array.from(panel.querySelectorAll<HTMLElement>('.quickstart__step'))
+    const mocks = Array.from(panel.querySelectorAll<HTMLElement>('.quickstart__mock'))
+    if (steps.length === 0 || mocks.length === 0) return
+
+    let currentStep = 0
+    let timer = 0
+    let running = false
+
+    const showStep = (index: number): void => {
+      steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
+      mocks.forEach((mock, i) => {
+        mock.hidden = i !== index
+      })
+    }
+
+    const play = (): void => {
+      if (running) return
+      running = true
+      currentStep = 0
+      showStep(0)
+
+      const advance = (): void => {
+        currentStep++
+        if (currentStep >= steps.length) {
+          // Pause before restart
+          timer = window.setTimeout(() => {
+            currentStep = 0
+            showStep(0)
+            timer = window.setTimeout(advance, 1200)
+          }, 2000)
+          return
+        }
+        showStep(currentStep)
+        timer = window.setTimeout(advance, 1200)
+      }
+
+      timer = window.setTimeout(advance, 1200)
+    }
+
+    const stop = (): void => {
+      running = false
+      window.clearTimeout(timer)
+      steps.forEach((step) => step.classList.remove('is-active'))
+    }
+
+    // IntersectionObserver: play when visible, stop when hidden
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          play()
+        } else {
+          stop()
+        }
+      },
+      { threshold: 0.3 }
+    )
+
+    observer.observe(panel)
+  })
+}
+
 /** Pain cards: click flips front (旧做法) to back (BlendProof 的解法). Hover handles desktop. */
 function initPainFlip(): void {
   document.querySelectorAll<HTMLElement>('.pain').forEach((card) => {
@@ -721,6 +790,7 @@ initChromeDots()
 initHero3D()
 initMockups()
 initHeroCopyDemo()
+initQuickstart()
 initCardInteractions()
 initCards()
 void initLiveStatus()
