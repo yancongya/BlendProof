@@ -1,0 +1,53 @@
+name: Deploy to Cloudflare Workers
+
+# Publishing is driven from the repository: every push to main builds the app
+# and the landing page into dist/ and runs `wrangler deploy` against the
+# `blendproof` Worker (wrangler.jsonc). The Worker serves both `/` and
+# `/landing/` from that dist, so `npm run build` must emit the full bundle.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two production deploys race; queue instead of cancelling so a
+# merge is not left undeployed.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm run build` type-checks the app (tsc -b); the Worker has its own
+      # tsconfig, so check it explicitly before deploying.
+      - name: Type-check Worker
+        run: npm run check:worker
+
+      - name: Build app + landing into dist
+        run: npm run build
+
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN is not set — skipping deploy. Add it under Settings → Secrets and variables → Actions, then re-run this workflow."
+            exit 0
+          fi
+          npx wrangler deploy
