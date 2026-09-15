@@ -353,7 +353,7 @@ function initQuickstart(): void {
     let currentStep = -1 // No step selected by default
 
     const showStep = (index: number): void => {
-      console.log('showStep:', index)
+      console.log('showStep:', index, { statesCount: states.length })
       currentStep = index
       steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
 
@@ -364,6 +364,7 @@ function initQuickstart(): void {
 
       // For reviewer perspective: show browser states
       states.forEach((state, i) => {
+        console.log('Setting state', i, 'hidden:', i !== index)
         state.hidden = i !== index
       })
     }
