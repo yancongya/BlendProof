@@ -100,8 +100,8 @@ const EN: Record<string, string> = {
   '我是客户': "I'm a client",
   '创作者 · 3D 审稿': 'Creator · 3D review',
   '客户 · 3D 审稿': 'Reviewer · 3D review',
-  '一个链接发给客户，模型直接在浏览器里转。原件从头到尾留在你电脑上，云端拿不走。':
-    'Send one link to your client — the model loads directly in the browser. Your source file stays on your machine; the cloud never gets it.',
+  '一个链接发给客户，模型直接在浏览器里转。原件从头到尾留在你电脑上，云端拿不走。客户的批注直接落在模型上，你也能标注回复，意见闭环不用再来回截图。':
+    "Send one link to your client — the model loads directly in the browser. Your source file stays on your machine; the cloud never gets it. Their comments land right on the model, and you can reply with your own pins — feedback closes the loop without screenshots.",
   '不用装 Blender，不用装任何东西。模型在浏览器里直接转，点一下就能写批注。':
     "No Blender, no installs. The model loads directly in your browser — click the surface to leave a comment.",
   '审稿凭证': 'Review credential',
@@ -118,7 +118,8 @@ const EN: Record<string, string> = {
   '配置凭证': 'Configure credential',
   '权限、有效期、密码，随时可撤销': 'Permission, expiry, password — revocable anytime',
   '发给客户': 'Send to client',
-  '一条链接，客户无需安装任何软件': 'One link, no installs required',
+  '一条链接 · 客户的批注直接落在模型上，你也能标注回复':
+    'One link · their comments land on the model, and you can reply with pins of your own',
   '打开链接': 'Open the link',
   '不用装 Blender，不用装任何东西': 'No Blender, no installs',
   '口令验证': 'Passphrase check',
@@ -128,11 +129,12 @@ const EN: Record<string, string> = {
   '点击选择 .blend 文件': 'Click to choose .blend file',
   '仅接受 .blend · 文件不会上传': '.blend only · file is never uploaded',
   '立即体验': 'Try it now',
-  '进入工作台': 'Open workspace',
-  '源文件不出本机 · 客户无需安装 · 一条链接搞定审稿':
-    'Source stays local · no installs for reviewers · one link to review',
+  '上传我的 .blend': 'Upload my .blend',
+  '预览客户看到的画面': "Preview what your client sees",
+  '源文件不出本机 · 一条链接搞定审稿 · 你也能在模型上批注回复':
+    'Source stays local · one link to review · reply right on the model',
   '零安装 · 链接直达 · 点击模型写批注':
-    'Zero installs · link直达 · click model to comment',
+    'Zero installs · one link away · click the model to comment',
   '原件永不上传 · 客户只需一条链接 · 支持批注与解决闭环':
     'Source stays local · one link for reviewers · comment & resolve loop',
   '共享空间，大家共用': 'shared pool, capped at 5 GiB',

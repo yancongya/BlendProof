@@ -1935,7 +1935,7 @@ grid-template-columns: minmax(0, 1fr);
           <p class="eyebrow">创作者 · 3D 审稿</p>
           <h1>再也不用，<br><em>截图发来发去了</em>。</h1>
           <p class="hero__lead">
-            一个链接发给客户，模型直接在浏览器里转。原件从头到尾留在你电脑上，云端拿不走。
+            一个链接发给客户，模型直接在浏览器里转。原件从头到尾留在你电脑上，云端拿不走。客户的批注直接落在模型上，你也能标注回复，意见闭环不用再来回截图。
           </p>
         </div>
 
@@ -1948,14 +1948,19 @@ grid-template-columns: minmax(0, 1fr);
           </p>
         </div>
 
-        <!-- 两个视角共用按钮组 -->
-        <div class="hero__actions">
-          <a class="btn btn--primary" href="https://blendproof.itycon.cn/s/suzanne">立即体验</a>
-          <a class="btn" href="https://blendproof.itycon.cn">进入工作台</a>
+        <!-- 创作者 CTA：动作动词，强调上传 -->
+        <div class="hero__actions" data-perspective="creator">
+          <a class="btn btn--primary" href="https://blendproof.itycon.cn">上传我的 .blend</a>
+          <a class="btn" href="https://blendproof.itycon.cn/s/suzanne">预览客户看到的画面</a>
         </div>
 
-        <!-- 两个视角共用小字 -->
-        <p class="hero__subline" data-perspective="creator">源文件不出本机 · 客户无需安装 · 一条链接搞定审稿</p>
+        <!-- 客户 CTA：直接进演示视口 -->
+        <div class="hero__actions" data-perspective="reviewer">
+          <a class="btn btn--primary" href="https://blendproof.itycon.cn/s/suzanne">立即体验</a>
+        </div>
+
+        <!-- 两个视角小字 -->
+        <p class="hero__subline" data-perspective="creator">源文件不出本机 · 一条链接搞定审稿 · 你也能在模型上批注回复</p>
         <p class="hero__subline" data-perspective="reviewer">零安装 · 链接直达 · 点击模型写批注</p>
         <ul class="facts">
           <li><b>5 GiB</b>共享空间，大家共用</li>
@@ -2052,7 +2057,7 @@ grid-template-columns: minmax(0, 1fr);
                 <div class="quickstart__num">③</div>
                 <div class="quickstart__text">
                   <b>发给客户</b>
-                  <span>一条链接，客户无需安装任何软件</span>
+                  <span>一条链接 · 客户的批注直接落在模型上，你也能标注回复</span>
                 </div>
               </div>
             </div>
