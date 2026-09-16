@@ -13,7 +13,11 @@ type ShareRow = {
 type CommentRow = {
   id: string; project_id: string; object_name: string | null; position_json: string; normal_json: string
   camera_json: string; body: string; author_name: string; status: 'open' | 'resolved'; author_id: string | null
-  author_type: 'owner' | 'guest'; created_at: string; updated_at: string
+  author_type: 'owner' | 'guest'; delete_token_hash: string | null; created_at: string; updated_at: string
+}
+type ReplyRow = {
+  id: string; comment_id: string; project_id: string; body: string; author_name: string
+  author_type: 'owner' | 'guest'; delete_token_hash: string | null; created_at: string
 }
 type ReadyAssetRow = { object_key: string; content_type: string; byte_size: number; etag: string | null }
 
@@ -37,10 +41,25 @@ export async function handleShareRequest(request: Request, env: ShareEnv, url: U
     const originError = mutationOriginError(request, env)
     return originError ?? createOwnerComment(request, env, ownerComments[1])
   }
+  // 回复路由必须在通用 comment 路由之前匹配（更具体的路径优先）。
+  const ownerReply = url.pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{1,64})\/comments\/([A-Za-z0-9_-]{1,64})\/replies\/([A-Za-z0-9_-]{1,64})$/)
+  if (ownerReply && request.method === 'DELETE') {
+    const originError = mutationOriginError(request, env)
+    return originError ?? deleteOwnerReply(request, env, ownerReply[1], ownerReply[2], ownerReply[3])
+  }
+  const ownerReplies = url.pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{1,64})\/comments\/([A-Za-z0-9_-]{1,64})\/replies$/)
+  if (ownerReplies && request.method === 'POST') {
+    const originError = mutationOriginError(request, env)
+    return originError ?? createOwnerReply(request, env, ownerReplies[1], ownerReplies[2])
+  }
   const ownerComment = url.pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]{1,64})\/comments\/([A-Za-z0-9_-]{1,64})$/)
   if (ownerComment && request.method === 'PATCH') {
     const originError = mutationOriginError(request, env)
     return originError ?? updateOwnerComment(request, env, ownerComment[1], ownerComment[2])
+  }
+  if (ownerComment && request.method === 'DELETE') {
+    const originError = mutationOriginError(request, env)
+    return originError ?? deleteOwnerComment(request, env, ownerComment[1], ownerComment[2])
   }
   const access = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/access$/)
   if (access && request.method === 'POST') {
@@ -55,6 +74,22 @@ export async function handleShareRequest(request: Request, env: ShareEnv, url: U
   if (guestComments && request.method === 'POST') {
     const originError = mutationOriginError(request, env)
     return originError ?? createGuestComment(request, env, guestComments[1])
+  }
+  // 回复路由必须在通用 comment 路由之前匹配（更具体的路径优先）。
+  const guestReply = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/comments\/([A-Za-z0-9_-]{1,64})\/replies\/([A-Za-z0-9_-]{1,64})$/)
+  if (guestReply && request.method === 'DELETE') {
+    const originError = mutationOriginError(request, env)
+    return originError ?? deleteGuestReply(request, env, guestReply[1], guestReply[2], guestReply[3])
+  }
+  const guestReplies = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/comments\/([A-Za-z0-9_-]{1,64})\/replies$/)
+  if (guestReplies && request.method === 'POST') {
+    const originError = mutationOriginError(request, env)
+    return originError ?? createGuestReply(request, env, guestReplies[1], guestReplies[2])
+  }
+  const guestComment = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/comments\/([A-Za-z0-9_-]{1,64})$/)
+  if (guestComment && request.method === 'DELETE') {
+    const originError = mutationOriginError(request, env)
+    return originError ?? deleteGuestComment(request, env, guestComment[1], guestComment[2])
   }
   const load = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)$/)
   if (load && request.method === 'GET') return loadShare(request, env, load[1])
@@ -119,8 +154,8 @@ async function ownerCommentList(request: Request, env: ShareEnv, projectId: stri
   const project = await authorizeOwner(request, env, projectId)
   if (project instanceof Response) return project
   if (project.status !== 'ready') return error('找不到项目。', 404)
-  const rows = await commentsFor(env, projectId)
-  return Response.json({ comments: rows.map(toOwnerComment) }, { headers: { 'Cache-Control': 'private, no-store' } })
+  const rows = await commentsWithRepliesFor(env, projectId)
+  return Response.json({ comments: rows.map(({ comment, replies }) => toOwnerComment(comment, replies)) }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
 async function createOwnerComment(request: Request, env: ShareEnv, projectId: string): Promise<Response> {
@@ -151,6 +186,114 @@ async function updateOwnerComment(request: Request, env: ShareEnv, projectId: st
   await env.DB.prepare('UPDATE comments SET body = ?, status = ?, updated_at = ? WHERE id = ? AND project_id = ?')
     .bind(body, status, now, commentId, projectId).run()
   return Response.json({ comment: toOwnerComment({ ...current, body, status, updated_at: now }) }, { headers: { 'Cache-Control': 'private, no-store' } })
+}
+
+async function deleteOwnerComment(request: Request, env: ShareEnv, projectId: string, commentId: string): Promise<Response> {
+  const project = await authorizeOwner(request, env, projectId)
+  if (project instanceof Response) return project
+  if (project.status !== 'ready') return error('找不到项目。', 404)
+  // 显式删除回复再删评论，不依赖 D1 是否开启外键级联。
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM comment_replies WHERE comment_id = ? AND project_id = ?').bind(commentId, projectId),
+    env.DB.prepare('DELETE FROM comments WHERE id = ? AND project_id = ?').bind(commentId, projectId),
+  ])
+  // 幂等：评论已不存在时同样返回 204，避免客户端重试产生噪音。
+  return new Response(null, { status: 204, headers: { 'Cache-Control': 'private, no-store' } })
+}
+
+async function createOwnerReply(request: Request, env: ShareEnv, projectId: string, commentId: string): Promise<Response> {
+  const project = await authorizeOwner(request, env, projectId)
+  if (project instanceof Response) return project
+  if (project.status !== 'ready') return error('找不到项目。', 404)
+  const payload = await readJson<Record<string, unknown>>(request)
+  if (!isReplyDraft(payload)) return error('回复内容无效。', 400)
+  const reply = await insertReply(env, projectId, commentId, payload, 'owner', null)
+  if (!reply) return error('找不到评论。', 404)
+  return Response.json({ reply: toReply(reply) }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } })
+}
+
+async function deleteOwnerReply(request: Request, env: ShareEnv, projectId: string, commentId: string, replyId: string): Promise<Response> {
+  const project = await authorizeOwner(request, env, projectId)
+  if (project instanceof Response) return project
+  if (project.status !== 'ready') return error('找不到项目。', 404)
+  await env.DB.prepare('DELETE FROM comment_replies WHERE id = ? AND comment_id = ? AND project_id = ?')
+    .bind(replyId, commentId, projectId).run()
+  return new Response(null, { status: 204, headers: { 'Cache-Control': 'private, no-store' } })
+}
+
+async function createGuestReply(request: Request, env: ShareEnv, token: string, commentId: string): Promise<Response> {
+  const found = await resolveShare(env, token, true, request)
+  if (found instanceof Response) return found
+  const { share, project } = found
+  if (share.comments_permission !== 'comment') return shareError('该分享不允许访客回复。', 403, share)
+  const limitError = await enforceRateLimit(request, env, rateLimitRules.guestComment, share.id)
+  if (limitError) return limitError
+  const payload = await readJson<Record<string, unknown>>(request)
+  if (!isReplyDraft(payload)) return shareError('回复内容无效。', 400, share)
+  const issued = await issueDeleteToken()
+  const reply = await insertReply(env, project.id, commentId, payload, 'guest', issued.hash, share.id)
+  if (!reply) return shareError('该分享已失效或不允许回复。', 403, share)
+  // 明文令牌只返回一次给创建者本人；列表响应永不包含它。
+  return Response.json({ reply: toReply(reply), deleteToken: issued.token }, { status: 201, headers: privateHeaders(share) })
+}
+
+async function deleteGuestReply(request: Request, env: ShareEnv, token: string, commentId: string, replyId: string): Promise<Response> {
+  const found = await resolveShare(env, token, true, request)
+  if (found instanceof Response) return found
+  const { share, project } = found
+  if (share.comments_permission !== 'comment') return shareError('该分享不允许访客删除。', 403, share)
+  return deleteGuestOwned(env, share, {
+    select: `SELECT delete_token_hash FROM comment_replies WHERE id = ? AND comment_id = ? AND project_id = ?`,
+    bind: [replyId, commentId, project.id],
+    remove: `DELETE FROM comment_replies WHERE id = ? AND comment_id = ? AND project_id = ?`,
+    request,
+  })
+}
+
+async function deleteGuestComment(request: Request, env: ShareEnv, token: string, commentId: string): Promise<Response> {
+  const found = await resolveShare(env, token, true, request)
+  if (found instanceof Response) return found
+  const { share, project } = found
+  if (share.comments_permission !== 'comment') return shareError('该分享不允许访客删除。', 403, share)
+  return deleteGuestOwned(env, share, {
+    select: `SELECT delete_token_hash FROM comments WHERE id = ? AND project_id = ?`,
+    bind: [commentId, project.id],
+    remove: `DELETE FROM comments WHERE id = ? AND project_id = ?`,
+    // 评论删除需要连带清理回复（评论与回复的 id 都靠同一个 commentId 定位）。
+    cascade: `DELETE FROM comment_replies WHERE comment_id = ? AND project_id = ?`,
+    cascadeBind: [commentId, project.id],
+    request,
+  })
+}
+
+/**
+ * 访客删除自己内容的统一入口。
+ *
+ * 访客没有可验证身份（author_id 恒为 null），因此只能凭创建时发放的删除令牌。
+ * 为免探测他人批注 id，缺少/不匹配令牌与内容不存在都返回同一个 403。
+ */
+async function deleteGuestOwned(
+  env: ShareEnv,
+  share: ShareRow,
+  options: {
+    select: string
+    bind: unknown[]
+    remove: string
+    cascade?: string
+    cascadeBind?: unknown[]
+    request: Request
+  },
+): Promise<Response> {
+  const row = await env.DB.prepare(options.select).bind(...options.bind).first<{ delete_token_hash: string | null }>()
+  const provided = options.request.headers.get(DELETE_TOKEN_HEADER)
+  const forbidden = shareError('无法删除该内容。', 403, share)
+  if (!row || row.delete_token_hash === null || provided === null) return forbidden
+  if (!await matchesDeleteToken(provided, row.delete_token_hash)) return forbidden
+  const statements = options.cascade
+    ? [env.DB.prepare(options.cascade).bind(...(options.cascadeBind ?? [])), env.DB.prepare(options.remove).bind(...options.bind)]
+    : [env.DB.prepare(options.remove).bind(...options.bind)]
+  await env.DB.batch(statements)
+  return new Response(null, { status: 204, headers: privateHeaders(share) })
 }
 
 async function accessShare(request: Request, env: ShareEnv, token: string): Promise<Response> {
@@ -280,9 +423,10 @@ async function loadShare(request: Request, env: ShareEnv, token: string): Promis
     if (manifest === null) return shareError('分享模型不存在。', 404, share)
     modelUrl = `/api/shares/${token}/model.glb`
   }
-  const comments = await commentsFor(env, project.id)
+  const rows = await commentsWithRepliesFor(env, project.id)
   return Response.json({ name: project.name, modelUrl,
-    manifest, comments: comments.map(toPublicComment), commentsPermission: share.comments_permission,
+    manifest, comments: rows.map(({ comment, replies }) => toPublicComment(comment, replies)),
+    commentsPermission: share.comments_permission,
     expiresAt: share.expires_at }, { headers: privateHeaders(share) })
 }
 
@@ -324,9 +468,11 @@ async function createGuestComment(request: Request, env: ShareEnv, token: string
   if (limitError) return limitError
   const draft = await readJson<Record<string, unknown>>(request)
   if (!isCommentDraft(draft)) return shareError('评论内容或锚点无效。', 400, share)
-  const comment = await insertGuestComment(env, project.id, share.id, draft)
+  const issued = await issueDeleteToken()
+  const comment = await insertGuestComment(env, project.id, share.id, draft, issued.hash)
   if (!comment) return shareError('该分享已失效或不允许评论。', 403, share)
-  return Response.json({ comment: toPublicComment(comment) }, { status: 201, headers: privateHeaders(share) })
+  // 明文令牌只返回一次给创建者本人；列表响应永不包含它。
+  return Response.json({ comment: toPublicComment(comment), deleteToken: issued.token }, { status: 201, headers: privateHeaders(share) })
 }
 
 async function resolveShare(env: ShareEnv, token: string, passwordRequired: boolean, request?: Request): Promise<{ share: ShareRow; project: ProjectRow } | Response> {
@@ -413,30 +559,52 @@ function isStringArray(value: unknown, maximum: number): value is string[] {
   return Array.isArray(value) && value.length <= maximum && value.every((item) => typeof item === 'string' && item.length <= 256)
 }
 
-const commentFields = 'id, project_id, object_name, position_json, normal_json, camera_json, body, author_name, status, author_id, author_type, created_at, updated_at'
+const commentFields = 'id, project_id, object_name, position_json, normal_json, camera_json, body, author_name, status, author_id, author_type, delete_token_hash, created_at, updated_at'
+const replyFields = 'id, comment_id, project_id, body, author_name, author_type, delete_token_hash, created_at'
 async function commentsFor(env: ShareEnv, projectId: string) {
-  return (await env.DB.prepare(`SELECT ${commentFields} FROM comments WHERE project_id = ? ORDER BY created_at ASC, id ASC`)
+  // rowid 作为 insert 序 tiebreaker：同一毫秒创建的两条记录 created_at 相同，
+  // 若退化到随机 id 排序，对话顺序会不确定。
+  return (await env.DB.prepare(`SELECT ${commentFields} FROM comments WHERE project_id = ? ORDER BY created_at ASC, rowid ASC`)
     .bind(projectId).all<CommentRow>()).results
 }
-async function insertComment(env: ShareEnv, projectId: string, draft: Record<string, unknown>, authorType: 'owner' | 'guest'): Promise<CommentRow> {
+async function repliesFor(env: ShareEnv, projectId: string) {
+  return (await env.DB.prepare(`SELECT ${replyFields} FROM comment_replies WHERE project_id = ? ORDER BY created_at ASC, rowid ASC`)
+    .bind(projectId).all<ReplyRow>()).results
+}
+/**
+ * 列表读取：把回复按评论内联，避免前端为每条评论再发一次请求。
+ * 回复量受分享有效期约束，一次取全比 N+1 更划算。
+ */
+async function commentsWithRepliesFor(env: ShareEnv, projectId: string) {
+  const [comments, replies] = await Promise.all([commentsFor(env, projectId), repliesFor(env, projectId)])
+  const grouped = new Map<string, ReplyRow[]>()
+  for (const reply of replies) {
+    const bucket = grouped.get(reply.comment_id)
+    if (bucket) bucket.push(reply)
+    else grouped.set(reply.comment_id, [reply])
+  }
+  return comments.map((comment) => ({ comment, replies: grouped.get(comment.id) ?? [] }))
+}
+async function insertComment(env: ShareEnv, projectId: string, draft: Record<string, unknown>, authorType: 'owner' | 'guest', deleteTokenHash: string | null = null): Promise<CommentRow> {
   const now = new Date().toISOString()
   const comment: CommentRow = { id: randomHex(16), project_id: projectId, object_name: draft.objectName as string | null,
     position_json: JSON.stringify(draft.position), normal_json: JSON.stringify(draft.normal), camera_json: JSON.stringify(draft.camera),
     body: (draft.body as string).trim(), author_name: (draft.authorName as string).trim(), status: 'open', author_id: null,
-    author_type: authorType, created_at: now, updated_at: now }
-  await env.DB.prepare(`INSERT INTO comments (${commentFields}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    author_type: authorType, delete_token_hash: deleteTokenHash, created_at: now, updated_at: now }
+  await env.DB.prepare(`INSERT INTO comments (${commentFields}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(comment.id, comment.project_id, comment.object_name, comment.position_json, comment.normal_json, comment.camera_json,
-      comment.body, comment.author_name, comment.status, comment.author_id, comment.author_type, now, now).run()
+      comment.body, comment.author_name, comment.status, comment.author_id, comment.author_type,
+      comment.delete_token_hash, now, now).run()
   return comment
 }
-async function insertGuestComment(env: ShareEnv, projectId: string, shareId: string, draft: Record<string, unknown>): Promise<CommentRow | null> {
+async function insertGuestComment(env: ShareEnv, projectId: string, shareId: string, draft: Record<string, unknown>, deleteTokenHash: string): Promise<CommentRow | null> {
   const now = new Date().toISOString()
   const comment: CommentRow = { id: randomHex(16), project_id: projectId, object_name: draft.objectName as string | null,
     position_json: JSON.stringify(draft.position), normal_json: JSON.stringify(draft.normal), camera_json: JSON.stringify(draft.camera),
     body: (draft.body as string).trim(), author_name: (draft.authorName as string).trim(), status: 'open', author_id: null,
-    author_type: 'guest', created_at: now, updated_at: now }
+    author_type: 'guest', delete_token_hash: deleteTokenHash, created_at: now, updated_at: now }
   const result = await env.DB.prepare(`INSERT INTO comments (${commentFields})
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     WHERE EXISTS (
       SELECT 1 FROM shares s JOIN projects p ON p.id = s.project_id
       WHERE s.id = ? AND s.project_id = ? AND s.comments_permission = 'comment'
@@ -444,13 +612,46 @@ async function insertGuestComment(env: ShareEnv, projectId: string, shareId: str
         AND p.status = 'ready'
     )`).bind(comment.id, comment.project_id, comment.object_name, comment.position_json, comment.normal_json,
     comment.camera_json, comment.body, comment.author_name, comment.status, comment.author_id,
-    comment.author_type, now, now, shareId, projectId, now).run()
+    comment.author_type, comment.delete_token_hash, now, now, shareId, projectId, now).run()
   return result.meta.changes === 1 ? comment : null
 }
-function toOwnerComment(row: CommentRow) { return { id: row.id, projectId: row.project_id, objectName: row.object_name,
+/**
+ * 写入回复。owner 走 capability 鉴权，guest 额外要求分享仍可评论，
+ * 因此 guest 分支用 INSERT ... SELECT WHERE EXISTS 把授权条件写进语句本身。
+ */
+async function insertReply(env: ShareEnv, projectId: string, commentId: string, payload: Record<string, unknown>, authorType: 'owner' | 'guest', deleteTokenHash: string | null, shareId?: string): Promise<ReplyRow | null> {
+  const now = new Date().toISOString()
+  const reply: ReplyRow = { id: randomHex(16), comment_id: commentId, project_id: projectId,
+    body: (payload.body as string).trim(), author_name: (payload.authorName as string).trim(),
+    author_type: authorType, delete_token_hash: deleteTokenHash, created_at: now }
+  const values = [reply.id, reply.comment_id, reply.project_id, reply.body, reply.author_name,
+    reply.author_type, reply.delete_token_hash, now]
+  if (authorType === 'guest' && shareId) {
+    const result = await env.DB.prepare(`INSERT INTO comment_replies (${replyFields})
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?
+      WHERE EXISTS (
+        SELECT 1 FROM comments c
+          JOIN shares s ON s.project_id = c.project_id
+          JOIN projects p ON p.id = c.project_id
+        WHERE c.id = ? AND c.project_id = ? AND s.id = ?
+          AND s.comments_permission = 'comment' AND s.revoked_at IS NULL
+          AND (s.expires_at IS NULL OR s.expires_at > ?) AND p.status = 'ready'
+      )`).bind(...values, commentId, projectId, shareId, now).run()
+    return result.meta.changes === 1 ? reply : null
+  }
+  const result = await env.DB.prepare(`INSERT INTO comment_replies (${replyFields})
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?
+    WHERE EXISTS (SELECT 1 FROM comments WHERE id = ? AND project_id = ?)`)
+    .bind(...values, commentId, projectId).run()
+  return result.meta.changes === 1 ? reply : null
+}
+function toReply(row: ReplyRow) { return { id: row.id, commentId: row.comment_id, body: row.body,
+  authorName: row.author_name, authorType: row.author_type, createdAt: row.created_at } }
+function toOwnerComment(row: CommentRow, replies: ReplyRow[] = []) { return { id: row.id, projectId: row.project_id, objectName: row.object_name,
   position: parseJson(row.position_json), normal: parseJson(row.normal_json), camera: parseJson(row.camera_json), body: row.body,
-  authorName: row.author_name, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at } }
-function toPublicComment(row: CommentRow) { const { projectId: _projectId, ...comment } = toOwnerComment(row); return comment }
+  authorName: row.author_name, authorType: row.author_type, status: row.status,
+  createdAt: row.created_at, updatedAt: row.updated_at, replies: replies.map(toReply) } }
+function toPublicComment(row: CommentRow, replies: ReplyRow[] = []) { const { projectId: _projectId, ...comment } = toOwnerComment(row, replies); return comment }
 function parseJson(value: string) { return JSON.parse(value) as unknown }
 
 async function authorizeOwner(request: Request, env: ShareEnv, projectId: string): Promise<ProjectRow | Response> {
@@ -469,8 +670,7 @@ function isCommentDraft(value: Record<string, unknown> | null): value is Record<
     (value.objectName === null || typeof value.objectName === 'string') && (value.objectName === null || value.objectName.length <= 256) &&
     isVec3(value.position) && isVec3(value.normal) && value.normal.some((item) => Math.abs(item) > 1e-8) && isCamera(value.camera)
 }
-function isVec3(value: unknown): value is [number, number, number] { return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite) }
-function isCamera(value: unknown): boolean {
+function isVec3(value: unknown): value is [number, number, number] { return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite) }function isCamera(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const camera = value as Record<string, unknown>
   const keys = Object.keys(camera)
@@ -486,6 +686,36 @@ function isCamera(value: unknown): boolean {
   return camera.projection === 'orthographic' && typeof camera.zoom === 'number' && Number.isFinite(camera.zoom) && camera.zoom > 0 &&
     camera.fov === undefined && (camera.orthographicHeight === undefined ||
       (typeof camera.orthographicHeight === 'number' && Number.isFinite(camera.orthographicHeight) && camera.orthographicHeight > 0))
+}
+
+function isReplyDraft(value: Record<string, unknown> | null): value is Record<string, unknown> {
+  if (!value || Object.keys(value).some((key) => key !== 'body' && key !== 'authorName')) return false
+  return typeof value.body === 'string' && value.body.trim().length > 0 && value.body.trim().length <= 5000 &&
+    typeof value.authorName === 'string' && value.authorName.trim().length > 0 && value.authorName.trim().length <= 120
+}
+
+/** 访客删除令牌的请求头。放在头部而非 URL，避免令牌进入日志与浏览器历史。 */
+const DELETE_TOKEN_HEADER = 'x-blendproof-delete-token'
+
+/**
+ * 生成删除令牌。明文只交给创建者一次，库里只留摘要——
+ * 与其他凭据列（token_hash / owner_capability_hash）一致。
+ * 32 字节与本地 SQLite 通道的 generateDeleteToken() 保持一致。
+ */
+async function issueDeleteToken() {
+  const token = randomHex(32)
+  return { token, hash: await sha256Text(token) }
+}
+
+/** 常量时间比较，避免用响应时间区分「令牌错误」与「内容不存在」。 */
+async function matchesDeleteToken(provided: string, storedHash: string) {
+  const providedHash = await sha256Text(provided)
+  if (providedHash.length !== storedHash.length) return false
+  let diff = 0
+  for (let index = 0; index < providedHash.length; index += 1) {
+    diff |= providedHash.charCodeAt(index) ^ storedHash.charCodeAt(index)
+  }
+  return diff === 0
 }
 
 async function hashPassword(password: string) {

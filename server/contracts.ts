@@ -1,4 +1,5 @@
 import type {
+  CommentAuthorOptions,
   CommentPatch,
   CreateShareInput,
   CreatedShare,
@@ -7,6 +8,8 @@ import type {
   RegisterProjectInput,
   ReviewComment,
   ReviewCommentDraft,
+  ReviewReply,
+  ReviewReplyDraft,
   ShareRecord,
 } from './db.js'
 
@@ -41,8 +44,25 @@ export interface ReviewDatabase {
   deleteProject(projectId: string): Promise<void>
   verifyOwnerCapability(projectId: string, capability: string): Promise<boolean>
   listComments(projectId: string): Promise<ReviewComment[]>
-  createComment(projectId: string, draft: ReviewCommentDraft): Promise<ReviewComment>
+  createComment(
+    projectId: string,
+    draft: ReviewCommentDraft,
+    options?: CommentAuthorOptions,
+  ): Promise<ReviewComment>
   updateComment(projectId: string, commentId: string, patch: CommentPatch): Promise<ReviewComment | null>
+  /** 删除评论并连带清理其回复。 */
+  deleteComment(projectId: string, commentId: string): Promise<void>
+  /** 评论不存在时返回 null。 */
+  createReply(
+    projectId: string,
+    commentId: string,
+    draft: ReviewReplyDraft,
+    options?: CommentAuthorOptions,
+  ): Promise<ReviewReply | null>
+  deleteReply(projectId: string, commentId: string, replyId: string): Promise<void>
+  /** 供访客删除时比对；库中只存摘要。 */
+  commentDeleteTokenHash(projectId: string, commentId: string): Promise<string | null>
+  replyDeleteTokenHash(projectId: string, commentId: string, replyId: string): Promise<string | null>
   createShare(projectId: string, input?: CreateShareInput): Promise<CreatedShare>
   findShare(token: string): Promise<ShareRecord | null>
   findShareById(shareId: string): Promise<ShareRecord | null>

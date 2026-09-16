@@ -24,6 +24,17 @@ export type ReviewCameraState = {
   orthographicHeight?: number
 }
 
+export type ReviewReply = {
+  id: string
+  commentId: string
+  body: string
+  authorName: string
+  authorType: 'owner' | 'guest'
+  createdAt: string
+}
+
+export type ReviewReplyDraft = { body: string; authorName: string }
+
 export type ReviewComment = {
   id: string
   projectId: string
@@ -33,17 +44,31 @@ export type ReviewComment = {
   camera: ReviewCameraState
   body: string
   authorName: string
+  authorType: 'owner' | 'guest'
   status: 'open' | 'resolved'
   createdAt: string
   updatedAt: string
+  /** 内联返回，避免前端为每条评论再发一次请求。 */
+  replies: ReviewReply[]
 }
 
 export type ReviewCommentDraft = Omit<
   ReviewComment,
-  'id' | 'projectId' | 'status' | 'createdAt' | 'updatedAt'
+  'id' | 'projectId' | 'status' | 'createdAt' | 'updatedAt' | 'authorType' | 'replies'
 >
 
 export type CommentPatch = Partial<Pick<ReviewComment, 'body' | 'status'>>
+
+/**
+ * 作者身份与删除令牌。
+ *
+ * 访客没有可验证身份（author_id 恒为 null），删除自己的内容只能凭创建时发放的令牌；
+ * 库里只存 SHA-256 摘要，明文只在创建响应里返回一次。
+ */
+export type CommentAuthorOptions = {
+  authorType?: 'owner' | 'guest'
+  deleteTokenHash?: string | null
+}
 
 export type ProjectRecord = {
   id: string
@@ -155,10 +180,29 @@ type CommentRow = {
   camera_json: string
   body: string
   author_name: string
+  author_type: 'owner' | 'guest'
   status: 'open' | 'resolved'
+  delete_token_hash: string | null
   created_at: string
   updated_at: string
 }
+
+type ReplyRow = {
+  id: string
+  comment_id: string
+  project_id: string
+  body: string
+  author_name: string
+  author_type: 'owner' | 'guest'
+  delete_token_hash: string | null
+  created_at: string
+}
+
+/** 列清单集中在此，避免各查询漏列或列序不一致。 */
+const commentColumns = `id, project_id, object_name, position_json, normal_json, camera_json,
+             body, author_name, author_type, status, delete_token_hash, created_at, updated_at`
+const replyColumns = `id, comment_id, project_id, body, author_name, author_type,
+             delete_token_hash, created_at`
 
 const schemaMigrations: ReadonlyArray<{ version: number; sql: string }> = [
   {
@@ -212,6 +256,32 @@ const schemaMigrations: ReadonlyArray<{ version: number; sql: string }> = [
       CREATE INDEX comments_project_status_idx ON comments(project_id, status);
     `,
   },
+  {
+    // 批注回复：把审稿从「单向留言」变成可对话的闭环。
+    // 与 D1 的 migrations/0010_comment_replies.sql 必须保持一致，否则两条通道行为分叉。
+    version: 2,
+    sql: `
+      CREATE TABLE comment_replies (
+        id TEXT PRIMARY KEY NOT NULL,
+        comment_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        body TEXT NOT NULL,
+        author_name TEXT NOT NULL,
+        author_type TEXT NOT NULL DEFAULT 'owner'
+          CHECK (author_type IN ('owner', 'guest')),
+        delete_token_hash TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX comment_replies_comment_created_idx
+        ON comment_replies(comment_id, created_at, id);
+      CREATE INDEX comment_replies_project_idx ON comment_replies(project_id);
+
+      ALTER TABLE comments ADD COLUMN delete_token_hash TEXT;
+    `,
+  },
 ]
 
 const defaultDatabasePath = path.resolve(
@@ -233,6 +303,14 @@ export function generateOwnerCapability(): string {
 export function generateShareToken(): string {
   // Keep the existing 32-hex URL contract while storing only its digest.
   return randomBytes(16).toString('hex')
+}
+
+/**
+ * 访客删除令牌。只把明文交给创建者一次，库里存 hashSecret(token)。
+ * 比分享令牌更长，因为它是删除凭据而非 URL 标识。
+ */
+export function generateDeleteToken(): string {
+  return randomBytes(32).toString('hex')
 }
 
 function isMemoryDatabase(databasePath: string): boolean {
@@ -328,7 +406,18 @@ function parseJson<T>(value: string, field: string): T {
   }
 }
 
-function toComment(row: CommentRow): ReviewComment {
+function toReply(row: ReplyRow): ReviewReply {
+  return {
+    id: row.id,
+    commentId: row.comment_id,
+    body: row.body,
+    authorName: row.author_name,
+    authorType: row.author_type,
+    createdAt: row.created_at,
+  }
+}
+
+function toComment(row: CommentRow, replies: ReviewReply[] = []): ReviewComment {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -338,9 +427,11 @@ function toComment(row: CommentRow): ReviewComment {
     camera: parseJson<ReviewCameraState>(row.camera_json, 'camera'),
     body: row.body,
     authorName: row.author_name,
+    authorType: row.author_type,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    replies,
   }
 }
 
@@ -422,37 +513,57 @@ export class BlendProofRepository {
   }
 
   listComments(projectId: string): ReviewComment[] {
+    // rowid 作为 insert 序 tiebreaker：同一毫秒创建的两条记录 created_at 相同，
+    // 若退化到随机 id 排序，对话顺序会不确定。
     const rows = this.database.prepare(`
-      SELECT id, project_id, object_name, position_json, normal_json, camera_json,
-             body, author_name, status, created_at, updated_at
+      SELECT ${commentColumns}
       FROM comments
       WHERE project_id = ?
-      ORDER BY created_at ASC, id ASC
+      ORDER BY created_at ASC, rowid ASC
     `).all(projectId) as unknown as CommentRow[]
-    return rows.map(toComment)
+    if (rows.length === 0) return []
+    const replies = this.database.prepare(`
+      SELECT ${replyColumns}
+      FROM comment_replies
+      WHERE project_id = ?
+      ORDER BY created_at ASC, rowid ASC
+    `).all(projectId) as unknown as ReplyRow[]
+    const grouped = new Map<string, ReviewReply[]>()
+    for (const reply of replies) {
+      const bucket = grouped.get(reply.comment_id)
+      if (bucket) bucket.push(toReply(reply))
+      else grouped.set(reply.comment_id, [toReply(reply)])
+    }
+    return rows.map((row) => toComment(row, grouped.get(row.id) ?? []))
   }
 
-  createComment(projectId: string, draft: ReviewCommentDraft): ReviewComment {
+  createComment(
+    projectId: string,
+    draft: ReviewCommentDraft,
+    options: CommentAuthorOptions = {},
+  ): ReviewComment {
     const now = new Date().toISOString()
     const comment: ReviewComment = {
       objectName: draft.objectName,
       position: draft.position,
       normal: draft.normal,
       camera: draft.camera,
-      body: draft.body,
-      authorName: draft.authorName,
+      body: draft.body.trim(),
+      authorName: draft.authorName.trim(),
+      authorType: options.authorType ?? 'owner',
       id: randomUUID(),
       projectId,
       status: 'open',
       createdAt: now,
       updatedAt: now,
+      replies: [],
     }
     withTransaction(this.database, () => {
       this.database.prepare(`
         INSERT INTO comments
           (id, project_id, object_name, position_json, normal_json, camera_json,
-           body, author_name, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           body, author_name, author_type, status, delete_token_hash, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         comment.id,
         projectId,
@@ -462,7 +573,9 @@ export class BlendProofRepository {
         JSON.stringify(comment.camera),
         comment.body,
         comment.authorName,
+        comment.authorType,
         comment.status,
+        options.deleteTokenHash ?? null,
         comment.createdAt,
         comment.updatedAt,
       )
@@ -472,8 +585,7 @@ export class BlendProofRepository {
 
   updateComment(projectId: string, commentId: string, patch: CommentPatch): ReviewComment | null {
     const existing = this.database.prepare(`
-      SELECT id, project_id, object_name, position_json, normal_json, camera_json,
-             body, author_name, status, created_at, updated_at
+      SELECT ${commentColumns}
       FROM comments WHERE id = ? AND project_id = ?
     `).get(commentId, projectId) as CommentRow | undefined
     if (!existing) return null
@@ -487,7 +599,83 @@ export class BlendProofRepository {
         WHERE id = ? AND project_id = ?
       `).run(nextBody, nextStatus, updatedAt, commentId, projectId)
     })
-    return toComment({ ...existing, body: nextBody, status: nextStatus, updated_at: updatedAt })
+    const replies = this.database.prepare(`
+      SELECT ${replyColumns} FROM comment_replies WHERE comment_id = ? AND project_id = ?
+      ORDER BY created_at ASC, rowid ASC
+    `).all(commentId, projectId) as unknown as ReplyRow[]
+    return toComment(
+      { ...existing, body: nextBody, status: nextStatus, updated_at: updatedAt },
+      replies.map(toReply),
+    )
+  }
+
+  /** 删除评论并连带清理其回复，不留孤儿回复。 */
+  deleteComment(projectId: string, commentId: string): void {
+    withTransaction(this.database, () => {
+      this.database.prepare('DELETE FROM comment_replies WHERE comment_id = ? AND project_id = ?')
+        .run(commentId, projectId)
+      this.database.prepare('DELETE FROM comments WHERE id = ? AND project_id = ?')
+        .run(commentId, projectId)
+    })
+  }
+
+  /** 评论不存在时返回 null，让调用方能回 404 而不是静默成功。 */
+  createReply(
+    projectId: string,
+    commentId: string,
+    draft: ReviewReplyDraft,
+    options: CommentAuthorOptions = {},
+  ): ReviewReply | null {
+    const parent = this.database.prepare('SELECT id FROM comments WHERE id = ? AND project_id = ?')
+      .get(commentId, projectId) as { id: string } | undefined
+    if (!parent) return null
+    const reply: ReviewReply = {
+      id: randomUUID(),
+      commentId,
+      // 与 worker 通道保持一致：正文与作者名在写入时去除首尾空白。
+      body: draft.body.trim(),
+      authorName: draft.authorName.trim(),
+      authorType: options.authorType ?? 'owner',
+      createdAt: new Date().toISOString(),
+    }
+    withTransaction(this.database, () => {
+      this.database.prepare(`
+        INSERT INTO comment_replies
+          (id, comment_id, project_id, body, author_name, author_type, delete_token_hash, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        reply.id,
+        reply.commentId,
+        projectId,
+        reply.body,
+        reply.authorName,
+        reply.authorType,
+        options.deleteTokenHash ?? null,
+        reply.createdAt,
+      )
+    })
+    return reply
+  }
+
+  deleteReply(projectId: string, commentId: string, replyId: string): void {
+    this.database.prepare(
+      'DELETE FROM comment_replies WHERE id = ? AND comment_id = ? AND project_id = ?',
+    ).run(replyId, commentId, projectId)
+  }
+
+  /** 访客删除令牌比对：库中只存摘要，因此返回摘要而非明文。 */
+  commentDeleteTokenHash(projectId: string, commentId: string): string | null {
+    const row = this.database.prepare(
+      'SELECT delete_token_hash FROM comments WHERE id = ? AND project_id = ?',
+    ).get(commentId, projectId) as { delete_token_hash: string | null } | undefined
+    return row?.delete_token_hash ?? null
+  }
+
+  replyDeleteTokenHash(projectId: string, commentId: string, replyId: string): string | null {
+    const row = this.database.prepare(
+      'SELECT delete_token_hash FROM comment_replies WHERE id = ? AND comment_id = ? AND project_id = ?',
+    ).get(replyId, commentId, projectId) as { delete_token_hash: string | null } | undefined
+    return row?.delete_token_hash ?? null
   }
 
   createShare(projectId: string, input: CreateShareInput = {}): CreatedShare {

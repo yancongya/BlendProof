@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, rename, rm, readFile, writeFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
@@ -8,7 +8,16 @@ import { fileURLToPath } from 'node:url'
 import cors from 'cors'
 import express from 'express'
 import multer from 'multer'
-import { BlendProofRepository, hashPassword, openDatabase, type ReviewCommentDraft, type ShareRecord } from './db.js'
+import {
+  BlendProofRepository,
+  generateDeleteToken,
+  hashPassword,
+  hashSecret,
+  openDatabase,
+  type ReviewCommentDraft,
+  type ReviewReplyDraft,
+  type ShareRecord,
+} from './db.js'
 import { migrateLegacy } from './migrate-legacy.js'
 import { isPublicProjectAsset, LocalProjectStorage } from './local-storage.js'
 import type { StoredAsset } from './contracts.js'
@@ -276,6 +285,62 @@ app.patch('/api/local/projects/:projectId/comments/:commentId', async (request, 
   response.json({ comment: updated })
 })
 
+app.delete('/api/local/projects/:projectId/comments/:commentId', async (request, response) => {
+  if (!isProjectId(request.params.projectId) || !await projectStorage.has(request.params.projectId, 'model.glb')) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  if (!await repository.getProject(request.params.projectId)) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  if (!await requireOwner(request, response, request.params.projectId)) return
+  // 幂等：评论已不存在时同样返回 204，避免客户端重试产生噪音。
+  await repository.deleteComment(request.params.projectId, request.params.commentId)
+  response.status(204).end()
+})
+
+app.post('/api/local/projects/:projectId/comments/:commentId/replies', async (request, response) => {
+  if (!isProjectId(request.params.projectId) || !await projectStorage.has(request.params.projectId, 'model.glb')) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  if (!isReplyDraft(request.body)) {
+    response.status(400).json({ error: '回复内容无效。' })
+    return
+  }
+  if (!await repository.getProject(request.params.projectId)) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  if (!await requireOwner(request, response, request.params.projectId)) return
+  const reply = await repository.createReply(
+    request.params.projectId,
+    request.params.commentId,
+    request.body as ReviewReplyDraft,
+    { authorType: 'owner' },
+  )
+  if (!reply) {
+    response.status(404).json({ error: '找不到评论。' })
+    return
+  }
+  response.status(201).json({ reply })
+})
+
+app.delete('/api/local/projects/:projectId/comments/:commentId/replies/:replyId', async (request, response) => {
+  if (!isProjectId(request.params.projectId) || !await projectStorage.has(request.params.projectId, 'model.glb')) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  if (!await repository.getProject(request.params.projectId)) {
+    response.status(404).json({ error: '找不到本地项目。' })
+    return
+  }
+  if (!await requireOwner(request, response, request.params.projectId)) return
+  await repository.deleteReply(request.params.projectId, request.params.commentId, request.params.replyId)
+  response.status(204).end()
+})
+
 app.post('/api/local/shares/:token/access', async (request, response) => {
   const share = await resolveShare(request.params.token, response, false)
   if (!share) return
@@ -346,8 +411,74 @@ app.post('/api/local/shares/:token/comments', async (request, response) => {
     response.status(400).json({ error: '评论内容或锚点无效。' })
     return
   }
-  const comment = await repository.createComment(share.projectId, request.body as ReviewCommentDraft)
-  response.status(201).json({ comment: toSharedComment(comment) })
+  const issued = issueDeleteToken()
+  const comment = await repository.createComment(share.projectId, request.body as ReviewCommentDraft, {
+    authorType: 'guest',
+    deleteTokenHash: issued.hash,
+  })
+  // 明文令牌只返回一次给创建者本人；列表响应永不包含它。
+  response.status(201).json({ comment: toSharedComment(comment), deleteToken: issued.token })
+})
+
+app.delete('/api/local/shares/:token/comments/:commentId', async (request, response) => {
+  const share = await resolveShare(request.params.token, response, true, request.headers.cookie)
+  if (!share) return
+  if (share.commentsPermission !== 'comment') {
+    response.status(403).json({ error: '该分享不允许访客删除。' })
+    return
+  }
+  const stored = await repository.commentDeleteTokenHash(share.projectId, request.params.commentId)
+  if (!matchesDeleteToken(request.header(DELETE_TOKEN_HEADER), stored)) {
+    response.status(403).json({ error: '无法删除该内容。' })
+    return
+  }
+  await repository.deleteComment(share.projectId, request.params.commentId)
+  response.status(204).end()
+})
+
+app.post('/api/local/shares/:token/comments/:commentId/replies', async (request, response) => {
+  const share = await resolveShare(request.params.token, response, true, request.headers.cookie)
+  if (!share) return
+  if (share.commentsPermission !== 'comment') {
+    response.status(403).json({ error: '该分享不允许访客回复。' })
+    return
+  }
+  if (!isReplyDraft(request.body)) {
+    response.status(400).json({ error: '回复内容无效。' })
+    return
+  }
+  const issued = issueDeleteToken()
+  const reply = await repository.createReply(
+    share.projectId,
+    request.params.commentId,
+    request.body as ReviewReplyDraft,
+    { authorType: 'guest', deleteTokenHash: issued.hash },
+  )
+  if (!reply) {
+    response.status(404).json({ error: '找不到评论。' })
+    return
+  }
+  response.status(201).json({ reply, deleteToken: issued.token })
+})
+
+app.delete('/api/local/shares/:token/comments/:commentId/replies/:replyId', async (request, response) => {
+  const share = await resolveShare(request.params.token, response, true, request.headers.cookie)
+  if (!share) return
+  if (share.commentsPermission !== 'comment') {
+    response.status(403).json({ error: '该分享不允许访客删除。' })
+    return
+  }
+  const stored = await repository.replyDeleteTokenHash(
+    share.projectId,
+    request.params.commentId,
+    request.params.replyId,
+  )
+  if (!matchesDeleteToken(request.header(DELETE_TOKEN_HEADER), stored)) {
+    response.status(403).json({ error: '无法删除该内容。' })
+    return
+  }
+  await repository.deleteReply(share.projectId, request.params.commentId, request.params.replyId)
+  response.status(204).end()
 })
 
 function bridgeOriginGuard(request: express.Request, response: express.Response, next: express.NextFunction) {
@@ -394,6 +525,27 @@ type StoredComment = Record<string, unknown> & { id: string }
 function toSharedComment(comment: StoredComment) {
   const { projectId: _privateProjectId, ...shared } = comment
   return shared
+}
+
+/** 访客删除令牌的请求头。放在头部而非 URL，避免令牌进入日志与浏览器历史。 */
+const DELETE_TOKEN_HEADER = 'x-blendproof-delete-token'
+
+/**
+ * 生成删除令牌。明文只交给创建者一次，库里只留摘要——
+ * 与其他凭据一致（capability / share token 同样只存 SHA-256）。
+ */
+function issueDeleteToken(): { token: string; hash: string } {
+  const token = generateDeleteToken()
+  return { token, hash: hashSecret(token) }
+}
+
+/** 常量时间比较，避免用响应时间区分「令牌错误」与「内容不存在」。 */
+function matchesDeleteToken(provided: string | undefined, storedHash: string | null): boolean {
+  if (!provided || storedHash === null) return false
+  const providedHash = hashSecret(provided)
+  const left = Buffer.from(providedHash, 'hex')
+  const right = Buffer.from(storedHash, 'hex')
+  return left.length === right.length && timingSafeEqual(left, right)
 }
 
 async function requireOwner(request: express.Request, response: express.Response, projectId: string): Promise<boolean> {
@@ -451,6 +603,16 @@ function sendStoredAsset(response: express.Response, asset: StoredAsset) {
 
 function isVec3(value: unknown): value is [number, number, number] {
   return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite)
+}
+
+function isReplyDraft(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object') return false
+  const draft = value as Record<string, unknown>
+  const keys = Object.keys(draft)
+  if (keys.some((key) => key !== 'body' && key !== 'authorName')) return false
+  return typeof draft.body === 'string' && draft.body.trim().length > 0 &&
+    typeof draft.authorName === 'string' && draft.authorName.trim().length > 0 &&
+    draft.body.trim().length <= 5000 && draft.authorName.trim().length <= 120
 }
 
 function isCommentDraft(value: unknown): value is Record<string, unknown> {

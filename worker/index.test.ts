@@ -601,6 +601,124 @@ describe('BlendProof Worker local runtime', () => {
     expect(await update.json()).toMatchObject({ comment: { status: 'resolved', body: 'fixed' } })
   })
 
+  it('relays owner replies, deletes a single reply, and cascades replies with the comment', async () => {
+    const origin = 'http://localhost:5173'
+    const project = await readyProject('Owner Reply')
+    const created = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify(commentDraft()),
+    })
+    expect(created.status).toBe(201)
+    const comment = (await created.json<{ comment: { id: string; authorType: string; replies: unknown[] } }>()).comment
+    expect(comment.authorType).toBe('owner')
+    expect(comment.replies).toEqual([])
+
+    const replied = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments/${comment.id}/replies`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability),
+      body: JSON.stringify({ body: '  fixed in v2  ', authorName: ' Owner ' }),
+    })
+    expect(replied.status).toBe(201)
+    const first = await replied.json<{ reply: { id: string; body: string; authorName: string; authorType: string }; deleteToken?: string }>()
+    // 与 SQLite 通道一致：写入时去除首尾空白。
+    expect(first.reply.body).toBe('fixed in v2')
+    expect(first.reply.authorName).toBe('Owner')
+    expect(first.reply.authorType).toBe('owner')
+    // 创建者走 capability 鉴权，不发放删除令牌。
+    expect(first.deleteToken).toBeUndefined()
+
+    const reloaded = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments`, { headers: ownerJson(origin, project.ownerCapability) })
+    const listed = await reloaded.json<{ comments: Array<{ id: string; replies: Array<{ body: string }> }> }>()
+    expect(listed.comments.find((item) => item.id === comment.id)?.replies.map((item) => item.body)).toEqual(['fixed in v2'])
+
+    const missing = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments/does-not-exist/replies`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify({ body: 'x', authorName: 'y' }),
+    })
+    expect(missing.status).toBe(404)
+
+    const invalid = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments/${comment.id}/replies`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify({ body: '   ', authorName: 'y' }),
+    })
+    expect(invalid.status).toBe(400)
+
+    // 删一条回复，评论本身与兄弟回复都留下。
+    await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments/${comment.id}/replies`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify({ body: 'keep me', authorName: 'Owner' }),
+    })
+    const removed = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments/${comment.id}/replies/${first.reply.id}`, {
+      method: 'DELETE', headers: { origin, 'x-blendproof-owner': project.ownerCapability },
+    })
+    expect(removed.status).toBe(204)
+    const afterReplyDelete = await (await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments`, { headers: ownerJson(origin, project.ownerCapability) }))
+      .json<{ comments: Array<{ id: string; replies: Array<{ body: string }> }> }>()
+    expect(afterReplyDelete.comments.find((item) => item.id === comment.id)?.replies.map((item) => item.body)).toEqual(['keep me'])
+
+    // 删评论必须级联清理回复，不留孤儿；重复删除保持幂等。
+    const deleted = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments/${comment.id}`, {
+      method: 'DELETE', headers: { origin, 'x-blendproof-owner': project.ownerCapability },
+    })
+    expect(deleted.status).toBe(204)
+    expect((await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments/${comment.id}`, {
+      method: 'DELETE', headers: { origin, 'x-blendproof-owner': project.ownerCapability },
+    })).status).toBe(204)
+    const afterDelete = await (await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments`, { headers: ownerJson(origin, project.ownerCapability) }))
+      .json<{ comments: Array<{ id: string }> }>()
+    expect(afterDelete.comments.some((item) => item.id === comment.id)).toBe(false)
+    const orphans = await env.DB.prepare('SELECT COUNT(*) AS count FROM comment_replies WHERE comment_id = ?')
+      .bind(comment.id).first<{ count: number }>()
+    expect(orphans?.count).toBe(0)
+  })
+
+  it('lets guests delete only their own content and only while holding the delete token', async () => {
+    const origin = 'http://localhost:5173'
+    const deleteTokenHeader = 'x-blendproof-delete-token'
+    const project = await readyProject('Guest Delete')
+    const createdShare = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/shares`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify({ commentsPermission: 'comment' }),
+    })
+    const { token } = await createdShare.json<{ token: string }>()
+
+    const ownerComment = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify(commentDraft()),
+    })
+    const commentId = (await ownerComment.json<{ comment: { id: string } }>()).comment.id
+
+    const guestReply = await SELF.fetch(`https://blendproof.test/api/shares/${token}/comments/${commentId}/replies`, {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ body: '客户回复', authorName: '客户' }),
+    })
+    expect(guestReply.status).toBe(201)
+    const guestReplyBody = await guestReply.json<{ reply: { id: string }; deleteToken: string }>()
+    expect(guestReplyBody.deleteToken).toMatch(/^[a-f0-9]{64}$/)
+
+    // 列表响应绝不包含令牌，否则任何拿到链接的人都能删除他人内容。
+    const opened = await SELF.fetch(`https://blendproof.test/api/shares/${token}`)
+    expect(JSON.stringify(await opened.json())).not.toContain(guestReplyBody.deleteToken)
+
+    const replyPath = `https://blendproof.test/api/shares/${token}/comments/${commentId}/replies/${guestReplyBody.reply.id}`
+    expect((await SELF.fetch(replyPath, { method: 'DELETE', headers: { origin } })).status).toBe(403)
+    expect((await SELF.fetch(replyPath, { method: 'DELETE', headers: { origin, [deleteTokenHeader]: '0'.repeat(64) } })).status).toBe(403)
+    expect((await SELF.fetch(replyPath, { method: 'DELETE', headers: { origin, [deleteTokenHeader]: guestReplyBody.deleteToken } })).status).toBe(204)
+
+    // 访客自己的评论同理：没令牌一律 403。
+    const guestComment = await SELF.fetch(`https://blendproof.test/api/shares/${token}/comments`, {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ ...commentDraft(), authorName: '客户' }),
+    })
+    expect(guestComment.status).toBe(201)
+    const guestCommentBody = await guestComment.json<{ comment: { id: string }; deleteToken: string }>()
+    const guestCommentPath = `https://blendproof.test/api/shares/${token}/comments/${guestCommentBody.comment.id}`
+    expect((await SELF.fetch(guestCommentPath, { method: 'DELETE', headers: { origin } })).status).toBe(403)
+    expect((await SELF.fetch(guestCommentPath, { method: 'DELETE', headers: { origin, [deleteTokenHeader]: guestCommentBody.deleteToken } })).status).toBe(204)
+
+    // 只读分享不放行访客删除。
+    const readOnlyShare = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/shares`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify({ commentsPermission: 'read_only' }),
+    })
+    const readOnlyToken = (await readOnlyShare.json<{ token: string }>()).token
+    expect((await SELF.fetch(`https://blendproof.test/api/shares/${readOnlyToken}/comments/${commentId}`, {
+      method: 'DELETE', headers: { origin },
+    })).status).toBe(403)
+  })
+
   it('keeps legacy project and share IDs routable for owner share and review operations', async () => {
     const origin = 'http://localhost:5173'
     const project = await readyProject('Legacy identifiers', 'legacy_project-2026')

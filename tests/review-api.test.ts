@@ -217,7 +217,8 @@ describe("阶段 2 评论 API", () => {
     assert.equal(created.response.status, 201);
     const comment = created.body.comment as Json;
     assert.equal(comment.projectId, projectId);
-    assert.equal(comment.body, validDraft.body);
+    // 两条通道（SQLite 与 D1）必须同样在写入时去除首尾空白。
+    assert.equal(comment.body, validDraft.body.trim());
     assert.equal(comment.status, "open");
     assert.equal(typeof comment.id, "string");
     assert.equal(typeof comment.createdAt, "string");
@@ -378,6 +379,150 @@ describe("阶段 2 评论 API", () => {
     });
     const expiredRead = await request(`/api/local/shares/${String(expired.body.token)}`);
     assert.equal(expiredRead.response.status, 410);
+  });
+
+  test("创建者可以回复、删除回复与评论，删除评论会连带清理回复", async () => {
+    const created = await request(`/api/local/projects/${projectId}/comments`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ ...validDraft, body: "回复测试" }),
+    });
+    assert.equal(created.response.status, 201);
+    const comment = created.body.comment as Json;
+    assert.equal(comment.authorType, "owner");
+    assert.deepEqual(comment.replies, []);
+    const commentPath = `/api/local/projects/${projectId}/comments/${encodeURIComponent(String(comment.id))}`;
+
+    const invalid = await request(`${commentPath}/replies`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ body: "   ", authorName: "Tester" }),
+    });
+    assert.equal(invalid.response.status, 400);
+
+    const reply = await request(`${commentPath}/replies`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ body: "  已确认，会在下版修正  ", authorName: "创作者" }),
+    });
+    assert.equal(reply.response.status, 201);
+    const firstReply = reply.body.reply as Json;
+    assert.equal(firstReply.body, "已确认，会在下版修正");
+    assert.equal(firstReply.commentId, comment.id);
+    assert.equal(firstReply.authorType, "owner");
+    // 创建者走 capability 鉴权，因此不发放删除令牌。
+    assert.equal(reply.body.deleteToken, undefined);
+
+    const listed = await request(`/api/local/projects/${projectId}/comments`, {
+      headers: { "x-blendproof-owner": ownerCapability },
+    });
+    const withReply = (listed.body.comments as Json[]).find((item) => item.id === comment.id);
+    assert.deepEqual((withReply?.replies as Json[]).map((item) => item.body), ["已确认，会在下版修正"]);
+
+    const missing = await request(`/api/local/projects/${projectId}/comments/missing-comment/replies`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ body: "x", authorName: "y" }),
+    });
+    assert.equal(missing.response.status, 404);
+
+    // 删除单条回复不得影响兄弟回复与所属评论。
+    await request(`${commentPath}/replies`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ body: "保留这条", authorName: "创作者" }),
+    });
+    const removed = await bridgeFetch(`${commentPath}/replies/${encodeURIComponent(String(firstReply.id))}`, {
+      method: "DELETE",
+      headers: { "x-blendproof-owner": ownerCapability },
+    });
+    assert.equal(removed.status, 204);
+    const afterReplyDelete = await request(`/api/local/projects/${projectId}/comments`, {
+      headers: { "x-blendproof-owner": ownerCapability },
+    });
+    const survivor = (afterReplyDelete.body.comments as Json[]).find((item) => item.id === comment.id);
+    assert.deepEqual((survivor?.replies as Json[]).map((item) => item.body), ["保留这条"]);
+
+    // 删除评论必须连带清理其回复。
+    const deleted = await bridgeFetch(commentPath, {
+      method: "DELETE",
+      headers: { "x-blendproof-owner": ownerCapability },
+    });
+    assert.equal(deleted.status, 204);
+    // 幂等：重复删除同样返回 204。
+    const deletedAgain = await bridgeFetch(commentPath, {
+      method: "DELETE",
+      headers: { "x-blendproof-owner": ownerCapability },
+    });
+    assert.equal(deletedAgain.status, 204);
+    const afterCommentDelete = await request(`/api/local/projects/${projectId}/comments`, {
+      headers: { "x-blendproof-owner": ownerCapability },
+    });
+    assert.equal((afterCommentDelete.body.comments as Json[]).some((item) => item.id === comment.id), false);
+  });
+
+  test("访客只能删除自己创建的内容，且必须出示删除令牌", async () => {
+    // 令牌走请求头，是线上契约的一部分，因此这里直接用字面量而非从服务端导入。
+    const deleteTokenHeader = "x-blendproof-delete-token";
+    const share = await request(`/api/local/projects/${projectId}/shares`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ commentsPermission: "comment" }),
+    });
+    assert.equal(share.response.status, 201);
+    const token = String(share.body.token);
+
+    const comment = (await request(`/api/local/projects/${projectId}/comments`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ ...validDraft, body: "访客删除测试" }),
+    })).body.comment as Json;
+    const commentId = String(comment.id);
+
+    const guestReply = await request(`/api/local/shares/${token}/comments/${commentId}/replies`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ body: "客户回复", authorName: "客户" }),
+    });
+    assert.equal(guestReply.response.status, 201);
+    const replyId = String((guestReply.body.reply as Json).id);
+    const deleteToken = String(guestReply.body.deleteToken);
+    assert.match(deleteToken, /^[a-f0-9]{64}$/);
+    assert.equal((guestReply.body.reply as Json).projectId, undefined);
+
+    // 列表响应绝不包含令牌，否则任何拿到链接的人都能删除他人内容。
+    const opened = await request(`/api/local/shares/${token}`);
+    assert.equal(opened.response.status, 200);
+    assert.equal(JSON.stringify(opened.body).includes(deleteToken), false);
+
+    const replyPath = `/api/local/shares/${token}/comments/${commentId}/replies/${replyId}`;
+    assert.equal((await bridgeFetch(replyPath, { method: "DELETE" })).status, 403);
+    assert.equal((await bridgeFetch(replyPath, {
+      method: "DELETE",
+      headers: { [deleteTokenHeader]: "0".repeat(64) },
+    })).status, 403);
+    assert.equal((await bridgeFetch(replyPath, {
+      method: "DELETE",
+      headers: { [deleteTokenHeader]: deleteToken },
+    })).status, 204);
+
+    // 访客创建的评论同理：没令牌删不掉，有令牌可删。
+    const guestComment = await request(`/api/local/shares/${token}/comments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...validDraft, body: "访客自己的评论", authorName: "客户" }),
+    });
+    assert.equal(guestComment.response.status, 201);
+    const guestCommentId = String((guestComment.body.comment as Json).id);
+    const guestCommentToken = String(guestComment.body.deleteToken);
+    const guestCommentPath = `/api/local/shares/${token}/comments/${guestCommentId}`;
+
+    // 创建者用 owner capability 无法走访客通道删除他人内容（缺令牌一律 403）。
+    assert.equal((await bridgeFetch(guestCommentPath, { method: "DELETE" })).status, 403);
+    assert.equal((await bridgeFetch(guestCommentPath, {
+      method: "DELETE",
+      headers: { [deleteTokenHeader]: guestCommentToken },
+    })).status, 204);
   });
 
   test("删除本地项目必须持有 owner capability，并同时移除派生文件", async () => {
