@@ -358,6 +358,29 @@ const EN: Record<string, string> = {
   '试试点「填入演示链接」——口令自动通过，模型载入。左边改权限，这张通行证的明细会跟着变。':
     'Try "Fill in the demo link" — the passphrase passes and the model loads. Change permissions on the left and this pass follows along.',
   '口令': 'Passphrase',
+  // Pain cards — reviewer voice
+  '看一次 3D 模型，': 'Reviewing a 3D model —',
+  '凭什么要装一套 Blender。': 'why should you install Blender first.',
+  '对方甩来一个 .blend 你打不开，发来的截图又说不清位置。BlendProof 让你点开链接就能转模型，哪里不满意直接点在模型上。':
+    "They send a .blend you can't open, then screenshots that never say where. BlendProof opens the model in your browser — click exactly where it bothers you.",
+  '先让我装个 3 GB 的软件': 'First, install 3 GB of software',
+  '为了看一眼模型先装 Blender，装完还可能因为版本不对打不开。':
+    "Install Blender just to look at a model — and it may still fail over a version mismatch.",
+  '链接一点就开': 'One click, the link just opens',
+  '浏览器直接打开，模型、相机角度、显示模式都替你还原好，零安装、零学习。':
+    'Opens straight in the browser with camera angles and shading already set up. Zero installs, zero learning.',
+  '发来的文件我打不开': "The file they sent won't open",
+  '.blend 双击没反应，让对方导出又多等一轮，来回都是时间。':
+    'Double-click the .blend and nothing happens; asking for an export costs another round of waiting.',
+  '打开就是能转的模型': 'It opens as a model you can orbit',
+  '分享链接里的模型已经是浏览器格式，加载即看，不用等任何人导出。':
+    'The shared model is already browser-ready — load and look, no waiting for anyone to export.',
+  '截图圈半天，说不清在哪': 'Circling screenshots, never clear where',
+  '"左边那个球大一点"——哪个左边？模型一转又对不上了。':
+    '"Make the ball on the left bigger" — which left? The moment the model turns, it no longer matches.',
+  '点在模型上，位置不会错': 'Pin it on the model, spot on',
+  '你的批注钉在模型表面并带编号，对方点开就回到你当时看的视角，不用来回确认。':
+    'Your comments anchor to the model surface with numbers; opening one brings back your exact view. No back-and-forth.',
 
   /* card 06 — public pool */
   '公益性质': 'Public good',

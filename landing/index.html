@@ -2197,12 +2197,23 @@ grid-template-columns: minmax(0, 1fr);
       <div class="card" data-anim>
         <div class="card__chrome"><span class="card__index">01</span><span class="card__name">为什么要有它</span><i class="card__tag">Pain → Outcome</i></div>
         <div class="card__body">
-      <h2>把工程发出去审稿，本来不该这么别扭。</h2>
-      <p class="lead">
-        给客户或外包看模型，常见做法是甩工程文件或截图来回传。BlendProof 把审稿搬进浏览器，原始工程留在你自己机器上。
-      </p>
+      <!-- 创作者口吻 -->
+      <div data-perspective="creator">
+        <h2>把工程发出去审稿，本来不该这么别扭。</h2>
+        <p class="lead">
+          给客户或外包看模型，常见做法是甩工程文件或截图来回传。BlendProof 把审稿搬进浏览器，原始工程留在你自己机器上。
+        </p>
+      </div>
+      <!-- 客户口吻 -->
+      <div data-perspective="reviewer">
+        <h2>看一次 3D 模型，<em>凭什么要装一套 Blender。</em></h2>
+        <p class="lead">
+          对方甩来一个 .blend 你打不开，发来的截图又说不清位置。BlendProof 让你点开链接就能转模型，哪里不满意直接点在模型上。
+        </p>
+      </div>
 
-      <div class="pains reveal">
+      <!-- 创作者视角的痛点卡 -->
+      <div class="pains reveal" data-perspective="creator">
         <div class="pain" tabindex="0" role="button" aria-label="悬停或回车查看解法">
           <div class="pain__front">
             <p class="pain__from"><span class="pain__num">01</span>旧做法</p>
@@ -2240,6 +2251,49 @@ grid-template-columns: minmax(0, 1fr);
             <p class="pain__from"><span class="pain__num">03</span><b>BlendProof</b></p>
             <h3>直接在模型上标</h3>
             <p>批注锚定在模型表面并编号，带稳定的相机状态，对方点开就能回到你当时看的那一面。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 客户视角的痛点卡：站在收文件的一方说话 -->
+      <div class="pains reveal" data-perspective="reviewer">
+        <div class="pain" tabindex="0" role="button" aria-label="悬停或回车查看解法">
+          <div class="pain__front">
+            <p class="pain__from"><span class="pain__num">01</span>旧做法</p>
+            <h3>先让我装个 3 GB 的软件</h3>
+            <p>为了看一眼模型先装 Blender，装完还可能因为版本不对打不开。</p>
+            <p class="pain__hint">悬停或回车，看 BlendProof 怎么解 →</p>
+          </div>
+          <div class="pain__back">
+            <p class="pain__from"><span class="pain__num">01</span><b>BlendProof</b></p>
+            <h3>链接一点就开</h3>
+            <p>浏览器直接打开，模型、相机角度、显示模式都替你还原好，零安装、零学习。</p>
+          </div>
+        </div>
+        <div class="pain" tabindex="0" role="button" aria-label="悬停或回车查看解法">
+          <div class="pain__front">
+            <p class="pain__from"><span class="pain__num">02</span>旧做法</p>
+            <h3>发来的文件我打不开</h3>
+            <p>.blend 双击没反应，让对方导出又多等一轮，来回都是时间。</p>
+            <p class="pain__hint">悬停或回车，看 BlendProof 怎么解 →</p>
+          </div>
+          <div class="pain__back">
+            <p class="pain__from"><span class="pain__num">02</span><b>BlendProof</b></p>
+            <h3>打开就是能转的模型</h3>
+            <p>分享链接里的模型已经是浏览器格式，加载即看，不用等任何人导出。</p>
+          </div>
+        </div>
+        <div class="pain" tabindex="0" role="button" aria-label="悬停或回车查看解法">
+          <div class="pain__front">
+            <p class="pain__from"><span class="pain__num">03</span>旧做法</p>
+            <h3>截图圈半天，说不清在哪</h3>
+            <p>"左边那个球大一点"——哪个左边？模型一转又对不上了。</p>
+            <p class="pain__hint">悬停或回车，看 BlendProof 怎么解 →</p>
+          </div>
+          <div class="pain__back">
+            <p class="pain__from"><span class="pain__num">03</span><b>BlendProof</b></p>
+            <h3>点在模型上，位置不会错</h3>
+            <p>你的批注钉在模型表面并带编号，对方点开就回到你当时看的视角，不用来回确认。</p>
           </div>
         </div>
       </div>
