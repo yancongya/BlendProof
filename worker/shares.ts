@@ -337,7 +337,7 @@ const DEFAULT_MONKEY_MANIFEST: Record<string, unknown> = {
   export: { glbBytes: 69708, objectCount: 1 },
 }
 
-const INITIAL_SUZANNE_COMMENTS = [
+const INITIAL_SUZANNE_COMMENTS: Array<Record<string, unknown> & { reply?: { body: string; authorName: string } }> = [
   {
     objectName: '苏珊娜',
     position: [0, 0.5, 1.2],
@@ -365,6 +365,11 @@ const INITIAL_SUZANNE_COMMENTS = [
     },
     body: '右耳边缘法线翻转，渲染时出现黑色伪影。',
     authorName: '张工',
+    // 演示闭环：客户提出 → 创作者回复。回复随评论一并种下。
+    reply: {
+      body: '已确认是右耳法线方向反了，重算后发现同样影响左耳内侧，一并修好了。',
+      authorName: '平台管理员',
+    },
   },
   {
     objectName: null,
@@ -404,7 +409,8 @@ async function ensureSuzanneDemo(env: ShareEnv): Promise<void> {
   const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM comments WHERE project_id = ?').bind(SUZANNE_PROJECT_ID).first<{ count: number }>()
   if ((count?.count ?? 0) === 0) {
     for (const item of INITIAL_SUZANNE_COMMENTS) {
-      await insertComment(env, SUZANNE_PROJECT_ID, item, 'owner')
+      const comment = await insertComment(env, SUZANNE_PROJECT_ID, item, 'owner')
+      if (item.reply) await insertReply(env, SUZANNE_PROJECT_ID, comment.id, item.reply, 'owner', null)
     }
   }
 }

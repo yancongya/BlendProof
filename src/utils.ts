@@ -30,6 +30,28 @@ export function formatBytes(bytes: number) {
   return `${Math.max(0, bytes)} B`;
 }
 
+/**
+ * 相对时间，用于批注与回复的「多久之前」。
+ * 超过 30 天回退到具体日期，避免"87 天前"这类难以换算的表述。
+ */
+export function formatRelativeTime(iso: string, now = Date.now()) {
+  const timestamp = Date.parse(iso);
+  if (!Number.isFinite(timestamp)) return "—";
+  const english = getLang() === "en";
+  const seconds = Math.round((now - timestamp) / 1000);
+  if (seconds < 60) return english ? "just now" : "刚刚";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return english ? `${minutes}m ago` : `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return english ? `${hours}h ago` : `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return english ? `${days}d ago` : `${days} 天前`;
+  return new Intl.DateTimeFormat(english ? "en-US" : "zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(timestamp));
+}
+
 export function formatDuration(milliseconds: number) {
   if (!Number.isFinite(milliseconds) || milliseconds < 0) return "—";
   const seconds = Math.floor(milliseconds / 1000);

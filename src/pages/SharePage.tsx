@@ -21,10 +21,7 @@ import {
 import { blendProofClient, type ProjectTransport } from "../api/blendProofClient";
 import { readSharedView } from "../utils";
 import type { Manifest, DisplayMode, CameraPreset } from "../types";
-import type {
-  ReviewComment,
-  ReviewCommentDraft,
-} from "../features/review";
+import { useGuestReview, type ReviewComment } from "../features/review";
 
 // ---------------------------------------------------------------------------
 // Demo constants (Suzanne permanent share)
@@ -47,10 +44,12 @@ const DEMO_COMMENTS: ReviewComment[] = [
       target: [0, 0, 0],
     },
     body: "头顶多边形密度偏高，建议减面以降低 Web 端渲染负担。",
-    authorName: "平台管理员",
+    authorName: "张工",
+    authorType: "guest",
     status: "open",
     createdAt: "2026-09-14T10:30:00Z",
     updatedAt: "2026-09-14T10:30:00Z",
+    replies: [],
   },
   {
     id: "demo-2",
@@ -65,10 +64,22 @@ const DEMO_COMMENTS: ReviewComment[] = [
       target: [0, 0, 0],
     },
     body: "右耳边缘法线翻转，渲染时出现黑色伪影。",
-    authorName: "张工",
+    authorName: "李审核",
+    authorType: "guest",
     status: "resolved",
     createdAt: "2026-09-13T15:12:00Z",
     updatedAt: "2026-09-14T09:00:00Z",
+    // 演示闭环：客户提出 → 创作者回复 → 标记已解决，双方都能看到全过程。
+    replies: [
+      {
+        id: "demo-2-reply-1",
+        commentId: "demo-2",
+        body: "已确认是右耳法线方向反了，重算后发现同样影响左耳内侧，一并修好了。",
+        authorName: "平台管理员",
+        authorType: "owner",
+        createdAt: "2026-09-13T18:40:00Z",
+      },
+    ],
   },
   {
     id: "demo-3",
@@ -83,10 +94,12 @@ const DEMO_COMMENTS: ReviewComment[] = [
       target: [0, 0, 0],
     },
     body: "整体模型质量不错，可直接用于审稿演示。",
-    authorName: "李审核",
+    authorName: "阿烟",
+    authorType: "guest",
     status: "open",
     createdAt: "2026-09-15T08:00:00Z",
     updatedAt: "2026-09-15T08:00:00Z",
+    replies: [],
   },
 ];
 
@@ -147,6 +160,23 @@ export function SharePage() {
       ? window.localStorage.getItem(`blendproof-guest-name:${token}`) ?? ""
       : "",
   );
+  // 批注的本地副本与全部写操作由审稿域统一持有；本页只做装配。
+  const {
+    comments: guestComments,
+    busy: reviewBusy,
+    error: reviewError,
+    reset: resetGuestComments,
+    canDelete: canDeleteComment,
+    createComment,
+    reply: replyToComment,
+    removeComment,
+    removeReply,
+  } = useGuestReview({
+    token: token ?? null,
+    transport,
+    demoMode: isDemoShare,
+    authorName: guestName,
+  });
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(sharedView?.selected ?? []),
   );
@@ -179,16 +209,18 @@ export function SharePage() {
       .then((body) => {
         setPasswordRequired(false);
         setShare(body);
+        resetGuestComments(body.comments);
       })
       .catch((reason) => {
         if (isDemoShare) {
           // Fallback if offline
           setPasswordRequired(false);
+          resetGuestComments(DEMO_COMMENTS);
           return;
         }
         setError(reason instanceof Error ? reason.message : "无法读取分享。");
       });
-  }, [isDemoShare, token, transport]);
+  }, [isDemoShare, token, transport, resetGuestComments]);
 
   useEffect(() => {
     if (!token) return setError("缺少分享标识。");
@@ -214,52 +246,14 @@ export function SharePage() {
       loadShare();
     } catch (reason) {
       if (isDemoShare && password === DEMO_SHARE_PASSWORD) {
-        // Fallback for offline demo
+        // Fallback for offline demo：解除密码锁后仍要走一次加载，
+        // 否则批注列表会停在空状态（批注已不在 share 状态里）。
         setError(null);
         setPasswordRequired(false);
+        loadShare();
         return;
       }
       setError(reason instanceof Error ? reason.message : "密码验证失败。");
-    }
-  }
-
-  async function createGuestComment(draft: ReviewCommentDraft) {
-    if (!token) throw new Error("缺少分享标识。");
-    const name = guestName.trim() || (isDemoShare ? "访客" : "");
-    if (!name) throw new Error("请先填写审核名称。");
-    try {
-      const comment = await blendProofClient.createGuestComment(
-        token,
-        { ...draft, authorName: name },
-        transport,
-      );
-      setShare((current) =>
-        current
-          ? { ...current, comments: [...current.comments, comment] }
-          : current,
-      );
-      return comment;
-    } catch (reason) {
-      if (isDemoShare) {
-        // Fallback for offline demo
-        const now = new Date().toISOString();
-        const comment: ReviewComment = {
-          ...draft,
-          id: `demo-${Date.now()}`,
-          projectId: DEMO_SHARE_TOKEN,
-          authorName: name,
-          status: "open",
-          createdAt: now,
-          updatedAt: now,
-        };
-        setShare((current) =>
-          current
-            ? { ...current, comments: [...current.comments, comment] }
-            : current,
-        );
-        return comment;
-      }
-      throw reason;
     }
   }
 
@@ -322,11 +316,17 @@ export function SharePage() {
       cameraPreset={cameraPreset}
       onCameraPreset={setCameraPreset}
       initialCamera={sharedView?.camera ?? null}
-      comments={share.comments}
-      reviewError={null}
+      comments={guestComments}
+      reviewError={reviewError}
+      canDeleteComment={canDeleteComment}
       onCreateComment={
-        share.commentsPermission === "comment" ? createGuestComment : undefined
+        share.commentsPermission === "comment" ? createComment : undefined
       }
+      onReplyComment={
+        share.commentsPermission === "comment" ? replyToComment : undefined
+      }
+      onDeleteComment={removeComment}
+      onDeleteReply={removeReply}
     >
       <ReceiverShareCard
         permission={share.commentsPermission}

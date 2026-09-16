@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectTransport } from "../../../api/blendProofClient";
 import { reviewRepository } from "../api/reviewRepository";
-import type {
-  ReviewComment,
-  ReviewCommentDraft,
-  ReviewCommentPatch,
-} from "../types";
+import { useReviewMutations } from "./useReviewMutations";
+import type { ReviewComment } from "../types";
 
+/**
+ * 批注列表与轮询（读侧），并把写操作组合成同一个对外接口。
+ *
+ * 写操作在 useReviewMutations 里，两者靠 beginWrite / isStale 这对守卫协作：
+ * 任何写请求返回时若项目已切换或已有更新的请求，结果一律丢弃。
+ */
 export function useReviewComments(
   projectId: string | null,
   ownerCapability: string | null,
@@ -19,6 +22,16 @@ export function useReviewComments(
   const requestGeneration = useRef(0);
   const activeProjectId = useRef(projectId);
   activeProjectId.current = projectId;
+  /** 最近一次轮询发现的、尚未被查看的批注 id，供「点击查看」定位。 */
+  const unseenIds = useRef<string[]>([]);
+
+  const beginWrite = useCallback(() => {
+    return { generation: ++requestGeneration.current, projectId: projectId ?? "" };
+  }, [projectId]);
+
+  const isStale = useCallback((generation: number, forProject: string) => {
+    return requestGeneration.current !== generation || activeProjectId.current !== forProject;
+  }, []);
 
   const reload = useCallback(async () => {
     const generation = ++requestGeneration.current;
@@ -28,20 +41,21 @@ export function useReviewComments(
       setLoading(false);
       return;
     }
-    setComments((current) => current);
     setLoading(true);
     setError(null);
     try {
       const next = await reviewRepository.list(projectId, ownerCapability, transport);
-      if (requestGeneration.current === generation) {
-        setComments((current) => {
-          if (current.length > 0) {
-            const known = new Set(current.map((item) => item.id));
-            setNewCount(next.filter((item) => !known.has(item.id)).length);
-          }
-          return next;
-        });
-      }
+      if (requestGeneration.current !== generation) return;
+      setComments((current) => {
+        // 首次加载不算「新批注」，否则刚打开项目就会提示有新内容。
+        if (current.length > 0) {
+          const known = new Set(current.map((item) => item.id));
+          const unseen = next.filter((item) => !known.has(item.id));
+          unseenIds.current = unseen.map((item) => item.id);
+          setNewCount(unseen.length);
+        }
+        return next;
+      });
     } catch (reason) {
       if (requestGeneration.current === generation)
         setError(reason instanceof Error ? reason.message : "无法读取评论。");
@@ -57,45 +71,33 @@ export function useReviewComments(
     return () => window.clearInterval(timer);
   }, [reload]);
 
-  const acknowledgeNew = useCallback(() => setNewCount(0), []);
+  /**
+   * 清空未读计数并返回最新一条未读批注的 id，供调用方选中并跳转视角。
+   * 只清计数不定位会让「收到新批注，点击查看」变成空承诺。
+   */
+  const acknowledgeNew = useCallback((): string | null => {
+    const latest = unseenIds.current.at(-1) ?? null;
+    unseenIds.current = [];
+    setNewCount(0);
+    return latest;
+  }, []);
 
-  const create = useCallback(
-    async (draft: ReviewCommentDraft) => {
-      if (!projectId || !ownerCapability) throw new Error("请重新导入项目以取得所有者凭据。");
-      const generation = ++requestGeneration.current;
-      const comment = await reviewRepository.create(projectId, ownerCapability, draft, transport);
-      if (
-        requestGeneration.current === generation &&
-        activeProjectId.current === projectId
-      )
-        setComments((current) => [...current, comment]);
-      return comment;
-    },
-    [projectId, ownerCapability, transport],
-  );
+  const mutations = useReviewMutations({
+    projectId,
+    ownerCapability,
+    transport,
+    setComments,
+    beginWrite,
+    isStale,
+  });
 
-  const update = useCallback(
-    async (commentId: string, patch: ReviewCommentPatch) => {
-      if (!projectId || !ownerCapability) throw new Error("缺少项目所有者凭据。");
-      const generation = ++requestGeneration.current;
-      const comment = await reviewRepository.update(
-        projectId,
-        ownerCapability,
-        commentId,
-        patch,
-        transport,
-      );
-      if (
-        requestGeneration.current === generation &&
-        activeProjectId.current === projectId
-      )
-        setComments((current) =>
-          current.map((item) => (item.id === comment.id ? comment : item)),
-        );
-      return comment;
-    },
-    [projectId, ownerCapability, transport],
-  );
-
-  return { comments, error, loading, newCount, acknowledgeNew, create, update, reload };
+  return {
+    comments,
+    error,
+    loading,
+    newCount,
+    acknowledgeNew,
+    reload,
+    ...mutations,
+  };
 }

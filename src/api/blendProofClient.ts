@@ -2,6 +2,8 @@ import type {
   ReviewComment,
   ReviewCommentDraft,
   ReviewCommentPatch,
+  ReviewReply,
+  ReviewReplyDraft,
 } from "../features/review";
 import { convertBlendInBrowser } from "../conversion/browserBlend";
 
@@ -130,6 +132,12 @@ export type BlendProofClientOptions = {
 };
 
 export const LOCAL_BRIDGE_NONCE_HEADER = "x-blendproof-session-nonce";
+
+/**
+ * 访客删除令牌的请求头。放在头部而非 URL，避免令牌进入日志与浏览器历史。
+ * 与服务端 / worker 的 DELETE_TOKEN_HEADER 必须一致。
+ */
+export const DELETE_TOKEN_HEADER = "x-blendproof-delete-token";
 
 /**
  * The browser's only transport boundary. The local bridge owns the current
@@ -424,13 +432,106 @@ export class BlendProofClient {
   }
 
   async createGuestComment(token: string, draft: ReviewCommentDraft, transport: ProjectTransport = "local") {
-    const body = await this.transportJson<{ comment: ReviewComment }>(transport, `/api/shares/${encodeURIComponent(token)}/comments`, {
+    const body = await this.transportJson<{ comment: ReviewComment; deleteToken?: string }>(transport, `/api/shares/${encodeURIComponent(token)}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(draft),
     });
     if (!body.comment) throw new Error("无法添加评论。");
-    return body.comment;
+    // deleteToken 只在此处返回一次，由调用方存入本地存储，用于删除自己发的内容。
+    return { comment: body.comment, deleteToken: body.deleteToken };
+  }
+
+  async createOwnerReply(
+    projectId: string,
+    ownerCapability: string,
+    commentId: string,
+    draft: ReviewReplyDraft,
+    transport: ProjectTransport = "local",
+  ) {
+    const body = await this.transportJson<{ reply: ReviewReply }>(
+      transport,
+      `/api/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}/replies`,
+      {
+        method: "POST",
+        headers: ownerJsonHeaders(ownerCapability),
+        body: JSON.stringify(draft),
+      },
+    );
+    return body.reply;
+  }
+
+  deleteOwnerComment(
+    projectId: string,
+    ownerCapability: string,
+    commentId: string,
+    transport: ProjectTransport = "local",
+  ) {
+    return this.transportVoid(
+      transport,
+      `/api/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}`,
+      { method: "DELETE", headers: { "x-blendproof-owner": ownerCapability } },
+    );
+  }
+
+  deleteOwnerReply(
+    projectId: string,
+    ownerCapability: string,
+    commentId: string,
+    replyId: string,
+    transport: ProjectTransport = "local",
+  ) {
+    return this.transportVoid(
+      transport,
+      `/api/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}/replies/${encodeURIComponent(replyId)}`,
+      { method: "DELETE", headers: { "x-blendproof-owner": ownerCapability } },
+    );
+  }
+
+  async createGuestReply(
+    token: string,
+    commentId: string,
+    draft: ReviewReplyDraft,
+    transport: ProjectTransport = "local",
+  ) {
+    const body = await this.transportJson<{ reply: ReviewReply; deleteToken?: string }>(
+      transport,
+      `/api/shares/${encodeURIComponent(token)}/comments/${encodeURIComponent(commentId)}/replies`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(draft),
+      },
+    );
+    if (!body.reply) throw new Error("无法添加回复。");
+    return { reply: body.reply, deleteToken: body.deleteToken };
+  }
+
+  deleteGuestComment(
+    token: string,
+    commentId: string,
+    deleteToken: string,
+    transport: ProjectTransport = "local",
+  ) {
+    return this.transportVoid(
+      transport,
+      `/api/shares/${encodeURIComponent(token)}/comments/${encodeURIComponent(commentId)}`,
+      { method: "DELETE", headers: { [DELETE_TOKEN_HEADER]: deleteToken } },
+    );
+  }
+
+  deleteGuestReply(
+    token: string,
+    commentId: string,
+    replyId: string,
+    deleteToken: string,
+    transport: ProjectTransport = "local",
+  ) {
+    return this.transportVoid(
+      transport,
+      `/api/shares/${encodeURIComponent(token)}/comments/${encodeURIComponent(commentId)}/replies/${encodeURIComponent(replyId)}`,
+      { method: "DELETE", headers: { [DELETE_TOKEN_HEADER]: deleteToken } },
+    );
   }
 
   private workerJson<T>(path: string, init?: RequestInit) {

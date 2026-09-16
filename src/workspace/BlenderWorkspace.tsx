@@ -52,6 +52,7 @@ import {
   type PendingReview,
   type ReviewComment,
   type ReviewCommentDraft,
+  type ReviewCommentPatch,
 } from "../features/review";
 import { BlenderViewportGrid } from "./BlenderViewportGrid";
 import { BlenderViewControls } from "./BlenderViewControls";
@@ -202,9 +203,13 @@ export function BlenderWorkspace({
   comments,
   reviewError,
   reviewNewCount = 0,
-  onAcknowledgeReview = () => undefined,
+  onAcknowledgeReview = () => null,
   onCreateComment,
   onUpdateComment,
+  onDeleteComment,
+  onDeleteReply,
+  canDeleteComment,
+  onReplyComment,
   initialCamera = null,
   onViewStateChange,
   uploaderOpen = false,
@@ -238,12 +243,23 @@ export function BlenderWorkspace({
   comments: ReviewComment[];
   reviewError: string | null;
   reviewNewCount?: number;
-  onAcknowledgeReview?: () => void;
+  /**
+   * 清空未读计数并返回最新一条未读批注的 id，用于定位。
+   * 只清计数不定位会让界面上的「点击查看」变成空承诺。
+   */
+  onAcknowledgeReview?: () => string | null;
   onCreateComment?: (draft: ReviewCommentDraft) => Promise<ReviewComment>;
   onUpdateComment?: (
     commentId: string,
-    patch: Pick<Partial<ReviewComment>, "body" | "status">,
+    patch: ReviewCommentPatch,
   ) => Promise<ReviewComment>;
+  /** 删除批注与回复；访客侧只对"自己创建的"返回 true。 */
+  onDeleteComment?: (commentId: string) => Promise<void> | void;
+  onDeleteReply?: (commentId: string, replyId: string) => Promise<void> | void;
+  /** 是否允许删除指定 id（批注或回复）。缺省时按 readOnly 判定。 */
+  canDeleteComment?: (id: string) => boolean;
+  /** 正文由页面补上作者名；返回值只用于等待完成，不消费结果。 */
+  onReplyComment?: (commentId: string, body: string) => Promise<unknown> | void;
   initialCamera?: CameraState | null;
   onViewStateChange?: (camera: CameraState) => void;
   uploaderOpen?: boolean;
@@ -295,6 +311,12 @@ export function BlenderWorkspace({
   const [propertyCollapsed, setPropertyCollapsed] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [reviewCollapsed, setReviewCollapsed] = useState(false);
+  // 成功提示自动消失；错误提示常驻，否则会被成功文案永久遮挡。
+  useEffect(() => {
+    if (!reviewMessage) return;
+    const timer = window.setTimeout(() => setReviewMessage(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [reviewMessage]);
   const [summaryHeight, setSummaryHeight] = useState(180);
   const [overlaysVisible, setOverlaysVisible] = useState(true);
   const [shadingMode, setShadingMode] = useState<ShadingMode>("smooth");
@@ -529,11 +551,73 @@ export function BlenderWorkspace({
     }
   }
 
+  /** 删除不可逆，因此先确认；与删除项目的既有做法保持一致。 */
+  function confirmDelete(message: string) {
+    return window.confirm(message);
+  }
+
+  async function deleteReviewComment(comment: ReviewComment) {
+    if (!onDeleteComment || reviewBusy) return;
+    if (!confirmDelete(`删除这条批注？其下的回复也会一并删除。\n\n「${comment.body}」`)) return;
+    setReviewBusy(true);
+    try {
+      await onDeleteComment(comment.id);
+      setReviewMessage("批注已删除。");
+      if (selectedCommentId === comment.id) {
+        setSelectedCommentId(null);
+        setPendingReview(null);
+      }
+    } catch (reason) {
+      setReviewMessage(
+        reason instanceof Error ? reason.message : "批注删除失败。",
+      );
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
+  async function replyReviewComment(commentId: string, body: string) {
+    if (!onReplyComment || reviewBusy || !body.trim()) return;
+    setReviewBusy(true);
+    try {
+      await onReplyComment(commentId, body.trim());
+      setReviewMessage("回复已发送。");
+    } catch (reason) {
+      setReviewMessage(
+        reason instanceof Error ? reason.message : "回复发送失败。",
+      );
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
+  async function deleteReviewReply(commentId: string, replyId: string) {
+    if (!onDeleteReply || reviewBusy) return;
+    if (!confirmDelete("删除这条回复？")) return;
+    setReviewBusy(true);
+    try {
+      await onDeleteReply(commentId, replyId);
+      setReviewMessage("回复已删除。");
+    } catch (reason) {
+      setReviewMessage(
+        reason instanceof Error ? reason.message : "回复删除失败。",
+      );
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
   function selectReviewComment(commentId: string) {
     setSelectedCommentId(commentId);
     const comment = comments.find((item) => item.id === commentId);
     if (comment)
       setReviewCameraRequest({ camera: comment.camera, nonce: Date.now() });
+  }
+
+  /** 「收到新批注，点击查看」：消费未读计数并跳到那条批注。 */
+  function acknowledgeAndLocateReview() {
+    const commentId = onAcknowledgeReview();
+    if (commentId) selectReviewComment(commentId);
   }
 
   return (
@@ -1170,11 +1254,9 @@ export function BlenderWorkspace({
             className={`panel properties-panel ${
               propertyCollapsed ? "collapsed" : ""
             }`}
-            style={{
-              height: propertyCollapsed
-                ? 28
-                : propertyHeight + summaryHeight + 56,
-            }}
+            // 只依赖 propertyHeight：「转换内容」已是独立面板，
+            // 把它算进来会让拖转换内容的把手连带撑高本面板。
+            style={{ height: propertyCollapsed ? 28 : propertyHeight + 28 }}
           >
             <div className="panel-header">
               <button
@@ -1298,23 +1380,28 @@ export function BlenderWorkspace({
               <ReviewPanel
                 comments={visibleComments}
                 newCount={reviewNewCount}
-                onAcknowledgeNew={onAcknowledgeReview}
+                onAcknowledgeNew={acknowledgeAndLocateReview}
                 selectedId={selectedCommentId}
                 pending={null}
                 body={commentBody}
                 readOnly={readOnly}
                 canComment={canComment}
-                message={reviewMessage ?? reviewError}
+                // 错误优先于成功文案：否则保存成功一次后，后续错误永远看不见。
+                message={reviewError ?? reviewMessage}
+                busy={reviewBusy}
+                canDelete={canDeleteComment ?? (() => !readOnly)}
                 onBody={setCommentBody}
                 onSelect={selectReviewComment}
                 onSave={() => void savePendingReview()}
-                busy={reviewBusy}
                 onCancel={() => {
                   setPendingReview(null);
                   setCommentBody("");
                 }}
                 onToggleStatus={(comment) => void toggleReviewStatus(comment)}
                 onEdit={(comment, body) => void editReviewComment(comment, body)}
+                onDeleteComment={(comment) => void deleteReviewComment(comment)}
+                onReply={(commentId, text) => void replyReviewComment(commentId, text)}
+                onDeleteReply={(commentId, replyId) => void deleteReviewReply(commentId, replyId)}
                 collapsed={reviewCollapsed}
                 onToggleCollapse={() => setReviewCollapsed((c) => !c)}
                 hideTitle

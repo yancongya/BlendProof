@@ -10,6 +10,23 @@ import type { Vec3 } from "../../shared/types/geometry";
 
 export type ReviewStatus = "open" | "resolved";
 
+/** 作者类型。访客没有可验证身份，删除自己的内容需要凭令牌（见 REVIEW_CONTRACT.md）。 */
+export type ReviewAuthorType = "owner" | "guest";
+
+export type ReviewReply = {
+  id: string;
+  commentId: string;
+  body: string;
+  authorName: string;
+  authorType: ReviewAuthorType;
+  createdAt: string;
+};
+
+export type ReviewReplyDraft = {
+  body: string;
+  authorName: string;
+};
+
 export type ReviewComment = {
   id: string;
   projectId: string;
@@ -19,14 +36,17 @@ export type ReviewComment = {
   camera: CameraState;
   body: string;
   authorName: string;
+  authorType: ReviewAuthorType;
   status: ReviewStatus;
   createdAt: string;
   updatedAt: string;
+  /** 由列表接口内联返回，避免为每条评论再发一次请求。 */
+  replies: ReviewReply[];
 };
 
 export type ReviewCommentDraft = Omit<
   ReviewComment,
-  "id" | "projectId" | "status" | "createdAt" | "updatedAt"
+  "id" | "projectId" | "status" | "createdAt" | "updatedAt" | "authorType" | "replies"
 >;
 
 /** PATCH 允许变更的字段。状态是审稿方裁决，访客无权修改。 */

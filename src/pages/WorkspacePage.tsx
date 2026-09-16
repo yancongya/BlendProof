@@ -148,6 +148,11 @@ export function WorkspacePage() {
   const DEMO_COMMENTS = [] as typeof reviews.comments; // keep demo-only comments in SharePage
   const displayComments = reviewProject ? reviews.comments : DEMO_COMMENTS;
 
+  // 批注与回复的作者名取自登录账号，与创建批注时保持一致。
+  const reviewAuthorName = account?.displayName?.trim() || "本地创建者";
+  const replyToReviewComment = (commentId: string, body: string) =>
+    reviews.reply(commentId, { body, authorName: reviewAuthorName });
+
   useEffect(() => {
     let active = true;
     setManifest(null);
@@ -536,7 +541,11 @@ export function WorkspacePage() {
           reviewNewCount={reviews.newCount}
           onAcknowledgeReview={reviews.acknowledgeNew}
           onCreateComment={reviews.create}
+          commentAuthorName={reviewAuthorName}
           onUpdateComment={reviews.update}
+          onDeleteComment={reviews.remove}
+          onReplyComment={replyToReviewComment}
+          onDeleteReply={reviews.removeReply}
           onViewStateChange={setCurrentCamera}
           onOpenUploader={openUploader}
           onHome={() => setHomeOpen(true)}
@@ -604,7 +613,11 @@ export function WorkspacePage() {
       reviewNewCount={reviews.newCount}
       onAcknowledgeReview={reviews.acknowledgeNew}
       onCreateComment={reviews.create}
+      commentAuthorName={reviewAuthorName}
       onUpdateComment={reviews.update}
+      onDeleteComment={reviews.remove}
+      onReplyComment={replyToReviewComment}
+      onDeleteReply={reviews.removeReply}
       onViewStateChange={setCurrentCamera}
       uploaderOpen={uploaderOpen}
       onOpenUploader={openUploader}
