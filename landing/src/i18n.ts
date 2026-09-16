@@ -70,9 +70,6 @@ const EN: Record<string, string> = {
   '模型已载入 · 拖拽旋转，滚轮缩放': 'Model loaded · drag to orbit, scroll to zoom',
   '重开': 'Reopen',
   '解决': 'Resolve',
-  '查看与批注': 'View & comment',
-  '仅查看': 'View only',
-  'Monkey_Head · 王工': 'Monkey_Head · Wang',
   'Monkey_Head · 李监制': 'Monkey_Head · Li',
   'Monkey_Head · 阿烟': 'Monkey_Head · Yan',
   'Monkey_Head · 我': 'Monkey_Head · Me',
@@ -208,9 +205,6 @@ const EN: Record<string, string> = {
     'Row selection uses the Blender #2f5582 blue, the eye column hides objects, and Numpad . frames the selection.',
   '批注': 'Comments',
   '耳根布线太硬，减两段再发': 'Ear topology is too stiff — relax two loops before sending',
-  'Monkey_Head · 王工': 'Monkey_Head · Wang',
-  '解决': 'Resolve',
-  '重开': 'Reopen',
   '眼睛材质换成 3 号灰模': 'Switch eye material to gray #3',
   'Eyes · 李监制': 'Eyes · Li',
   '地面反光强度偏高': 'Ground reflection is too strong',
@@ -301,11 +295,9 @@ const EN: Record<string, string> = {
   '拿走的：只有能看的': 'What leaves: only the viewable',
   '转换后的轻量模型，打开就能转': 'A lightweight converted model, orbit-ready on open',
   '一份小清单：怎么摆、怎么转、怎么标': 'A small manifest: placement, camera, annotations',
-  '到期自动清空，一件不留': 'Auto-purged on expiry, nothing retained',
   '上传工作台': 'Upload workbench',
   '浏览器直转 · 复杂文件回退本机': 'In-browser conversion · complex files fall back locally',
   '点击选择 .blend 文件，浏览器就地转换': 'Pick a .blend — the browser converts it in place',
-  '仅接受 .blend · 文件不会上传': '.blend only · the file is never uploaded',
   '12.4 MB · 场景 Scene · 7 个对象': '12.4 MB · scene Scene · 7 objects',
   '开始转换': 'Start conversion',
   '浏览器转换': 'Browser conversion',
@@ -322,8 +314,6 @@ const EN: Record<string, string> = {
   '配置一张审稿凭证。': 'Configure a review credential.',
   '上一步生成的审稿凭证，权限、有效期、密码都在这里定，发出之后随时可以撤销。':
     'Permission, expiry and password for the credential you just generated are set here — and it stays revocable after you send it.',
-  '权限、有效期、密码都在这里定，发出之后随时可以撤销。':
-    'Set permission, expiry and password here — revocable anytime after you send it.',
   '可评论': 'Can comment',
   '只读': 'Read-only',
   '密码': 'Password',
@@ -332,7 +322,6 @@ const EN: Record<string, string> = {
   '24 小时后': 'in 24 hours',
   '已设置': 'Set',
   '无': 'None',
-  '复制链接': 'Copy link',
   '打开检查': 'Open to verify',
   'chips 切换会实时改写明细，并同步到右边接收方的通行证。码框里的':
     'The chips rewrite the details live and sync to the receiver pass on the right. The',
@@ -381,6 +370,17 @@ const EN: Record<string, string> = {
   '点在模型上，位置不会错': 'Pin it on the model, spot on',
   '你的批注钉在模型表面并带编号，对方点开就回到你当时看的视角，不用来回确认。':
     'Your comments anchor to the model surface with numbers; opening one brings back your exact view. No back-and-forth.',
+  // Annotation-loop illustration (reviewer)
+  '你在模型上点一下': 'Click anywhere on the model',
+  '批注钉在准确位置': 'The pin lands exactly there',
+  '对方解决并回信': 'They resolve and reply',
+  '"左边那个球大一点"': '"Make the ball on the left bigger"',
+  '左边那个球…': 'The ball on the left…',
+  '王工 · #1': 'Wang · #1',
+  '待解决': 'Open',
+  '已解决 ✓': 'Resolved ✓',
+  '你点的每一针，都会变成对方模型上的待办。':
+    'Every pin you drop becomes a to-do on their model.',
 
   /* card 06 — public pool */
   '公益性质': 'Public good',

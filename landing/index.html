@@ -677,6 +677,154 @@
 
   .quickstart__copy-btn:hover { background: #c5630b; }
 
+  /* ---------- Reviewer annotation-loop illustration ---------- */
+  .loop-illo {
+    margin-top: 30px;
+    padding: 22px 16px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+
+  .loop-illo__svg { display: block; width: 100%; height: auto; }
+
+  .loop-illo__caption {
+    margin: 6px 0 4px; text-align: center;
+    color: var(--muted); font-size: 12px;
+  }
+
+  .lp-mesh {
+    fill: var(--stat-bg); stroke: var(--mk-line-2);
+    stroke-width: 1.2; stroke-linejoin: round;
+  }
+  .lp-wire { fill: none; stroke: var(--mk-line-2); stroke-width: .8; opacity: .7; }
+
+  .lp-label {
+    fill: var(--muted); font-size: 12px; text-anchor: middle;
+    font-family: var(--mono);
+  }
+
+  .lp-cursor path { fill: var(--ink-bright); stroke: var(--panel); stroke-width: 1; }
+  .lp-cursor {
+    transform-box: fill-box; transform-origin: center;
+    animation: lpCursor 7.5s ease-in-out infinite;
+  }
+
+  .lp-ripple {
+    fill: none; stroke: var(--accent); stroke-width: 2;
+    transform-box: fill-box; transform-origin: center;
+    animation: lpRipple 7.5s ease-out infinite;
+  }
+
+  .lp-pin {
+    transform-box: fill-box; transform-origin: 50% 100%;
+    animation: lpPin 7.5s cubic-bezier(.34, 1.56, .64, 1) infinite;
+  }
+  .lp-pin__body { fill: var(--accent); stroke: var(--panel); stroke-width: 1; }
+  .lp-pin__hole { fill: var(--panel); }
+  .lp-pin__num {
+    fill: var(--accent-warm); font-size: 11px; font-weight: 700;
+    text-anchor: middle; font-family: var(--mono);
+  }
+
+  .lp-chip, .lp-chip__text { animation: lpFadeInOut 7.5s ease infinite; }
+  .lp-chip { fill: var(--stat-bg); stroke: var(--border); }
+  .lp-chip__text {
+    fill: var(--ink); font-size: 11px; text-anchor: middle;
+    font-family: var(--mono);
+  }
+
+  .lp-todo, .lp-todo__pin, .lp-todo__text, .lp-todo__meta {
+    animation: lpTodoIn 7.5s ease infinite;
+  }
+  .lp-todo { fill: var(--stat-bg); stroke: var(--border); transform-box: fill-box; }
+  .lp-todo__text { fill: var(--ink); font-size: 11px; font-family: var(--mono); }
+  .lp-todo__meta { fill: var(--muted); font-size: 9px; font-family: var(--mono); }
+
+  .lp-badge { transform-box: fill-box; transform-origin: center; }
+  .lp-badge text {
+    font-size: 10px; text-anchor: middle; font-family: var(--mono);
+  }
+  .lp-badge--open { animation: lpBadgeOpen 7.5s ease infinite; }
+  .lp-badge--open rect { fill: var(--accent-well); stroke: var(--accent-edge); }
+  .lp-badge--open text { fill: var(--accent-warm); }
+
+  .lp-badge--resolved {
+    animation: lpBadgeResolved 7.5s cubic-bezier(.34, 1.56, .64, 1) infinite;
+  }
+  .lp-badge--resolved rect { fill: rgba(121, 169, 90, .16); stroke: #688148; }
+  .lp-badge--resolved text { fill: #79a95a; }
+
+  .lp-arrow {
+    fill: none; stroke: var(--faint); stroke-width: 1.4;
+    stroke-dasharray: 5 6;
+    animation: lpDash 1.1s linear infinite;
+  }
+  .lp-arrow__head {
+    fill: none; stroke: var(--faint); stroke-width: 1.4; stroke-linecap: round;
+  }
+
+  @keyframes lpCursor {
+    0%   { transform: translate(46px, 26px); opacity: 0; }
+    6%   { transform: translate(72px, 52px); opacity: 1; }
+    14%  { transform: translate(122px, 112px); opacity: 1; }
+    17%  { transform: translate(122px, 112px) scale(.82); }
+    21%  { transform: translate(122px, 112px) scale(1); opacity: 1; }
+    30%  { transform: translate(122px, 112px); opacity: 0; }
+    100% { transform: translate(46px, 26px); opacity: 0; }
+  }
+
+  @keyframes lpRipple {
+    0%, 14% { transform: scale(.3); opacity: 0; }
+    17%     { transform: scale(.9); opacity: .9; }
+    30%     { transform: scale(2.6); opacity: 0; }
+    100%    { transform: scale(2.6); opacity: 0; }
+  }
+
+  @keyframes lpPin {
+    0%, 24%  { transform: translate(122px, 102px) scale(0); opacity: 0; }
+    30%      { transform: translate(122px, 102px) scale(1.14); opacity: 1; }
+    34%, 86% { transform: translate(122px, 102px) scale(1); opacity: 1; }
+    94%, 100%{ transform: translate(122px, 102px) scale(1); opacity: 0; }
+  }
+
+  @keyframes lpFadeInOut {
+    0%, 30%   { opacity: 0; }
+    38%, 86%  { opacity: 1; }
+    94%, 100% { opacity: 0; }
+  }
+
+  @keyframes lpTodoIn {
+    0%, 38%  { opacity: 0; transform: translateY(8px); }
+    46%, 86% { opacity: 1; transform: translateY(0); }
+    94%, 100%{ opacity: 0; transform: translateY(0); }
+  }
+
+  @keyframes lpBadgeOpen {
+    0%, 46%  { opacity: 0; }
+    50%, 64% { opacity: 1; }
+    70%, 100%{ opacity: 0; }
+  }
+
+  @keyframes lpBadgeResolved {
+    0%, 66%  { opacity: 0; transform: scale(.7); }
+    70%      { opacity: 1; transform: scale(1.08); }
+    73%, 86% { opacity: 1; transform: scale(1); }
+    94%, 100%{ opacity: 0; transform: scale(1); }
+  }
+
+  @keyframes lpDash {
+    to { stroke-dashoffset: -11; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loop-illo * { animation: none !important; }
+    .lp-cursor, .lp-ripple, .lp-badge--open { opacity: 0 !important; }
+    .lp-pin { transform: translate(122px, 102px) !important; opacity: 1 !important; }
+    .lp-chip, .lp-chip__text, .lp-todo, .lp-todo__pin, .lp-todo__text,
+    .lp-todo__meta, .lp-badge--resolved { opacity: 1 !important; transform: none !important; }
+  }
+
   /* Animation: step highlight */
   .quickstart__step.is-active {
     border-color: var(--accent);
@@ -2297,6 +2445,70 @@ grid-template-columns: minmax(0, 1fr);
           </div>
         </div>
       </div>
+
+      <!-- 客户专属插画：批注闭环循环动画 -->
+      <figure class="loop-illo reveal" data-perspective="reviewer" aria-label="批注闭环动画：点模型、钉批注、对方解决">
+        <svg class="loop-illo__svg" viewBox="0 0 680 230" role="img" aria-hidden="true">
+          <!-- ===== 节点 1：在模型上点一下 ===== -->
+          <g class="lp-node">
+            <!-- 低多边形模型轮廓 -->
+            <polygon class="lp-mesh" points="82,74 116,52 154,58 172,84 174,116 165,150 144,176 112,182 84,168 66,140 62,104"/>
+            <path class="lp-wire" d="M116,52 L122,112 L144,176 M122,112 L62,104 M122,112 L174,116 M122,112 L84,168 M116,52 L84,168 M154,58 L122,112"/>
+            <!-- 耳突 -->
+            <polygon class="lp-mesh" points="62,104 46,96 50,122 66,124"/>
+            <polygon class="lp-mesh" points="174,116 190,108 186,134 170,134"/>
+            <!-- 点击波纹 -->
+            <circle class="lp-ripple" cx="122" cy="112" r="10"/>
+            <!-- 光标 -->
+            <g class="lp-cursor">
+              <path d="M0,0 L0,16 L4.6,12.4 L7.6,19 L10.8,17.6 L7.8,11 L13,10.4 Z" transform="translate(-5,-2)"/>
+            </g>
+            <text class="lp-label" x="122" y="212">你在模型上点一下</text>
+          </g>
+
+          <!-- ===== 节点 2：批注钉住 ===== -->
+          <g class="lp-node">
+            <g class="lp-pin">
+              <path class="lp-pin__body" d="M0,2 C-9,-9 -14,-17 -14,-25 A14,14 0 1,1 14,-25 C14,-17 9,-9 0,2 Z"/>
+              <circle class="lp-pin__hole" cy="-25" r="5"/>
+              <text class="lp-pin__num" y="-46">#1</text>
+            </g>
+            <rect class="lp-chip" x="60" y="128" width="124" height="24" rx="3"/>
+            <text class="lp-chip__text" x="122" y="144">"左边那个球大一点"</text>
+            <text class="lp-label" x="122" y="212">批注钉在准确位置</text>
+          </g>
+
+          <!-- ===== 节点 3：对方解决 ===== -->
+          <g class="lp-node">
+            <rect class="lp-todo" x="500" y="58" width="164" height="76" rx="6"/>
+            <g class="lp-todo__pin">
+              <path class="lp-pin__body" transform="translate(524,86) scale(0.55)" d="M0,2 C-9,-9 -14,-17 -14,-25 A14,14 0 1,1 14,-25 C14,-17 9,-9 0,2 Z"/>
+              <circle class="lp-pin__hole" transform="translate(524,74.5) scale(0.55)" cy="-25" r="5"/>
+            </g>
+            <text class="lp-todo__text" x="540" y="90">左边那个球…</text>
+            <text class="lp-todo__meta" x="540" y="106">王工 · #1</text>
+            <!-- 状态徽章：待解决 → 已解决 -->
+            <g class="lp-badge lp-badge--open">
+              <rect x="516" y="118" width="52" height="18" rx="9"/>
+              <text x="542" y="131">待解决</text>
+            </g>
+            <g class="lp-badge lp-badge--resolved">
+              <rect x="516" y="118" width="56" height="18" rx="9"/>
+              <text x="544" y="131">已解决 ✓</text>
+            </g>
+            <text class="lp-label" x="582" y="212">对方解决并回信</text>
+          </g>
+
+          <!-- ===== 流动箭头 ===== -->
+          <g class="lp-flow">
+            <path class="lp-arrow" d="M226,110 L296,110"/>
+            <path class="lp-arrow__head" d="M290,104 L300,110 L290,116"/>
+            <path class="lp-arrow" d="M456,110 L488,110"/>
+            <path class="lp-arrow__head" d="M482,104 L492,110 L482,116"/>
+          </g>
+        </svg>
+        <figcaption class="loop-illo__caption">你点的每一针，都会变成对方模型上的待办。</figcaption>
+      </figure>
       </div>
     </div>
     </div>
