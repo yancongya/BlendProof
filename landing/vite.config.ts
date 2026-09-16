@@ -33,6 +33,9 @@ export default defineConfig({
   root: here,
   base: '/landing/',
   publicDir: false,
+  // 独立缓存目录：与项目根的 vite.config.ts 共存时（双 dev server 常开），
+  // 共享 node_modules/.vite 会互相触发 re-optimize，导致后启动的一方反复失败。
+  cacheDir: resolve(projectRoot, 'node_modules/.vite-landing'),
   plugins: [react(), dropModulePreload()],
   server: {
     port: 5174,
