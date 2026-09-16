@@ -30,6 +30,25 @@ const EN: Record<string, string> = {
   '☾ 暗色': '☾ Dark',
   '切换亮色 / 暗色模式': 'Toggle light / dark theme',
 
+  /* tarot identity portal */
+  '🎴 身份': '🎴 Identity',
+  '重新选择身份': 'Choose identity again',
+  '选择你的身份': 'Choose your identity',
+  '跳过 ✕': 'Skip ✕',
+  'CHOOSE YOUR PATH · 身份抉择': 'CHOOSE YOUR PATH · IDENTITY',
+  '你是造物者，还是审视者？': 'Are you the Creator, or the Seer?',
+  '选择角色进入专属工作台 · 移动鼠标感受全息 3D 视差': 'Choose your role to enter workspace · Move cursor for 3D parallax',
+  '选择身份：造物者（3D 创作者）': 'Select identity: Creator (3D Artist)',
+  '大阿卡那·造物者 The Artificer': 'Major Arcana · The Artificer',
+  'I · 造物者': 'I · The Artificer',
+  '3D 创作者 · 工程不离机 · 零摩擦分享': '3D Artist · Source stays local · Zero friction',
+  '进入创作者视角 ↵': 'Enter Creator View ↵',
+  '选择身份：审视者（审稿客户与总监）': 'Select identity: Seer (Client & Director)',
+  '大阿卡那·审视者 The Seer': 'Major Arcana · The Seer',
+  'II · 审视者': 'II · The Seer',
+  '审稿客户/总监 · 浏览器秒开 · 空间标注': 'Reviewer · Instant browser 3D · Spatial pins',
+  '进入审稿者视角 ↵': 'Enter Reviewer View ↵',
+
   /* hero review pins */
   '耳朵这圈布线，比我的周报还乱': 'This ear loop is messier than my weekly report',
   '减两段再发，别让拓扑背锅。': 'Relax two loops before sending — do not let the topology take the blame.',

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-identity-chosen="false">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -346,7 +346,7 @@
   /* ---------- Top actions (repo link · language · theme) ---------- */
 
   .top-actions {
-    position: fixed; top: 14px; right: 16px; z-index: 60;
+    position: fixed; top: 14px; right: 16px; z-index: 10000;
     display: inline-flex; align-items: center; gap: 8px;
   }
 
@@ -2079,7 +2079,379 @@ grid-template-columns: minmax(0, 1fr);
     .reveal, .js [data-anim] .reveal { opacity: 1; transform: none; }
     .hero h1, .hero__lead, .hero__actions, .facts, .hero3d { animation: none; }
   }
+  /* Atropos 2.0.2 */
+  .atropos{position:relative;display:block;perspective:1200px;transform:translate3d(0,0,0)}.atropos-rotate-scroll-x,.atropos-rotate-scroll-y,.atropos-rotate-touch{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.atropos-rotate-touch-scroll-y{touch-action:pan-y}.atropos-rotate-touch-scroll-x{touch-action:pan-x}.atropos-rotate-touch{touch-action:none}.atropos-rotate,.atropos-scale{width:100%;height:100%;transform-style:preserve-3d;transition-property:transform;display:block}.atropos-highlight,.atropos-shadow{position:absolute;pointer-events:none;transition-property:transform,opacity;display:block;opacity:0}.atropos-shadow{z-index:-1;background:#000;left:0;top:0;width:100%;height:100%;filter:blur(30px)}.atropos-highlight{left:-50%;top:-50%;width:200%;height:200%;background-image:radial-gradient(circle at 50%,rgba(255,255,255,.25),transparent 50%);z-index:0}.atropos-rotate{position:relative}.atropos-inner{width:100%;height:100%;position:relative;overflow:hidden;transform-style:preserve-3d;transform:translate3d(0,0,0);display:block}.atropos-active{z-index:1}.atropos-active .atropos-shadow{opacity:1!important}[data-atropos-offset]{transition-property:transform}[data-atropos-opacity]{transition-property:opacity}
+
+
+  /* ============================================================
+     Tarot Identity Portal — Atropos 2.0.2 multi-layer cards
+     State: html[data-identity-chosen="false"] → portal open
+            html[data-identity-chosen="true"]  → portal closed
+  ============================================================ */
+
+  /* Lock body while portal is open; hide page content */
+  html[data-identity-chosen="false"] body { overflow: hidden !important; }
+  html[data-identity-chosen="false"] main,
+  html[data-identity-chosen="false"] footer { display: none !important; }
+
+  /* Portal fullscreen overlay */
+  .tarot-portal {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: radial-gradient(ellipse 90% 80% at 50% 28%, #141424 0%, #08080f 100%);
+    padding: 44px 16px 36px;
+    overflow-y: auto;
+    opacity: 1; visibility: visible;
+    transition: opacity .45s ease, visibility .45s, transform .45s ease;
+  }
+  html[data-identity-chosen="true"] .tarot-portal {
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transform: scale(1.05) translateY(-24px);
+  }
+
+  /* Skip button */
+  .tarot-skip {
+    position: absolute; top: 16px; right: 20px;
+    font: 700 11px/1 ui-monospace, monospace;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: #94a3b8; background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.12);
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    transition: color .2s, border-color .2s, background .2s, transform .15s;
+  }
+  .tarot-skip:hover {
+    color: #f1f5f9; border-color: rgba(255,255,255,.28);
+    background: rgba(255,255,255,.1); transform: translateY(-1px);
+  }
+
+  /* Header */
+  .tarot-head { text-align: center; max-width: 540px; margin-bottom: 44px; transition: all .35s ease; }
+  .tarot-eyebrow {
+    display: inline-block;
+    font: 700 10px/1 ui-monospace, monospace;
+    letter-spacing: .2em; text-transform: uppercase;
+    color: #fbbf24; background: rgba(251,191,36,.1);
+    border: 1px solid rgba(251,191,36,.25);
+    padding: 4px 14px; border-radius: 999px; margin-bottom: 16px;
+  }
+  .tarot-head h1 {
+    font-size: clamp(20px, 3.2vw, 30px); font-weight: 800;
+    color: #fff; margin: 0 0 10px; letter-spacing: -.02em;
+    text-shadow: 0 2px 28px rgba(0,0,0,.95);
+  }
+  .tarot-head p { font-size: 13px; color: #94a3b8; margin: 0; line-height: 1.6; }
+
+  /* Deck — always horizontal */
+  .tarot-deck {
+    display: flex; flex-direction: row;
+    justify-content: center; align-items: flex-start;
+    gap: clamp(24px, 5vw, 80px);
+    flex-wrap: nowrap;
+    position: relative;
+  }
+
+  /* Card unit wrapper */
+  .tarot-unit {
+    display: flex; flex-direction: column; align-items: center;
+    cursor: pointer; outline: none;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+    transition: opacity .35s ease, transform .35s ease;
+  }
+
+  /* Atropos root — explicit size only, NO overflow:hidden (would clip 3D tilt) */
+  .tarot-atropos {
+    width:  clamp(170px, 21vw, 260px);
+    height: clamp(255px, 31.5vw, 390px);
+    border-radius: 13px;
+  }
+
+  /* atropos-inner needs border-radius too (clips the layer stack) */
+  .tarot-atropos .atropos-inner { border-radius: 13px; }
+
+  /* Shadow colours per role */
+  .tarot-unit[data-role="creator"]  .atropos-shadow { background: rgba(232,125,13,.55); filter: blur(30px); }
+  .tarot-unit[data-role="reviewer"] .atropos-shadow { background: rgba(56,189,248,.5);  filter: blur(30px); }
+
+  /* ── Layers inside atropos-inner ─────────────────────────────────────── */
+
+  /* Layer 0: dark background card base (offset −3 → furthest back) */
+  .tc-bg {
+    position: absolute; inset: 0;
+    background: #0c0c10; border-radius: 13px;
+  }
+
+  /* Layer 1: main artwork (offset 0 → mid-ground) */
+  .tc-art {
+    position: absolute; inset: 0; border-radius: 13px;
+    overflow: hidden;
+  }
+  .tc-art img {
+    width: 100%; height: 100%;
+    display: block; object-fit: cover;
+    border-radius: 13px;
+  }
+
+  /* Layer 2: decorative border frame (offset +4 → foreground) */
+  .tc-frame {
+    position: absolute; inset: 0; border-radius: 13px;
+    pointer-events: none; border: 1px solid rgba(255,255,255,.14);
+  }
+  .tarot-unit[data-role="creator"]  .tc-frame { border-color: rgba(251,191,36,.32); }
+  .tarot-unit[data-role="reviewer"] .tc-frame { border-color: rgba(56,189,248,.32); }
+
+  /* Layer 3: holographic shine (offset +7 → topmost, tracks mouse) */
+  .tc-holo {
+    position: absolute; inset: 0; border-radius: 13px;
+    pointer-events: none; opacity: 0;
+    mix-blend-mode: color-dodge;
+    transition: opacity .25s ease;
+    background: radial-gradient(
+      circle at var(--holo-x, 50%) var(--holo-y, 50%),
+      rgba(255,255,255,.88) 0%,
+      rgba(245,158,11,.42) 28%,
+      transparent 60%
+    );
+  }
+  .tarot-unit[data-role="reviewer"] .tc-holo {
+    background: radial-gradient(
+      circle at var(--holo-x, 50%) var(--holo-y, 50%),
+      rgba(255,255,255,.88) 0%,
+      rgba(56,189,248,.5) 28%,
+      transparent 60%
+    );
+  }
+  .tarot-unit.is-hovering .tc-holo { opacity: 1; }
+
+  /* Atropos highlight overlay */
+  .tarot-atropos .atropos-highlight { opacity: 0; transition: opacity .25s; }
+  .tarot-unit.is-hovering .atropos-highlight { opacity: .12; }
+
+  /* Selection ring */
+  .tarot-unit.is-selected .atropos-inner {
+    outline: 2px solid rgba(251,191,36,.9); outline-offset: -2px;
+  }
+  .tarot-unit[data-role="reviewer"].is-selected .atropos-inner {
+    outline-color: rgba(56,189,248,.9);
+  }
+
+  /* Info area below card */
+  .tarot-info {
+    margin-top: 18px; text-align: center;
+    width: clamp(170px, 21vw, 260px);
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .tarot-role-name {
+    font: 700 13px/1 ui-monospace, monospace;
+    letter-spacing: .05em; color: #fbbf24; margin-bottom: 5px;
+  }
+  .tarot-unit[data-role="reviewer"] .tarot-role-name { color: #38bdf8; }
+  .tarot-role-name span { font-size: 10px; color: #64748b; font-weight: 400; margin-left: 4px; }
+  .tarot-role-desc { font-size: 11px; color: #94a3b8; line-height: 1.5; margin-bottom: 12px; }
+  .tarot-cta {
+    display: inline-flex; align-items: center; gap: 5px;
+    font: 600 11px/1 ui-monospace, monospace; letter-spacing: .04em;
+    color: #cbd5e1; background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    padding: 6px 16px; border-radius: 6px; cursor: pointer;
+    transition: all .2s ease;
+  }
+  .tarot-unit:hover .tarot-cta {
+    background: #e87d0d; border-color: #f59e0b; color: #fff;
+    box-shadow: 0 4px 18px rgba(232,125,13,.45); transform: translateY(-1px);
+  }
+  .tarot-unit[data-role="reviewer"]:hover .tarot-cta {
+    background: #0284c7; border-color: #38bdf8;
+    box-shadow: 0 4px 18px rgba(56,189,248,.4);
+  }
+
+  /* Reopen button */
+  .btn-tarot-reopen {
+    color: #fbbf24 !important;
+    border-color: rgba(251,191,36,.3) !important;
+    background: rgba(251,191,36,.07) !important;
+  }
+  .btn-tarot-reopen:hover {
+    background: rgba(251,191,36,.18) !important;
+    border-color: #fbbf24 !important;
+  }
+
+  /* ── English mode tweaks ────────────────────────────────────────────── */
+  html[lang="en"] .tarot-role-name span { display: none; }
+
+  /* ── Light theme adaptation ─────────────────────────────────────────── */
+  html[data-theme="light"] .tarot-portal {
+    background: radial-gradient(ellipse 90% 80% at 50% 28%, #f8f7f4 0%, #eae7df 100%);
+  }
+  html[data-theme="light"] .tarot-head h1 {
+    color: #191919;
+    text-shadow: 0 2px 20px rgba(0,0,0,.08);
+  }
+  html[data-theme="light"] .tarot-head p {
+    color: #646059;
+  }
+  html[data-theme="light"] .tarot-eyebrow {
+    color: #b4580a;
+    background: rgba(245,158,11,.12);
+    border-color: rgba(217,119,6,.32);
+  }
+  html[data-theme="light"] .tarot-skip {
+    color: #646059;
+    background: rgba(0,0,0,.04);
+    border-color: rgba(0,0,0,.12);
+  }
+  html[data-theme="light"] .tarot-skip:hover {
+    color: #191919;
+    border-color: rgba(0,0,0,.25);
+    background: rgba(0,0,0,.08);
+  }
+  html[data-theme="light"] .tc-bg {
+    background: #f0eee9;
+  }
+  html[data-theme="light"] .tc-frame {
+    border-color: rgba(0,0,0,.1);
+  }
+  html[data-theme="light"] .tarot-unit[data-role="creator"] .tc-frame {
+    border-color: rgba(197,99,11,.35);
+  }
+  html[data-theme="light"] .tarot-unit[data-role="reviewer"] .tc-frame {
+    border-color: rgba(2,132,199,.35);
+  }
+  html[data-theme="light"] .tarot-unit[data-role="creator"] .atropos-shadow {
+    background: rgba(197,99,11,.28);
+    filter: blur(26px);
+  }
+  html[data-theme="light"] .tarot-unit[data-role="reviewer"] .atropos-shadow {
+    background: rgba(2,132,199,.25);
+    filter: blur(26px);
+  }
+  html[data-theme="light"] .tarot-role-name {
+    color: #b4580a;
+  }
+  html[data-theme="light"] .tarot-unit[data-role="reviewer"] .tarot-role-name {
+    color: #0284c7;
+  }
+  html[data-theme="light"] .tarot-role-name span {
+    color: #8a8377;
+  }
+  html[data-theme="light"] .tarot-role-desc {
+    color: #5d5a52;
+  }
+  html[data-theme="light"] .tarot-cta {
+    color: #45423c;
+    background: rgba(0,0,0,.04);
+    border-color: rgba(0,0,0,.12);
+  }
+  html[data-theme="light"] .tarot-unit:hover .tarot-cta {
+    background: #c5630b;
+    border-color: #b4580a;
+    color: #fff;
+    box-shadow: 0 4px 18px rgba(197,99,11,.35);
+  }
+  html[data-theme="light"] .tarot-unit[data-role="reviewer"]:hover .tarot-cta {
+    background: #0284c7;
+    border-color: #0369a1;
+    color: #fff;
+    box-shadow: 0 4px 18px rgba(2,132,199,.35);
+  }
+  html[data-theme="light"] .btn-tarot-reopen {
+    color: #b4580a !important;
+    border-color: rgba(217,119,6,.35) !important;
+    background: rgba(245,158,11,.1) !important;
+  }
+  html[data-theme="light"] .btn-tarot-reopen:hover {
+    background: rgba(245,158,11,.2) !important;
+    border-color: #b4580a !important;
+  }
+
+  /* ── Cinematic Entrance: Card Rush & Center Zoom ────────────────── */
+  .tarot-portal.is-launching {
+    background-color: transparent !important;
+    transition: background-color .7s ease, opacity .55s ease .2s;
+    pointer-events: none;
+  }
+  .tarot-portal.is-launching .tarot-head,
+  .tarot-portal.is-launching .tarot-skip {
+    opacity: 0 !important;
+    transform: translateY(-30px) scale(.96);
+    transition: opacity .35s ease, transform .35s ease;
+    pointer-events: none;
+  }
+
+  /* The card not picked dissolves and slides down away */
+  .tarot-unit.is-dismissing {
+    opacity: 0 !important;
+    transform: translateY(36px) scale(.8) !important;
+    transition: opacity .42s cubic-bezier(.4, 0, .2, 1), transform .42s cubic-bezier(.4, 0, .2, 1) !important;
+    pointer-events: none;
+  }
+
+  /* The selected card rushes to center and zooms forward toward camera */
+  .tarot-unit.is-rushing {
+    z-index: 1000 !important;
+    pointer-events: none;
+    animation: tarotCardRush .72s cubic-bezier(.16, 1, .3, 1) forwards;
+  }
+  .tarot-unit.is-rushing .tarot-info {
+    opacity: 0 !important;
+    transform: translateY(16px);
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  .tarot-unit.is-rushing .tc-holo {
+    opacity: 1 !important;
+    mix-blend-mode: hard-light;
+    transition: opacity .2s ease;
+  }
+
+  @keyframes tarotCardRush {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: brightness(1) drop-shadow(0 15px 35px rgba(0,0,0,.6));
+    }
+    38% {
+      transform: translate3d(var(--rush-x, 0), var(--rush-y, 0), 0) scale(1.24);
+      filter: brightness(1.35) drop-shadow(0 0 50px rgba(251,191,36,.75));
+    }
+    100% {
+      transform: translate3d(var(--rush-x, 0), var(--rush-y, 0), 0) scale(3.6);
+      opacity: 0;
+      filter: brightness(2.2) blur(8px) drop-shadow(0 0 100px rgba(255,255,255,.95));
+    }
+  }
+
+  .tarot-unit[data-role="reviewer"].is-rushing {
+    animation-name: tarotCardRushReviewer;
+  }
+  @keyframes tarotCardRushReviewer {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: brightness(1) drop-shadow(0 15px 35px rgba(0,0,0,.6));
+    }
+    38% {
+      transform: translate3d(var(--rush-x, 0), var(--rush-y, 0), 0) scale(1.24);
+      filter: brightness(1.35) drop-shadow(0 0 50px rgba(56,189,248,.75));
+    }
+    100% {
+      transform: translate3d(var(--rush-x, 0), var(--rush-y, 0), 0) scale(3.6);
+      opacity: 0;
+      filter: brightness(2.2) blur(8px) drop-shadow(0 0 100px rgba(255,255,255,.95));
+    }
+  }
+
+  @media (max-width: 400px) { .tarot-deck { gap: 14px; } }
+  @media (prefers-reduced-motion: reduce) {
+    .tarot-atropos .atropos-rotate,
+    .tarot-atropos .atropos-scale { transition: none !important; }
+    .tc-holo { display: none !important; }
+    .tarot-unit.is-rushing { animation: none !important; }
+  }
+
 </style>
+<script>/* Atropos 2.0.2 MIT */
+var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.assign.bind():function(t){for(var e=1;e<arguments.length;e++){var o=arguments[e];for(var a in o)Object.prototype.hasOwnProperty.call(o,a)&&(t[a]=o[a])}return t},t.apply(this,arguments)}var e=function(t,e){return t.querySelector(e)},o=function(t){void 0===t&&(t={});var e={};return Object.keys(t).forEach((function(o){void 0!==t[o]&&(e[o]=t[o])})),e},a={alwaysActive:!1,activeOffset:50,shadowOffset:50,shadowScale:1,duration:300,rotate:!0,rotateTouch:!0,rotateXMax:15,rotateYMax:15,rotateXInvert:!1,rotateYInvert:!1,stretchX:0,stretchY:0,stretchZ:0,commonOrigin:!0,shadow:!0,highlight:!0};return function(n){void 0===n&&(n={});var r,i,s,c,p,u,l,d,f,v,h,m,y=n,g=y.el,M=y.eventsEl,x=n.isComponent,O={__atropos__:!0,params:t({},a,{onEnter:null,onLeave:null,onRotate:null},o(n||{})),destroyed:!1,isActive:!1},w=O.params,b=[];!function t(){m=requestAnimationFrame((function(){b.forEach((function(t){if("function"==typeof t)t();else{var e=t.element,o=t.prop,a=t.value;e.style[o]=a}})),b.splice(0,b.length),t()}))}();var X,Y=function(t,e){b.push({element:t,prop:"transitionDuration",value:e})},_=function(t,e){b.push({element:t,prop:"transitionTimingFunction",value:e})},L=function(t,e){b.push({element:t,prop:"transform",value:e})},T=function(t,e){b.push({element:t,prop:"opacity",value:e})},A=function(t,e,o,a){return t.addEventListener(e,o,a)},E=function(t,e,o,a){return t.removeEventListener(e,o,a)},R=function(t){var e=t.rotateXPercentage,o=void 0===e?0:e,a=t.rotateYPercentage,n=void 0===a?0:a,i=t.duration,s=t.opacityOnly,c=t.easeOut;(function(t,e){return t.querySelectorAll(e)})(r,"[data-atropos-offset], [data-atropos-opacity]").forEach((function(t){Y(t,i),_(t,c?"ease-out":"");var e=function(t){if(t.dataset.atroposOpacity&&"string"==typeof t.dataset.atroposOpacity)return t.dataset.atroposOpacity.split(";").map((function(t){return parseFloat(t)}))}(t);if(0===o&&0===n)s||L(t,"translate3d(0, 0, 0)"),e&&T(t,e[0]);else{var a=parseFloat(t.dataset.atroposOffset)/100;if(Number.isNaN(a)||s||L(t,"translate3d("+-n*-a+"%, "+o*-a+"%, 0)"),e){var r=e[0],p=e[1],u=Math.max(Math.abs(o),Math.abs(n));T(t,r+(p-r)*u/100)}}}))},I=function(t,e){var o=g!==M;if(p||(p=g.getBoundingClientRect()),o&&!u&&(u=M.getBoundingClientRect()),void 0===t&&void 0===e){var a=o?u:p;t=a.left+a.width/2,e=a.top+a.height/2}var n,r=0,s=0,c=p,l=c.top,f=c.left,v=c.width,h=c.height;if(o){var m=u,y=m.top,x=m.left,O=m.width,X=m.height,A=v/2+(f-x),E=h/2+(l-y),I=t-x,P=e-y;s=w.rotateYMax*(I-A)/(O-v/2)*-1,r=w.rotateXMax*(P-E)/(X-h/2),n=t-f+"px "+(e-l)+"px"}else{var j=v/2,C=h/2,D=t-f,F=e-l;s=w.rotateYMax*(D-j)/(v/2)*-1,r=w.rotateXMax*(F-C)/(h/2)}r=Math.min(Math.max(-r,-w.rotateXMax),w.rotateXMax),w.rotateXInvert&&(r=-r),s=Math.min(Math.max(-s,-w.rotateYMax),w.rotateYMax),w.rotateYInvert&&(s=-s);var N,S,k=r/w.rotateXMax*100,q=s/w.rotateYMax*100,B=(o?q/100*w.stretchX:0)*(w.rotateYInvert?-1:1),Z=(o?k/100*w.stretchY:0)*(w.rotateXInvert?-1:1),z=o?Math.max(Math.abs(k),Math.abs(q))/100*w.stretchZ:0;L(i,"translate3d("+B+"%, "+-Z+"%, "+-z+"px) rotateX("+r+"deg) rotateY("+s+"deg)"),n&&w.commonOrigin&&(N=i,S=n,b.push({element:N,prop:"transformOrigin",value:S})),d&&(Y(d,w.duration+"ms"),_(d,"ease-out"),L(d,"translate3d("+.25*-q+"%, "+.25*k+"%, 0)"),T(d,Math.max(Math.abs(k),Math.abs(q))/100)),R({rotateXPercentage:k,rotateYPercentage:q,duration:w.duration+"ms",easeOut:!0}),"function"==typeof w.onRotate&&w.onRotate(r,s)},P=function(){b.push((function(){return g.classList.add("atropos-active")})),Y(i,w.duration+"ms"),_(i,"ease-out"),L(s,"translate3d(0,0, "+w.activeOffset+"px)"),Y(s,w.duration+"ms"),_(s,"ease-out"),l&&(Y(l,w.duration+"ms"),_(l,"ease-out")),O.isActive=!0},j=function(t){if(f=void 0,!("pointerdown"===t.type&&"mouse"===t.pointerType||"pointerenter"===t.type&&"mouse"!==t.pointerType)){if("pointerdown"===t.type&&t.preventDefault(),v=t.clientX,h=t.clientY,w.alwaysActive)return p=void 0,void(u=void 0);P(),"function"==typeof w.onEnter&&w.onEnter()}},C=function(t){!1===f&&t.cancelable&&t.preventDefault()},D=function(t){if(w.rotate&&O.isActive){if("mouse"!==t.pointerType){if(!w.rotateTouch)return;t.preventDefault()}var e=t.clientX,o=t.clientY,a=e-v,n=o-h;if("string"==typeof w.rotateTouch&&(0!==a||0!==n)&&void 0===f){if(a*a+n*n>=25){var r=180*Math.atan2(Math.abs(n),Math.abs(a))/Math.PI;f="scroll-y"===w.rotateTouch?r>45:90-r>45}!1===f&&(g.classList.add("atropos-rotate-touch"),t.cancelable&&t.preventDefault())}"mouse"!==t.pointerType&&f||I(e,o)}},F=function(t){if(p=void 0,u=void 0,O.isActive&&!(t&&"pointerup"===t.type&&"mouse"===t.pointerType||t&&"pointerleave"===t.type&&"mouse"!==t.pointerType)){if("string"==typeof w.rotateTouch&&f&&g.classList.remove("atropos-rotate-touch"),w.alwaysActive)return I(),"function"==typeof w.onRotate&&w.onRotate(0,0),void("function"==typeof w.onLeave&&w.onLeave());b.push((function(){return g.classList.remove("atropos-active")})),Y(s,w.duration+"ms"),_(s,""),L(s,"translate3d(0,0, 0px)"),l&&(Y(l,w.duration+"ms"),_(l,"")),d&&(Y(d,w.duration+"ms"),_(d,""),L(d,"translate3d(0, 0, 0)"),T(d,0)),Y(i,w.duration+"ms"),_(i,""),L(i,"translate3d(0,0,0) rotateX(0deg) rotateY(0deg)"),R({duration:w.duration+"ms"}),O.isActive=!1,"function"==typeof w.onRotate&&w.onRotate(0,0),"function"==typeof w.onLeave&&w.onLeave()}},N=function(t){var e=t.target;!M.contains(e)&&e!==M&&O.isActive&&F()};return O.destroy=function(){O.destroyed=!0,cancelAnimationFrame(m),E(document,"click",N),E(M,"pointerdown",j),E(M,"pointerenter",j),E(M,"pointermove",D),E(M,"touchmove",C),E(M,"pointerleave",F),E(M,"pointerup",F),E(M,"lostpointercapture",F),delete g.__atropos__},"string"==typeof g&&(g=e(document,g)),g&&(g.__atropos__||(void 0!==M?"string"==typeof M&&(M=e(document,M)):M=g,r=x?g.parentNode.host:g,Object.assign(O,{el:g}),i=e(g,".atropos-rotate"),s=e(g,".atropos-scale"),c=e(g,".atropos-inner"),g.__atropos__=O)),g&&M&&(w.shadow&&((l=e(g,".atropos-shadow"))||((l=document.createElement("span")).classList.add("atropos-shadow"),X=!0),L(l,"translate3d(0,0,-"+w.shadowOffset+"px) scale("+w.shadowScale+")"),X&&i.appendChild(l)),w.highlight&&function(){var t;(d=e(g,".atropos-highlight"))||((d=document.createElement("span")).classList.add("atropos-highlight"),t=!0),L(d,"translate3d(0,0,0)"),t&&c.appendChild(d)}(),w.rotateTouch&&("string"==typeof w.rotateTouch?g.classList.add("atropos-rotate-touch-"+w.rotateTouch):g.classList.add("atropos-rotate-touch")),e(r,"[data-atropos-opacity]")&&R({opacityOnly:!0}),A(document,"click",N),A(M,"pointerdown",j),A(M,"pointerenter",j),A(M,"pointermove",D),A(M,"touchmove",C),A(M,"pointerleave",F),A(M,"pointerup",F),A(M,"lostpointercapture",F),w.alwaysActive&&(P(),I())),O}}();
+//# sourceMappingURL=atropos.min.js.map
+</script>
 </head>
 <body>
 <svg class="art-defs" aria-hidden="true" width="0" height="0" focusable="false">
@@ -2090,7 +2462,83 @@ grid-template-columns: minmax(0, 1fr);
     </radialGradient>
   </defs>
 </svg>
+<!-- ===== Tarot Identity Portal ===== -->
+<aside class="tarot-portal" id="tarot-portal"
+       role="dialog" aria-modal="true" aria-label="选择你的身份">
+
+  <button class="tarot-skip" id="tarot-skip" type="button">跳过 ✕</button>
+
+  <div class="tarot-head">
+    <span class="tarot-eyebrow">CHOOSE YOUR PATH · 身份抉择</span>
+    <h1>你是造物者，还是审视者？</h1>
+    <p>选择角色进入专属工作台 · 移动鼠标感受全息 3D 视差</p>
+  </div>
+
+  <div class="tarot-deck">
+
+    <!-- I · 造物者 (Atropos multi-layer) -->
+    <div class="tarot-unit" data-role="creator" id="tarot-unit-creator"
+         tabindex="0" role="button" aria-label="选择身份：造物者（3D 创作者）">
+      <div class="atropos tarot-atropos" id="atropos-creator">
+        <div class="atropos-scale">
+          <div class="atropos-rotate">
+            <div class="atropos-inner">
+              <div class="tc-bg"    data-atropos-offset="-3"></div>
+              <div class="tc-art"   data-atropos-offset="0">
+                <img src="./assets/tarot-artificer.jpg"
+                     alt="大阿卡那·造物者 The Artificer"
+                     loading="eager" decoding="async"
+                     width="520" height="780">
+              </div>
+              <div class="tc-frame" data-atropos-offset="4"  aria-hidden="true"></div>
+              <div class="tc-holo"  data-atropos-offset="7"  aria-hidden="true"></div>
+              <div class="atropos-highlight"                 aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+        <div class="atropos-shadow" aria-hidden="true"></div>
+      </div>
+      <div class="tarot-info">
+        <div class="tarot-role-name">I · 造物者 <span>The Artificer</span></div>
+        <div class="tarot-role-desc">3D 创作者 · 工程不离机 · 零摩擦分享</div>
+        <button type="button" class="tarot-cta">进入创作者视角 ↵</button>
+      </div>
+    </div>
+
+    <!-- II · 审视者 (Atropos multi-layer) -->
+    <div class="tarot-unit" data-role="reviewer" id="tarot-unit-reviewer"
+         tabindex="0" role="button" aria-label="选择身份：审视者（审稿客户与总监）">
+      <div class="atropos tarot-atropos" id="atropos-reviewer">
+        <div class="atropos-scale">
+          <div class="atropos-rotate">
+            <div class="atropos-inner">
+              <div class="tc-bg"    data-atropos-offset="-3"></div>
+              <div class="tc-art"   data-atropos-offset="0">
+                <img src="./assets/tarot-seer.jpg"
+                     alt="大阿卡那·审视者 The Seer"
+                     loading="eager" decoding="async"
+                     width="520" height="780">
+              </div>
+              <div class="tc-frame" data-atropos-offset="4"  aria-hidden="true"></div>
+              <div class="tc-holo"  data-atropos-offset="7"  aria-hidden="true"></div>
+              <div class="atropos-highlight"                 aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+        <div class="atropos-shadow" aria-hidden="true"></div>
+      </div>
+      <div class="tarot-info">
+        <div class="tarot-role-name">II · 审视者 <span>The Seer</span></div>
+        <div class="tarot-role-desc">审稿客户/总监 · 浏览器秒开 · 空间标注</div>
+        <button type="button" class="tarot-cta">进入审稿者视角 ↵</button>
+      </div>
+    </div>
+
+  </div>
+</aside>
+
 <div class="top-actions">
+  <button type="button" id="tarot-reopen" class="top-btn btn-tarot-reopen" title="重新选择身份">🎴 身份</button>
   <a class="top-btn" href="https://github.com/yancongya/BlendProof" target="_blank" rel="noreferrer" title="GitHub 仓库" aria-label="GitHub 仓库">
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
     <span>GitHub</span>
