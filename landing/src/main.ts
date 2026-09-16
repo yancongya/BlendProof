@@ -343,52 +343,41 @@ function initQuickstart(): void {
     const browser = panel.querySelector<HTMLElement>('.quickstart__browser')
     const states = browser ? Array.from(browser.querySelectorAll<HTMLElement>('.qs-browser__state')) : []
 
-    console.log('Quickstart init:', {
-      stepsCount: steps.length,
-      mocksCount: mocks.length,
-      hasBrowser: !!browser,
-      statesCount: states.length
-    })
-
     let currentStep = -1 // No step selected by default
+    let miniViewer: { dispose: () => void } | null = null
+
+    /** Lazily build the reviewer 3D preview once step 3 is actually shown. */
+    const ensureMiniViewer = (): void => {
+      const host = browser?.querySelector<HTMLElement>('#qs-mini-viewer')
+      if (!host || miniViewer) return
+      // Defer one frame+ so the state is un-hidden and the host has layout.
+      window.setTimeout(() => {
+        if (miniViewer || !host.isConnected) return
+        miniViewer = createMiniViewer(host)
+      }, 120)
+    }
 
     const showStep = (index: number): void => {
-      console.log('showStep:', index, { statesCount: states.length })
       currentStep = index
       steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
 
-      // For creator perspective: show/hide mockups
+      // Creator perspective: show/hide mockups
       mocks.forEach((mock, i) => {
         mock.hidden = i !== index
       })
 
-      // For reviewer perspective: show browser states
+      // Reviewer perspective: show browser states
       states.forEach((state, i) => {
-        console.log('Setting state', i, 'hidden:', i !== index)
         state.hidden = i !== index
       })
 
-      // Initialize 3D viewer when showing step 3 (index 2)
-      if (index === 2 && browser) {
-        console.log('Step 3 shown, initializing 3D viewer')
-        // Delay initialization to ensure container is visible and has size
-        setTimeout(() => {
-          console.log('Delayed init, host size:', {
-            width: document.getElementById('qs-mini-viewer')?.clientWidth,
-            height: document.getElementById('qs-mini-viewer')?.clientHeight
-          })
-          initQsMiniViewer()
-        }, 100)
-      }
+      if (index === 2) ensureMiniViewer()
     }
 
     // Click on step card: show that step
     steps.forEach((step, index) => {
       step.addEventListener('click', () => {
-        console.log('Step clicked:', index)
-
-        // For reviewer perspective: clicking step 1 shows blank page,
-        // clicking step 2 shows password page, clicking step 3 shows 3D view
+        // Reviewer perspective: steps drive the shared browser mockup
         if (browser) {
           showStep(index)
           return
@@ -399,7 +388,6 @@ function initQuickstart(): void {
           currentStep = -1
           steps.forEach((s) => s.classList.remove('is-active'))
           mocks.forEach((m) => { m.hidden = true })
-          states.forEach((s) => { s.hidden = true })
           return
         }
         showStep(index)
@@ -422,163 +410,62 @@ function initQuickstart(): void {
       })
     })
 
-    // Reviewer perspective: browser interactions
+    // Reviewer perspective: shared browser mockup interactions
     if (browser) {
       const urlInput = browser.querySelector<HTMLInputElement>('#qs-browser-url')
+      const pwdInput = browser.querySelector<HTMLInputElement>('#qs-browser-pwd')
       const goBtn = browser.querySelector<HTMLButtonElement>('#qs-browser-go')
-      const fillBtn = browser.querySelector('.qs-browser__fill')
+      const fillBtn = browser.querySelector<HTMLButtonElement>('.qs-browser__fill')
+      const openBtn = browser.querySelector<HTMLButtonElement>('.qs-browser__open')
 
-      // Step 1: Fill demo link and go to step 2
+      /** Typed-character animation, user-triggered only (no autoplay). */
+      const typeText = (input: HTMLInputElement, text: string, done: () => void): void => {
+        input.value = ''
+        let i = 0
+        const timer = window.setInterval(() => {
+          i += 1
+          input.value = text.slice(0, i)
+          if (i >= text.length) {
+            window.clearInterval(timer)
+            done()
+          }
+        }, 45)
+      }
+
+      const DEMO_URL = 'blendproof.itycon.cn/s/suzanne'
+
+      // Step 1: fill the demo link (typed animation), then land on the passphrase page.
       fillBtn?.addEventListener('click', () => {
-        if (urlInput) urlInput.value = 'blendproof.itycon.cn/s/suzanne'
-        showStep(1) // Go to step 2 (password)
+        if (!urlInput || fillBtn.disabled) return
+        fillBtn.disabled = true
+        typeText(urlInput, DEMO_URL, () => {
+          window.setTimeout(() => showStep(1), 450)
+        })
       })
 
       goBtn?.addEventListener('click', () => {
-        if (urlInput?.value.includes('suzanne')) {
-          showStep(1) // Go to step 2 (password)
-        }
+        if (urlInput?.value === DEMO_URL) showStep(1)
       })
 
-      // Step 2: Click anywhere on the state to go to step 3
-      const passState = browser.querySelector('[data-state="2"]')
-      passState?.addEventListener('click', () => {
-        showStep(2) // Go to step 3 (3D view)
+      // Step 2: passphrase dots fill in as the state becomes visible, then "打开审稿".
+      const fillPassphrase = (): void => {
+        if (!pwdInput || pwdInput.value.length > 0) return
+        typeText(pwdInput, 'tycon', () => { if (openBtn) openBtn.disabled = false })
+      }
+      const passObserver = new MutationObserver(() => {
+        const state = browser.querySelector<HTMLElement>('[data-state="2"]')
+        if (state && !state.hidden) fillPassphrase()
+      })
+      states.forEach((state) => passObserver.observe(state, { attributes: true, attributeFilter: ['hidden'] }))
+
+      openBtn?.addEventListener('click', () => {
+        if (openBtn.disabled) return
+        showStep(2) // 3D preview builds itself via ensureMiniViewer()
       })
     }
   })
 }
 
-/** Initialize mini 3D viewer in quick start panel */
-let qsMiniViewerInitialized = false
-function initQsMiniViewer(): void {
-  if (qsMiniViewerInitialized) return
-  const host = document.getElementById('qs-mini-viewer')
-  if (!host) {
-    console.error('qs-mini-viewer host not found')
-    return
-  }
-
-  console.log('Initializing 3D viewer...')
-
-  // Dynamic import three.js
-  import('three').then((THREE) => {
-    console.log('Three.js loaded')
-    import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-      console.log('GLTFLoader loaded')
-      import('three/examples/jsm/controls/OrbitControls.js').then(({ OrbitControls }) => {
-        console.log('OrbitControls loaded')
-        qsMiniViewerInitialized = true
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-        renderer.setClearColor(0x000000, 0)
-        renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%'
-        host.appendChild(renderer.domElement)
-
-        const scene = new THREE.Scene()
-        const camera = new THREE.PerspectiveCamera(40, host.clientWidth / host.clientHeight, 0.1, 50)
-        camera.position.set(2.4, 1.2, 3.1)
-
-        scene.add(new THREE.HemisphereLight(0x6a6f76, 0x1c1c1c, 1.5))
-        const key = new THREE.DirectionalLight(0xffffff, 2.0)
-        key.position.set(3, 4, 2.5)
-        scene.add(key)
-        const rim = new THREE.DirectionalLight(0x5b9ee0, 0.8)
-        rim.position.set(-4, 1, -3)
-        scene.add(rim)
-        const fill = new THREE.DirectionalLight(0xffffff, 0.4)
-        fill.position.set(-2, 2, 4)
-        scene.add(fill)
-
-        const material = new THREE.MeshStandardMaterial({
-          color: 0xe0e0e0,
-          metalness: 0.3,
-          roughness: 0.4,
-          flatShading: true,
-        })
-
-        const controls = new OrbitControls(camera, renderer.domElement)
-        controls.enableDamping = true
-        controls.dampingFactor = 0.08
-        controls.minDistance = 2.2
-        controls.maxDistance = 7
-        controls.autoRotate = true
-        controls.autoRotateSpeed = 0.8
-
-        // Blender-style navigation: middle-drag to orbit, shift+middle to pan, right-drag to pan
-        controls.mouseButtons = {
-          LEFT: undefined, // Reserved for annotations
-          MIDDLE: THREE.MOUSE.ROTATE,
-          RIGHT: THREE.MOUSE.PAN
-        }
-
-        // Handle middle button modifier
-        const chooseMiddleAction = (event: PointerEvent): void => {
-          if (event.button !== 1) return
-          controls.mouseButtons.MIDDLE = !event.shiftKey && (event.ctrlKey || event.metaKey)
-            ? THREE.MOUSE.PAN
-            : THREE.MOUSE.ROTATE
-        }
-        const restoreMiddleAction = (): void => {
-          controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE
-        }
-        renderer.domElement.addEventListener('pointerdown', chooseMiddleAction, true)
-        window.addEventListener('pointerup', restoreMiddleAction)
-
-        // Load model - use absolute path from project root
-        // The model is in projectRoot/public/, accessible via fs.allow
-        new GLTFLoader().load('/default-monkey.glb', (gltf) => {
-          console.log('Model loaded')
-          const root = gltf.scene
-          const box = new THREE.Box3().setFromObject(root)
-          const size = box.getSize(new THREE.Vector3())
-          const center = box.getCenter(new THREE.Vector3())
-          root.position.sub(center)
-          root.scale.setScalar(2.0 / Math.max(size.x, size.y, size.z))
-          root.traverse((child) => {
-            if (child instanceof THREE.Mesh) child.material = material
-          })
-          scene.add(root)
-        }, undefined, (error) => {
-          console.error('Failed to load model:', error)
-        })
-
-        // Resize handler
-        const resize = (): void => {
-          const w = host.clientWidth
-          const h = host.clientHeight
-          if (w === 0 || h === 0) return
-          renderer.setSize(w, h, false)
-          camera.aspect = w / h
-          camera.updateProjectionMatrix()
-        }
-
-        const resizeObserver = new ResizeObserver(resize)
-        resizeObserver.observe(host)
-        resize()
-
-        // Render loop
-        let raf = 0
-        const tick = (): void => {
-          raf = requestAnimationFrame(tick)
-          controls.update()
-          renderer.render(scene, camera)
-        }
-        raf = requestAnimationFrame(tick)
-
-        // Cleanup on page hide
-        window.addEventListener('pagehide', () => {
-          cancelAnimationFrame(raf)
-          resizeObserver.disconnect()
-          controls.dispose()
-          material.dispose()
-          renderer.dispose()
-        }, { once: true })
-      })
-    })
-  })
-}
 
 /** Pain cards: click flips front (旧做法) to back (BlendProof 的解法). Hover handles desktop. */
 function initPainFlip(): void {

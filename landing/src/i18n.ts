@@ -102,8 +102,8 @@ const EN: Record<string, string> = {
   '客户 · 3D 审稿': 'Reviewer · 3D review',
   '一个链接发给客户，模型直接在浏览器里转。原件从头到尾留在你电脑上，云端拿不走。客户的批注直接落在模型上，你也能标注回复，意见闭环不用再来回截图。':
     "Send one link to your client — the model loads directly in the browser. Your source file stays on your machine; the cloud never gets it. Their comments land right on the model, and you can reply with your own pins — feedback closes the loop without screenshots.",
-  '不用装 Blender，不用装任何东西。模型在浏览器里直接转，点一下就能写批注。':
-    "No Blender, no installs. The model loads directly in your browser — click the surface to leave a comment.",
+  '不用装 Blender，不用装任何东西。哪里不满意直接点在模型上，批注钉在准确的位置，不用再截图圈来圈去。':
+    "No Blender, no installs. Click exactly where it bothers you — pins land on the spot, no more screenshot-and-circle.",
   '审稿凭证': 'Review credential',
   '配置权限 · 设置有效期 · 复制链接': 'Set permissions · configure expiry · copy link',
   '分享凭证。': 'Share credential.',
@@ -351,6 +351,8 @@ const EN: Record<string, string> = {
   '填入演示链接 /s/suzanne': 'Fill in the demo link /s/suzanne',
   '打开后会自动通过口令并载入模型': 'The passphrase auto-fills and the model loads',
   '口令已自动填充': 'Passphrase auto-filled',
+  '打开审稿': 'Open review',
+  '收到一条审稿链接': 'You received a review link',
   '分享链接': 'Share link',
   '输入分享链接，如 blendproof.itycon.cn/s/suzanne': 'Enter a share link, e.g. blendproof.itycon.cn/s/suzanne',
   '试试点「填入演示链接」——口令自动通过，模型载入。左边改权限，这张通行证的明细会跟着变。':

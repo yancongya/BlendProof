@@ -625,16 +625,47 @@
 
   .qs-browser__state .mk-browser__pass {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 12px;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--mk-line);
-    color: var(--mk-ink-dim); font-size: 10px;
+    color: var(--mk-ink-dim); font-size: 11px;
   }
 
   .qs-browser__state .mk-browser__pass input {
     border: 1px solid var(--mk-line-2); border-radius: 2px;
     background: var(--input); color: var(--ink);
-    font-family: var(--mono); font-size: 10px;
-    padding: 4px 8px; width: 80px; text-align: center;
+    font-family: var(--mono); font-size: 11px;
+    padding: 5px 10px; width: 90px; text-align: center;
+    letter-spacing: 2px;
+  }
+
+  .qs-browser__open-row {
+    display: flex; align-items: center; justify-content: center;
+    flex: 1;
+  }
+
+  .qs-browser__open {
+    border: 1px solid var(--accent-edge); border-radius: var(--radius);
+    background: var(--accent); color: #fff;
+    font-size: 12px; font-weight: 600; padding: 9px 22px; cursor: pointer;
+    transition: background-color .15s ease, opacity .15s ease;
+  }
+
+  .qs-browser__open:hover:not(:disabled) { background: #c5630b; }
+
+  .qs-browser__open:disabled {
+    opacity: .45; cursor: not-allowed;
+  }
+
+  .qs-browser__state #qs-mini-viewer {
+    position: relative; flex: 1;
+    background: var(--view-g1);
+  }
+
+  .qs-browser__foot {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 8px; text-align: center;
+    color: var(--mk-ink-dim); font-size: 10px;
+    background: var(--mk-foot-bg);
   }
 
   .quickstart__copy-btn {
@@ -1944,7 +1975,7 @@ grid-template-columns: minmax(0, 1fr);
           <p class="eyebrow">客户 · 3D 审稿</p>
           <h1>打开链接，<br><em>就能看模型</em>。</h1>
           <p class="hero__lead">
-            不用装 Blender，不用装任何东西。模型在浏览器里直接转，点一下就能写批注。
+            不用装 Blender，不用装任何东西。哪里不满意直接点在模型上，批注钉在准确的位置，不用再截图圈来圈去。
           </p>
         </div>
 
@@ -2127,30 +2158,28 @@ grid-template-columns: minmax(0, 1fr);
                   <input type="text" class="mk-browser__url" id="qs-browser-url" placeholder="输入分享链接" value="" readonly>
                   <button type="button" class="mk-browser__go" id="qs-browser-go">前往</button>
                 </div>
-                <div class="mk-browser__page" style="height:140px">
-                  <!-- 步骤1：空白 + 输入链接提示 -->
+                <div class="mk-browser__page">
+                  <!-- 步骤1：空白 + 输入链接提示（点击后逐字键入演示链接） -->
                   <div class="qs-browser__state" data-state="1">
                     <div class="mk-browser__empty">
-                      <b>输入分享链接，或</b>
+                      <b>收到一条审稿链接</b>
                       <button type="button" class="qs-browser__fill">填入演示链接 /s/suzanne</button>
                     </div>
                   </div>
-                  <!-- 步骤2：口令验证 -->
+                  <!-- 步骤2：口令逐字填充，点「打开审稿」进入 -->
                   <div class="qs-browser__state" data-state="2" hidden>
-                    <div class="mk-browser__pass" style="border-bottom:1px solid var(--mk-line);padding:12px">
+                    <div class="mk-browser__pass">
                       <span>口令已自动填充</span>
-                      <input type="password" value="tycon" readonly>
+                      <input type="password" id="qs-browser-pwd" readonly aria-label="口令">
                     </div>
-                    <div style="display:flex;align-items:center;justify-content:center;height:calc(100% - 44px);color:var(--mk-ink-dim);font-size:12px">
-                      点击「打开审稿」继续 →
+                    <div class="qs-browser__open-row">
+                      <button type="button" class="qs-browser__open" disabled>打开审稿</button>
                     </div>
                   </div>
-                  <!-- 步骤3：3D 预览 -->
+                  <!-- 步骤3：3D 预览（复用 hero 的模型资产与 Blender 导航） -->
                   <div class="qs-browser__state" data-state="3" hidden>
-                    <div id="qs-mini-viewer" style="position:relative;width:100%;height:100%;min-height:450px;background:var(--view-g1)"></div>
-                    <div style="position:absolute;bottom:0;left:0;right:0;padding:8px;text-align:center;color:var(--mk-ink-dim);font-size:10px;background:var(--mk-foot-bg)">
-                      中键旋转 · Shift+中键平移 · 滚轮缩放
-                    </div>
+                    <div id="qs-mini-viewer"></div>
+                    <div class="qs-browser__foot">中键旋转 · Shift+中键平移 · 滚轮缩放</div>
                   </div>
                 </div>
               </div>
