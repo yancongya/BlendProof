@@ -42,9 +42,14 @@ Progress: ████▉ 99%
 - 增加通用访客体验账号（`guest@blendproof.itycon.cn` / `tycon`）及一键登录能力；Worker `auth.ts` 自动确保访客账号在 D1 中的正常会话，无需邀请码。
 - 完善线上 Suzanne 猴头模型公开演示（`/s/suzanne`）的真实持久化审稿：Worker `shares.ts` 支持 `suzanne` 路由与 D1 项目/分享自动关联，访客添加的批注持久化存入 D1 数据库且永久豁免 48 小时清理；前端 `SharePage.tsx` 接入云端接口并提供离线兜底，启动页增加一键跳转公开演示。
 
+- 落地页全息 3D 视差塔罗牌门面已上线：支持【I · 造物者】与【II · 审视者】双身份卡牌交互与 Atropos 多层视差；
+- 落地页支持中英完整双语（i18n 无损实时切换）与亮色/暗色（Light/Dark）双主题自适应；
+- 落地页支持点击卡牌的电影级居中景深冲刺破屏进场动效（Card-rush transition）并平滑衔接至专属视角；
+- 修复客户视角批注闭环插画（`.loop-illo`）节点 2 坐标与节点 1 重叠压盖的 Bug，规整为左中右对称的三节点时序循环动画。
+
 ## Session Continuity
 
-Last session: 2026-09-16
-Stopped at: Completed unauthenticated UX gating, guest demo account login, and online Suzanne persistent review annotation support
+Last session: 2026-09-17
+Stopped at: Completed landing page tarot portal, i18n & dual theme adaptation, card-rush transition, and loop-illo overlap bugfix
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 
