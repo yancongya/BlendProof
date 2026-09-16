@@ -37,9 +37,11 @@ Progress: ████▉ 99%
 - 生产首位管理员已创建并完成登录验证；账号凭据与 Worker 密钥不记录在仓库中，一次性 bootstrap Secret 已从 Worker 删除。
 - 尚需在真实浏览器中完成管理员登录、本机 `.blend` 转换后发布、第二浏览器评论与过期清理的端到端验收。
 - `0009_platform_lifetime_metrics.sql` 已上线；根页刷新默认打开欢迎封面，状态 Tab 每秒更新运行时长、每 30 秒同步容量与累计处理/清理文件和字节统计。
+- 完成 `src/App.tsx` 模块化重构：将 2685 行单文件拆分为 `src/pages/`、`src/workspace/`、`src/start/`、`src/review/`、`src/components/` 及 `src/types.ts` / `src/utils.ts`，`App.tsx` 瘦身为轻量路由与 re-export 入口。
 
 ## Session Continuity
 
-Last session: 2026-09-11
-Stopped at: Local milestone accepted in `docs/LOCAL_MILESTONE_ACCEPTANCE.md`; next requires authorized admin bootstrap and real Cloudflare production acceptance
+Last session: 2026-09-16
+Stopped at: Completed App.tsx modularization and quality verification
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
+
