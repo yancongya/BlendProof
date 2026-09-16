@@ -71,6 +71,7 @@ Product and account conventions — home page layout, roles, invite codes, and r
 - **Review notifications** — the project owner polls for new comments every 15 seconds and sees an in-app unread notice without adding a second realtime service.
 - **Platform status** — persisted uptime, cumulative files/bytes processed, and cleanup counters, refreshed on the home page.
 - **Guest review access** — clients can enter a share with a password and display name, add comments without registering, and remain isolated to that share.
+- **Universal demo guest account** — visitors can log in using `guest@blendproof.itycon.cn` (passphrase `tycon`) via a 1-click button on the welcome screen to test the cloud environment without requiring an invite code.
 - **Splash media** — the welcome card can use `public/intro.mp4` as a video background, with the existing splash image retained as a poster/fallback for reduced-motion and unsupported-video browsers.
 - **Permanent demo** — `/s/suzanne` serves a public example model with the demo passphrase `tycon`; visitors can add surface comments as “Guest”. It counts against no quota and is exempt from cleanup.
 
