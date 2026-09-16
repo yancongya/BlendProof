@@ -782,10 +782,10 @@
   }
 
   @keyframes lpPin {
-    0%, 24%  { transform: translate(122px, 102px) scale(0); opacity: 0; }
-    30%      { transform: translate(122px, 102px) scale(1.14); opacity: 1; }
-    34%, 86% { transform: translate(122px, 102px) scale(1); opacity: 1; }
-    94%, 100%{ transform: translate(122px, 102px) scale(1); opacity: 0; }
+    0%, 24%  { transform: translate(376px, 102px) scale(0); opacity: 0; }
+    30%      { transform: translate(376px, 102px) scale(1.14); opacity: 1; }
+    34%, 86% { transform: translate(376px, 102px) scale(1); opacity: 1; }
+    94%, 100%{ transform: translate(376px, 102px) scale(1); opacity: 0; }
   }
 
   @keyframes lpFadeInOut {
@@ -820,7 +820,7 @@
   @media (prefers-reduced-motion: reduce) {
     .loop-illo * { animation: none !important; }
     .lp-cursor, .lp-ripple, .lp-badge--open { opacity: 0 !important; }
-    .lp-pin { transform: translate(122px, 102px) !important; opacity: 1 !important; }
+    .lp-pin { transform: translate(376px, 102px) !important; opacity: 1 !important; }
     .lp-chip, .lp-chip__text, .lp-todo, .lp-todo__pin, .lp-todo__text,
     .lp-todo__meta, .lp-badge--resolved { opacity: 1 !important; transform: none !important; }
   }
@@ -2916,14 +2916,21 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
 
           <!-- ===== 节点 2：批注钉住 ===== -->
           <g class="lp-node">
+            <!-- 节点 2 低多边形承托网格 (平移 254px 居中至 X=376) -->
+            <g transform="translate(254, 0)">
+              <polygon class="lp-mesh" points="82,74 116,52 154,58 172,84 174,116 165,150 144,176 112,182 84,168 66,140 62,104"/>
+              <path class="lp-wire" d="M116,52 L122,112 L144,176 M122,112 L62,104 M122,112 L174,116 M122,112 L84,168 M116,52 L84,168 M154,58 L122,112"/>
+              <polygon class="lp-mesh" points="62,104 46,96 50,122 66,124"/>
+              <polygon class="lp-mesh" points="174,116 190,108 186,134 170,134"/>
+            </g>
             <g class="lp-pin">
               <path class="lp-pin__body" d="M0,2 C-9,-9 -14,-17 -14,-25 A14,14 0 1,1 14,-25 C14,-17 9,-9 0,2 Z"/>
               <circle class="lp-pin__hole" cy="-25" r="5"/>
               <text class="lp-pin__num" y="-46">#1</text>
             </g>
-            <rect class="lp-chip" x="60" y="128" width="124" height="24" rx="3"/>
-            <text class="lp-chip__text" x="122" y="144">"左边那个球大一点"</text>
-            <text class="lp-label" x="122" y="212">批注钉在准确位置</text>
+            <rect class="lp-chip" x="314" y="128" width="124" height="24" rx="3"/>
+            <text class="lp-chip__text" x="376" y="144">"左边那个球大一点"</text>
+            <text class="lp-label" x="376" y="212">批注钉在准确位置</text>
           </g>
 
           <!-- ===== 节点 3：对方解决 ===== -->
