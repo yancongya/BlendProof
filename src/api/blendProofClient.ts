@@ -1,7 +1,8 @@
 import type {
   ReviewComment,
   ReviewCommentDraft,
-} from "../reviewRepository";
+  ReviewCommentPatch,
+} from "../features/review";
 import { convertBlendInBrowser } from "../conversion/browserBlend";
 
 export type OwnerProject = {
@@ -391,7 +392,7 @@ export class BlendProofClient {
     projectId: string,
     ownerCapability: string,
     commentId: string,
-    patch: Pick<Partial<ReviewComment>, "body" | "status">,
+    patch: ReviewCommentPatch,
     transport: ProjectTransport = "local",
   ) {
     const body = await this.transportJson<{ comment: ReviewComment }>(

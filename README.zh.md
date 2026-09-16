@@ -58,6 +58,8 @@ BlendProof 是一个专注于协作审稿的 Blender 风格 Web 3D 工作台。�
 
 产品形态与账号约定——首页布局、角色、邀请码与保留策略——汇总在 [`docs/PRODUCT_CONVENTIONS.md`](docs/PRODUCT_CONVENTIONS.md)。
 
+体验改造与前端解耦方案（目标模块划分、依赖方向规则、文件行数预算）见 [`docs/UX_OVERHAUL_AND_DECOUPLING.md`](docs/UX_OVERHAUL_AND_DECOUPLING.md)。
+
 <p align="right">(<a href="#readme-top">回到顶部</a>)</p>
 
 ## 功能特性

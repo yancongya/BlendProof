@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  reviewRepository,
-  type ReviewComment,
-  type ReviewCommentDraft,
-} from "../reviewRepository";
-import type { ProjectTransport } from "../api/blendProofClient";
+import type { ProjectTransport } from "../../../api/blendProofClient";
+import { reviewRepository } from "../api/reviewRepository";
+import type {
+  ReviewComment,
+  ReviewCommentDraft,
+  ReviewCommentPatch,
+} from "../types";
 
-export function useReviewComments(projectId: string | null, ownerCapability: string | null, transport: ProjectTransport = "local") {
+export function useReviewComments(
+  projectId: string | null,
+  ownerCapability: string | null,
+  transport: ProjectTransport = "local",
+) {
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -70,13 +75,16 @@ export function useReviewComments(projectId: string | null, ownerCapability: str
   );
 
   const update = useCallback(
-    async (
-      commentId: string,
-      patch: Pick<Partial<ReviewComment>, "body" | "status">,
-    ) => {
+    async (commentId: string, patch: ReviewCommentPatch) => {
       if (!projectId || !ownerCapability) throw new Error("缺少项目所有者凭据。");
       const generation = ++requestGeneration.current;
-      const comment = await reviewRepository.update(projectId, ownerCapability, commentId, patch, transport);
+      const comment = await reviewRepository.update(
+        projectId,
+        ownerCapability,
+        commentId,
+        patch,
+        transport,
+      );
       if (
         requestGeneration.current === generation &&
         activeProjectId.current === projectId

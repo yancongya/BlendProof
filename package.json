@@ -22,6 +22,7 @@
     "test:review-api": "tsx --test tests/review-api.test.ts",
     "test:backend": "tsx --test tests/blendproof-client.test.ts tests/db.test.ts tests/legacy-migration.test.ts tests/local-storage.test.ts tests/review-api.test.ts",
     "check:worker": "tsc -p tsconfig.worker.json --pretty false",
+    "check:arch": "node scripts/check-architecture.mjs",
     "test:worker": "vitest run --config vitest.config.mts",
     "worker:types": "wrangler types",
     "worker:dev": "wrangler dev --local",

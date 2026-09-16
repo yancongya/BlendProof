@@ -5,8 +5,8 @@
 
 import { getLang } from "./i18n";
 import type { SharedViewState, DisplayMode } from "./types";
-import type { ReviewCameraState } from "./reviewRepository";
-import type { Vec3 } from "./reviewRepository";
+import type { CameraState } from "./shared/types/camera";
+import type { Vec3 } from "./shared/types/geometry";
 import { OrthographicCamera, PerspectiveCamera } from "three";
 import type { Camera as ThreeCamera } from "three";
 
@@ -119,7 +119,7 @@ export function isLocalBridgeResource(value: string) {
 export function captureCameraState(
   camera: ThreeCamera,
   target: Vec3,
-): ReviewCameraState {
+): CameraState {
   const base = {
     position: camera.position.toArray() as Vec3,
     quaternion: camera.quaternion.toArray() as [number, number, number, number],

@@ -1,10 +1,12 @@
 /**
  * Shared domain types for BlendProof's viewer, workspace, and share pages.
- * Extracted from App.tsx to allow individual page/component files to import
- * only what they need without pulling in the full monolith.
+ *
+ * 正在按域迁出（见 docs/UX_OVERHAUL_AND_DECOUPLING.md）：
+ * 审稿相关类型已迁至 features/review，相机与几何基础类型已迁至 shared/types。
  */
 
 import type { OwnerProject } from "./api/blendProofClient";
+import type { CameraState } from "./shared/types/camera";
 
 // ---------------------------------------------------------------------------
 // Core domain aliases
@@ -32,7 +34,6 @@ export type Manifest = {
 
 export type DisplayMode = "material" | "gray" | "wire";
 export type ShadingMode = "smooth" | "flat";
-export type ReviewFilter = "all" | "open" | "resolved";
 
 export type CameraPreset =
   | "perspective"
@@ -57,26 +58,10 @@ export type ActiveShareStatus = {
 // Shared view (URL fragment)
 // ---------------------------------------------------------------------------
 
-import type { ReviewCameraState } from "./reviewRepository";
-
 export type SharedViewState = {
   version: 1;
-  camera: ReviewCameraState;
+  camera: CameraState;
   displayMode: DisplayMode;
   hidden: string[];
   selected: string[];
-};
-
-// ---------------------------------------------------------------------------
-// Annotation helpers
-// ---------------------------------------------------------------------------
-
-import type { Vec3 } from "./reviewRepository";
-import type { ReviewCommentDraft } from "./reviewRepository";
-
-export type PendingReview = Omit<ReviewCommentDraft, "body" | "authorName">;
-export type AnnotationHit = {
-  position: Vec3;
-  normal: Vec3;
-  objectName: string | null;
 };

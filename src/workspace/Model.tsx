@@ -28,8 +28,9 @@ import {
   type Object3D,
 } from "three";
 import { blendProofClient } from "../api/blendProofClient";
-import type { DisplayMode, ShadingMode, AnnotationHit, PendingReview, SelectionBox } from "../types";
-import type { Vec3 } from "../reviewRepository";
+import type { DisplayMode, ShadingMode, SelectionBox } from "../types";
+import type { AnnotationHit, PendingReview } from "../features/review";
+import type { Vec3 } from "../shared/types/geometry";
 
 // ---------------------------------------------------------------------------
 // objectIdentity / selectableAncestorName / belongsToAnySelected

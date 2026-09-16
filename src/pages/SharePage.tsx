@@ -24,7 +24,7 @@ import type { Manifest, DisplayMode, CameraPreset } from "../types";
 import type {
   ReviewComment,
   ReviewCommentDraft,
-} from "../reviewRepository";
+} from "../features/review";
 
 // ---------------------------------------------------------------------------
 // Demo constants (Suzanne permanent share)

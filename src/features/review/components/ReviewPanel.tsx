@@ -4,11 +4,10 @@
  * Also shows a compose area when a pending annotation is being placed.
  */
 
-import { useEffect, useState } from "react";
 import { MessageSquarePlus } from "lucide-react";
-import { tf } from "../i18n";
-import type { ReviewComment } from "../reviewRepository";
-import type { PendingReview } from "../types";
+import { useEffect, useState } from "react";
+import { tf } from "../../../i18n";
+import type { PendingReview, ReviewComment } from "../types";
 
 export function ReviewPanel({
   comments,

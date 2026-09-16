@@ -45,8 +45,14 @@ import { BlenderLogo } from "../components/BlenderLogo";
 import { GuidedTour, type GuidedTourStep } from "../components/GuidedTour";
 import { MenubarActions } from "../components/TopActions";
 import { ConversionSummary } from "../components/ConversionSummary";
-import { ReviewAnnotations } from "../review/ReviewAnnotations";
-import { ReviewPanel } from "../review/ReviewPanel";
+import {
+  ReviewAnnotations,
+  ReviewPanel,
+  type AnnotationHit,
+  type PendingReview,
+  type ReviewComment,
+  type ReviewCommentDraft,
+} from "../features/review";
 import { BlenderViewportGrid } from "./BlenderViewportGrid";
 import { BlenderViewControls } from "./BlenderViewControls";
 import {
@@ -58,21 +64,15 @@ import { t, tf } from "../i18n";
 import { formatShareExpiry } from "../utils";
 import type {
   ActiveShareStatus,
-  AnnotationHit,
   CameraPreset,
   DisplayMode,
   Manifest,
-  PendingReview,
   Project,
   SelectionBox,
   ShadingMode,
 } from "../types";
-import type {
-  ReviewCameraState,
-  ReviewComment,
-  ReviewCommentDraft,
-  Vec3,
-} from "../reviewRepository";
+import type { CameraState } from "../shared/types/camera";
+import type { Vec3 } from "../shared/types/geometry";
 
 
 // ---------------------------------------------------------------------------
@@ -244,8 +244,8 @@ export function BlenderWorkspace({
     commentId: string,
     patch: Pick<Partial<ReviewComment>, "body" | "status">,
   ) => Promise<ReviewComment>;
-  initialCamera?: ReviewCameraState | null;
-  onViewStateChange?: (camera: ReviewCameraState) => void;
+  initialCamera?: CameraState | null;
+  onViewStateChange?: (camera: CameraState) => void;
   uploaderOpen?: boolean;
   onOpenUploader?: () => void;
   onCloseUploader?: () => void;
@@ -304,7 +304,7 @@ export function BlenderWorkspace({
     nonce: number;
   } | null>(null);
   const [reviewCameraRequest, setReviewCameraRequest] = useState<{
-    camera: ReviewCameraState;
+    camera: CameraState;
     nonce: number;
   } | null>(null);
   const uploaderTriggerRef = useRef<HTMLButtonElement>(null);

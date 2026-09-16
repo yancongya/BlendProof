@@ -20,10 +20,11 @@ import {
   type Object3D,
 } from "three";
 import type { CameraPreset } from "../types";
-import type { ReviewCameraState, Vec3 } from "../reviewRepository";
+import type { CameraState } from "../shared/types/camera";
+import type { Vec3 } from "../shared/types/geometry";
 import { captureCameraState } from "../utils";
 
-export type { ReviewCameraState };
+export type { CameraState };
 
 export function BlenderViewControls({
   preset,
@@ -38,9 +39,9 @@ export function BlenderViewControls({
   fileCameras: ThreeCamera[];
   scene: Object3D | null;
   onTargetChange: (target: Vec3) => void;
-  reviewCameraRequest: { camera: ReviewCameraState; nonce: number } | null;
+  reviewCameraRequest: { camera: CameraState; nonce: number } | null;
   focusRequest: { names: string[]; nonce: number } | null;
-  onViewStateChange?: (camera: ReviewCameraState) => void;
+  onViewStateChange?: (camera: CameraState) => void;
 }) {
   const { camera, gl, set, size } = useThree();
   const controls = useRef<any>(null);

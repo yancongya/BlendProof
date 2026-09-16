@@ -58,6 +58,8 @@ The uploader and the `/s/<token>` share route are the same application and the s
 
 Product and account conventions — home page layout, roles, invite codes, and retention policy — are collected in [`docs/PRODUCT_CONVENTIONS.md`](docs/PRODUCT_CONVENTIONS.md).
 
+The in-flight experience overhaul and the front-end decoupling plan (target module layout, dependency rules, file-size budgets) live in [`docs/UX_OVERHAUL_AND_DECOUPLING.md`](docs/UX_OVERHAUL_AND_DECOUPLING.md).
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Features

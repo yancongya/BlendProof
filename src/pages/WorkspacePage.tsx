@@ -23,7 +23,7 @@ import {
   type ProjectTransport,
   type PublicStats,
 } from "../api/blendProofClient";
-import { useReviewComments } from "../review/useReviewComments";
+import { useReviewComments } from "../features/review";
 import { useI18n, t, tf } from "../i18n";
 import { encodeSharedView, isLocalBridgeResource } from "../utils";
 import type {
@@ -33,7 +33,7 @@ import type {
   Manifest,
   Project,
 } from "../types";
-import type { ReviewCameraState } from "../reviewRepository";
+import type { CameraState } from "../shared/types/camera";
 
 // ---------------------------------------------------------------------------
 // Constants shared between workspace and the demo overlay
@@ -127,7 +127,7 @@ export function WorkspacePage() {
   const [accountStats, setAccountStats] = useState<AccountStats | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
-  const [currentCamera, setCurrentCamera] = useState<ReviewCameraState | null>(null);
+  const [currentCamera, setCurrentCamera] = useState<CameraState | null>(null);
   const [startTabHint, setStartTabHint] = useState<"start" | "recent" | "status" | "account" | null>(null);
 
   const openUploader = useCallback(() => {
