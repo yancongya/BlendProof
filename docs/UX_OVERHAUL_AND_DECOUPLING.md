@@ -302,7 +302,7 @@ app → pages → features → shared
 | 阶段 | 状态 | 备注 |
 |---|---|---|
 | 4.0 立规则 | 已完成（2026-09-17） | `docs/ARCHITECTURE_RULES.md` + `scripts/check-architecture.mjs`（零依赖，`npm run check:arch`），已用反向用例验证可拦截三类违规 |
-| A 审稿闭环 | 未开始 | 契约已固化（A0，2026-09-17，见 `REVIEW_CONTRACT.md`）；域名拆分已完成（4.1） |
+| A 审稿闭环 | 进行中 | 契约已固化（A0，2026-09-17）；域名拆分完成（4.1）；**A1/A2 后端已完成**（迁移 + 双通道路由 + 令牌方案 + 测试），前端 UI 待做 |
 | B 容错与状态 | 未开始 | 依赖 4.3、4.4 |
 | C 落地页 | 未开始 | 依赖 4.2 |
 | D 客户视角分层 | 未开始 | 依赖 4.3 |
@@ -320,4 +320,9 @@ app → pages → features → shared
 ### 执行中的事实修正
 
 - **演示批注已改为分享页专属**：`DEMO_COMMENTS` 现位于 `src/pages/SharePage.tsx:36`，创作者工作台侧刻意留空（见 `WorkspacePage.tsx:148` 注释）。阶段 A 的"客户侧状态可见"（A4）仍适用。
-- **访客身份不可验证**：`comments.author_id` 对访客恒为 `null`，唯一身份是自由填写的 `author_name`。因此访客删除自己的批注必须引入删除令牌（`delete_token`），详见 `REVIEW_CONTRACT.md`。
+- **访客身份不可验证**：`comments.author_id` 对访客恒为 `null`，唯一身份是自由填写的 `author_name`。因此访客删除自己的批注必须引入删除令牌（`delete_token_hash`），详见 `REVIEW_CONTRACT.md`。
+- **顺带修掉三个既有双通道分叉**（实施 A1/A2 时被新测试暴露）：
+  1. 写入是否 `trim()` 不一致（worker 会、SQLite 不会）
+  2. 排序 tiebreaker 用随机 id，同一毫秒创建时顺序不确定 → 改 `rowid`
+  3. 删除令牌熵不一致（worker 16 字节 vs server 32 字节）
+  这三项已修复并有测试锁定；说明"两通道必须同步变更"的约束是真实且高频的，后续每个改动都要同时覆盖。
