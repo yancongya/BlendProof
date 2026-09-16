@@ -38,10 +38,13 @@ Progress: ████▉ 99%
 - 尚需在真实浏览器中完成管理员登录、本机 `.blend` 转换后发布、第二浏览器评论与过期清理的端到端验收。
 - `0009_platform_lifetime_metrics.sql` 已上线；根页刷新默认打开欢迎封面，状态 Tab 每秒更新运行时长、每 30 秒同步容量与累计处理/清理文件和字节统计。
 - 完成 `src/App.tsx` 模块化重构：将 2685 行单文件拆分为 `src/pages/`、`src/workspace/`、`src/start/`、`src/review/`、`src/components/` 及 `src/types.ts` / `src/utils.ts`，`App.tsx` 瘦身为轻量路由与 re-export 入口。
+- 增加未登录用户操作拦截与引导：未登录时尝试发布云端或创建分享，提示友好警告并自动切换至欢迎页“账号”Tab。
+- 增加通用访客体验账号（`guest@blendproof.itycon.cn` / `tycon`）及一键登录能力；Worker `auth.ts` 自动确保访客账号在 D1 中的正常会话，无需邀请码。
+- 完善线上 Suzanne 猴头模型公开演示（`/s/suzanne`）的真实持久化审稿：Worker `shares.ts` 支持 `suzanne` 路由与 D1 项目/分享自动关联，访客添加的批注持久化存入 D1 数据库且永久豁免 48 小时清理；前端 `SharePage.tsx` 接入云端接口并提供离线兜底，启动页增加一键跳转公开演示。
 
 ## Session Continuity
 
 Last session: 2026-09-16
-Stopped at: Completed App.tsx modularization and quality verification
+Stopped at: Completed unauthenticated UX gating, guest demo account login, and online Suzanne persistent review annotation support
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 

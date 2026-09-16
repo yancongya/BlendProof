@@ -128,6 +128,7 @@ export function WorkspacePage() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
   const [currentCamera, setCurrentCamera] = useState<ReviewCameraState | null>(null);
+  const [startTabHint, setStartTabHint] = useState<"start" | "recent" | "status" | "account" | null>(null);
 
   const openUploader = useCallback(() => {
     // Opening the file panel is always a fresh selection flow; the active Viewer project stays intact.
@@ -268,6 +269,12 @@ export function WorkspacePage() {
   async function createShare() {
     const target = cloudProject ?? project;
     if (!target) return;
+    if (cloudProject && !account) {
+      setMessage("创建云端分享需要登录账号，请先登录。");
+      setStartTabHint("account");
+      setHomeOpen(true);
+      return;
+    }
     try {
       const transport: ProjectTransport = cloudProject ? "cloud" : "local";
       const share = await blendProofClient.createShare(
@@ -338,6 +345,12 @@ export function WorkspacePage() {
 
   async function publishCloud() {
     if (!project || !manifest) return;
+    if (!account) {
+      setMessage("发布云端需要登录账号，请先登录。");
+      setStartTabHint("account");
+      setHomeOpen(true);
+      return;
+    }
     setProcessing(true);
     setUploadStage("uploading");
     setMessage("正在将 GLB 与裁剪后的清单发布到云端快递柜。");
@@ -558,7 +571,11 @@ export function WorkspacePage() {
           onCreateInvite={(expiresInHours, maxUses) =>
             blendProofClient.createInvite(expiresInHours, maxUses)
           }
-          onClose={() => setHomeOpen(false)}
+          initialTab={startTabHint ?? "start"}
+          onClose={() => {
+            setStartTabHint(null);
+            setHomeOpen(false);
+          }}
         />
       </>
     );
@@ -619,6 +636,7 @@ export function WorkspacePage() {
           publishTitle={publishTitle}
           onPublishTitle={setPublishTitle}
           onPublish={() => void publishCloud()}
+          account={account}
         />
       }
     >

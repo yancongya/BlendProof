@@ -44,6 +44,7 @@ export function UploaderPanel({
   publishTitle = "",
   onPublishTitle,
   onPublish,
+  account,
 }: {
   file: File | null;
   stage: UploadStage;
@@ -59,6 +60,7 @@ export function UploaderPanel({
   publishTitle?: string;
   onPublishTitle?: (title: string) => void;
   onPublish?: () => void;
+  account?: unknown | null;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -219,7 +221,13 @@ export function UploaderPanel({
           </label>
           <button type="button" disabled={!manifest || !publishTitle.trim() || stage === "uploading" || stage === "published"} onClick={onPublish}>
             {stage === "uploading" ? <LoaderCircle className="spin" size={13} /> : <UploadCloud size={13} />}
-            {stage === "uploading" ? "正在上传派生资产…" : stage === "published" ? "已发布到云端" : "发布 GLB 到云端"}
+            {stage === "uploading"
+              ? "正在上传派生资产…"
+              : stage === "published"
+              ? "已发布到云端"
+              : !account
+              ? "登录后发布 GLB 到云端"
+              : "发布 GLB 到云端"}
           </button>
           <small>只上传 GLB 与裁剪后的清单，原始 .blend 不会离开本机。</small>
         </section>

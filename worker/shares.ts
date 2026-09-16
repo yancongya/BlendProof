@@ -42,21 +42,21 @@ export async function handleShareRequest(request: Request, env: ShareEnv, url: U
     const originError = mutationOriginError(request, env)
     return originError ?? updateOwnerComment(request, env, ownerComment[1], ownerComment[2])
   }
-  const access = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32})\/access$/)
+  const access = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/access$/)
   if (access && request.method === 'POST') {
     const originError = mutationOriginError(request, env)
     return originError ?? accessShare(request, env, access[1])
   }
-  const status = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32})\/status$/)
+  const status = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/status$/)
   if (status && request.method === 'GET') return shareStatus(request, env, status[1])
-  const asset = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32})\/(model\.glb|manifest\.json)$/)
+  const asset = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/(model\.glb|manifest\.json)$/)
   if (asset && request.method === 'GET') return shareAsset(request, env, asset[1], asset[2] as 'model.glb' | 'manifest.json')
-  const guestComments = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32})\/comments$/)
+  const guestComments = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/comments$/)
   if (guestComments && request.method === 'POST') {
     const originError = mutationOriginError(request, env)
     return originError ?? createGuestComment(request, env, guestComments[1])
   }
-  const load = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32})$/)
+  const load = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)$/)
   if (load && request.method === 'GET') return loadShare(request, env, load[1])
   return null
 }
@@ -179,14 +179,109 @@ async function shareStatus(request: Request, env: ShareEnv, token: string): Prom
     commentsPermission: share.comments_permission }, { headers: privateHeaders(share) })
 }
 
+export const SUZANNE_TOKEN = 'suzanne'
+export const SUZANNE_PASSWORD = 'tycon'
+export const SUZANNE_PROJECT_ID = '00000000000000000000000000000001'
+export const SUZANNE_SHARE_ID = '00000000000000000000000000000001'
+
+const DEFAULT_MONKEY_MANIFEST: Record<string, unknown> = {
+  scene: 'Suzanne 演示',
+  camera: null,
+  cameras: [],
+  objects: [{ name: '苏珊娜', type: 'MESH', collections: ['Collection'] }],
+  collections: ['Collection'],
+  materials: ['Material'],
+  export: { glbBytes: 69708, objectCount: 1 },
+}
+
+const INITIAL_SUZANNE_COMMENTS = [
+  {
+    objectName: '苏珊娜',
+    position: [0, 0.5, 1.2],
+    normal: [0, 0, 1],
+    camera: {
+      projection: 'perspective',
+      position: [0, 0, 3],
+      quaternion: [0, 0, 0, 1],
+      target: [0, 0, 0],
+      fov: 45,
+    },
+    body: '头顶多边形密度偏高，建议减面以降低 Web 端渲染负担。',
+    authorName: '平台管理员',
+  },
+  {
+    objectName: '苏珊娜',
+    position: [0.8, 0.2, 0.3],
+    normal: [1, 0, 0],
+    camera: {
+      projection: 'perspective',
+      position: [2, 1, 2],
+      quaternion: [0, 0, 0, 1],
+      target: [0, 0, 0],
+      fov: 45,
+    },
+    body: '右耳边缘法线翻转，渲染时出现黑色伪影。',
+    authorName: '张工',
+  },
+  {
+    objectName: null,
+    position: [0, -0.3, 0.8],
+    normal: [0, -1, 0],
+    camera: {
+      projection: 'perspective',
+      position: [0, 0.5, 3],
+      quaternion: [0, 0, 0, 1],
+      target: [0, 0, 0],
+      fov: 45,
+    },
+    body: '整体模型质量不错，可直接用于审稿演示。',
+    authorName: '李审核',
+  },
+]
+
+async function ensureSuzanneDemo(env: ShareEnv): Promise<void> {
+  const existing = await env.DB.prepare('SELECT id FROM projects WHERE id = ?').bind(SUZANNE_PROJECT_ID).first()
+  if (existing) return
+  const now = new Date().toISOString()
+  const pwhash = await hashPassword(SUZANNE_PASSWORD)
+  const tokenHash = await sha256Text(SUZANNE_TOKEN)
+  const capHash = await sha256Text('suzanne-demo-capability')
+
+  await env.DB.batch([
+    env.DB.prepare(`INSERT OR IGNORE INTO projects
+      (id, name, owner_id, owner_capability_hash, storage_namespace, status, asset_version, expires_at, created_at, updated_at)
+      VALUES (?, 'Suzanne 演示', NULL, ?, 'suzanne-demo', 'ready', 1, NULL, ?, ?)`
+    ).bind(SUZANNE_PROJECT_ID, capHash, now, now),
+    env.DB.prepare(`INSERT OR IGNORE INTO shares
+      (id, project_id, token_hash, password_hash, expires_at, comments_permission, revoked_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, NULL, 'comment', NULL, ?, ?)`
+    ).bind(SUZANNE_SHARE_ID, SUZANNE_PROJECT_ID, tokenHash, pwhash, now, now),
+  ])
+
+  const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM comments WHERE project_id = ?').bind(SUZANNE_PROJECT_ID).first<{ count: number }>()
+  if ((count?.count ?? 0) === 0) {
+    for (const item of INITIAL_SUZANNE_COMMENTS) {
+      await insertComment(env, SUZANNE_PROJECT_ID, item, 'owner')
+    }
+  }
+}
+
 async function loadShare(request: Request, env: ShareEnv, token: string): Promise<Response> {
   const found = await resolveShare(env, token, true, request)
   if (found instanceof Response) return found
   const { share, project } = found
-  const manifest = await readManifest(env, project)
-  if (manifest === null) return shareError('分享模型不存在。', 404, share)
+  let manifest: Record<string, unknown> | null
+  let modelUrl: string
+  if (token === SUZANNE_TOKEN) {
+    manifest = DEFAULT_MONKEY_MANIFEST
+    modelUrl = '/default-monkey.glb'
+  } else {
+    manifest = await readManifest(env, project)
+    if (manifest === null) return shareError('分享模型不存在。', 404, share)
+    modelUrl = `/api/shares/${token}/model.glb`
+  }
   const comments = await commentsFor(env, project.id)
-  return Response.json({ name: project.name, modelUrl: `/api/shares/${token}/model.glb`,
+  return Response.json({ name: project.name, modelUrl,
     manifest, comments: comments.map(toPublicComment), commentsPermission: share.comments_permission,
     expiresAt: share.expires_at }, { headers: privateHeaders(share) })
 }
@@ -195,6 +290,12 @@ async function shareAsset(request: Request, env: ShareEnv, token: string, asset:
   const found = await resolveShare(env, token, true, request)
   if (found instanceof Response) return found
   const { share, project } = found
+  if (token === SUZANNE_TOKEN) {
+    if (asset === 'manifest.json') {
+      return Response.json(DEFAULT_MONKEY_MANIFEST, { headers: privateHeaders(share) })
+    }
+    return new Response(null, { status: 302, headers: { Location: '/default-monkey.glb', ...privateHeaders(share) } })
+  }
   if (asset === 'manifest.json') {
     const manifest = await readManifest(env, project)
     return manifest === null
@@ -229,6 +330,9 @@ async function createGuestComment(request: Request, env: ShareEnv, token: string
 }
 
 async function resolveShare(env: ShareEnv, token: string, passwordRequired: boolean, request?: Request): Promise<{ share: ShareRow; project: ProjectRow } | Response> {
+  if (token === SUZANNE_TOKEN) {
+    await ensureSuzanneDemo(env)
+  }
   const row = await env.DB.prepare(`SELECT s.id, s.project_id, s.password_hash, s.expires_at, s.comments_permission,
     s.revoked_at, s.created_at, s.updated_at FROM shares s JOIN projects p ON p.id = s.project_id
     WHERE s.token_hash = ? AND p.status = 'ready'`).bind(await sha256Text(token)).first<ShareRow>()

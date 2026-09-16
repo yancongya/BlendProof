@@ -1337,6 +1337,30 @@
 }
 .start-share-entry > div button { padding: 0 15px; border: 1px solid #a85b10; border-radius: 2px; background: #a65209; color: #fff; font-size: 10px; }
 .start-share-entry > small { margin-top: -7px; color: #db7777; font-size: 9px; }
+.start-demo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 12px;
+  border: 1px dashed #4b4b4b;
+  border-radius: 2px;
+  background: #202020;
+  color: #c9c9c9;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.start-demo-btn:hover {
+  background: #282828;
+  border-color: #f38a21;
+  color: #fff;
+}
+.start-demo-btn svg {
+  color: #f38a21;
+}
 .start-recent-panel, .start-system-panel, .start-user-panel { max-width: 760px; margin: 0 auto; }
 .start-panel-heading { display: flex; min-height: 28px; align-items: center; justify-content: space-between; margin-bottom: 9px; color: #bdbdbd; font-size: 10px; font-weight: 550; }
 .start-panel-heading > span { display: inline-flex; align-items: center; gap: 6px; }

@@ -110,11 +110,16 @@ export function SharePage() {
     .filter(Boolean)
     .at(-1);
   const sharedView = useMemo(readSharedView, []);
+  const searchSource = new URLSearchParams(window.location.search).get("source");
+  const isDemoShare = token === DEMO_SHARE_TOKEN;
   const transport: ProjectTransport =
-    new URLSearchParams(window.location.search).get("source") === "cloud"
+    searchSource === "cloud" ||
+    isDemoShare ||
+    (!searchSource &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1")
       ? "cloud"
       : "local";
-  const isDemoShare = token === DEMO_SHARE_TOKEN;
   const [share, setShare] = useState<{
     name: string;
     modelUrl: string;
@@ -167,7 +172,6 @@ export function SharePage() {
   }, [passwordRequired, share, sharedView]);
 
   const loadShare = useCallback(() => {
-    if (isDemoShare) return;
     if (!token) return setError("缺少分享标识。");
     setError(null);
     blendProofClient
@@ -176,13 +180,17 @@ export function SharePage() {
         setPasswordRequired(false);
         setShare(body);
       })
-      .catch((reason) =>
-        setError(reason instanceof Error ? reason.message : "无法读取分享。"),
-      );
+      .catch((reason) => {
+        if (isDemoShare) {
+          // Fallback if offline
+          setPasswordRequired(false);
+          return;
+        }
+        setError(reason instanceof Error ? reason.message : "无法读取分享。");
+      });
   }, [isDemoShare, token, transport]);
 
   useEffect(() => {
-    if (isDemoShare) return;
     if (!token) return setError("缺少分享标识。");
     blendProofClient
       .shareStatus(token, transport)
@@ -190,26 +198,27 @@ export function SharePage() {
         if (body.passwordRequired) setPasswordRequired(true);
         else loadShare();
       })
-      .catch((reason) =>
-        setError(reason instanceof Error ? reason.message : "无法读取分享。"),
-      );
+      .catch((reason) => {
+        if (isDemoShare) {
+          // Fallback if offline
+          return;
+        }
+        setError(reason instanceof Error ? reason.message : "无法读取分享。");
+      });
   }, [isDemoShare, loadShare, token, transport]);
 
   async function unlockShare() {
-    if (isDemoShare) {
-      if (password !== DEMO_SHARE_PASSWORD) {
-        setError("分享密码不正确。");
-        return;
-      }
-      setError(null);
-      setPasswordRequired(false);
-      return;
-    }
     if (!token) return setError("缺少分享标识。");
     try {
       await blendProofClient.unlockShare(token, password, transport);
       loadShare();
     } catch (reason) {
+      if (isDemoShare && password === DEMO_SHARE_PASSWORD) {
+        // Fallback for offline demo
+        setError(null);
+        setPasswordRequired(false);
+        return;
+      }
       setError(reason instanceof Error ? reason.message : "密码验证失败。");
     }
   }
@@ -218,35 +227,40 @@ export function SharePage() {
     if (!token) throw new Error("缺少分享标识。");
     const name = guestName.trim() || (isDemoShare ? "访客" : "");
     if (!name) throw new Error("请先填写审核名称。");
-    if (isDemoShare) {
-      const now = new Date().toISOString();
-      const comment: ReviewComment = {
-        ...draft,
-        id: `demo-${Date.now()}`,
-        projectId: DEMO_SHARE_TOKEN,
-        authorName: name,
-        status: "open",
-        createdAt: now,
-        updatedAt: now,
-      };
+    try {
+      const comment = await blendProofClient.createGuestComment(
+        token,
+        { ...draft, authorName: name },
+        transport,
+      );
       setShare((current) =>
         current
           ? { ...current, comments: [...current.comments, comment] }
           : current,
       );
       return comment;
+    } catch (reason) {
+      if (isDemoShare) {
+        // Fallback for offline demo
+        const now = new Date().toISOString();
+        const comment: ReviewComment = {
+          ...draft,
+          id: `demo-${Date.now()}`,
+          projectId: DEMO_SHARE_TOKEN,
+          authorName: name,
+          status: "open",
+          createdAt: now,
+          updatedAt: now,
+        };
+        setShare((current) =>
+          current
+            ? { ...current, comments: [...current.comments, comment] }
+            : current,
+        );
+        return comment;
+      }
+      throw reason;
     }
-    const comment = await blendProofClient.createGuestComment(
-      token,
-      { ...draft, authorName: name },
-      transport,
-    );
-    setShare((current) =>
-      current
-        ? { ...current, comments: [...current.comments, comment] }
-        : current,
-    );
-    return comment;
   }
 
   if (passwordRequired)

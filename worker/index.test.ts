@@ -733,6 +733,89 @@ describe('BlendProof Worker local runtime', () => {
     })
     expect(tooLong.status).toBe(400)
   })
+
+  it('supports universal guest demo login without invite code', async () => {
+    const origin = 'http://localhost:5173'
+    const login = await SELF.fetch('https://blendproof.test/api/auth/login', {
+      method: 'POST',
+      headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'guest@blendproof.itycon.cn', password: 'tycon' }),
+    })
+    expect(login.status).toBe(200)
+    const guestCookie = (login.headers.get('set-cookie') ?? '').split(';', 1)[0]
+    expect(guestCookie).toContain('bp_session=')
+    const body = await login.json<{ user: { email: string; role: string; displayName: string } }>()
+    expect(body.user).toMatchObject({
+      email: 'guest@blendproof.itycon.cn',
+      displayName: '访客体验',
+      role: 'user',
+    })
+
+    const me = await SELF.fetch('https://blendproof.test/api/me', { headers: { cookie: guestCookie } })
+    expect(me.status).toBe(200)
+    expect(await me.json()).toMatchObject({ user: { email: 'guest@blendproof.itycon.cn' } })
+  })
+
+  it('serves the permanent Suzanne demo share and persists guest review comments', async () => {
+    const origin = 'http://localhost:5173'
+    const status = await SELF.fetch('https://blendproof.test/api/shares/suzanne/status')
+    expect(status.status).toBe(200)
+    const statusBody = await status.json<{ passwordRequired: boolean; commentsPermission: string }>()
+    expect(statusBody).toEqual({ passwordRequired: true, commentsPermission: 'comment' })
+
+    const unauthLoad = await SELF.fetch('https://blendproof.test/api/shares/suzanne')
+    expect(unauthLoad.status).toBe(401)
+
+    const wrong = await SELF.fetch('https://blendproof.test/api/shares/suzanne/access', {
+      method: 'POST',
+      headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'wrong' }),
+    })
+    expect(wrong.status).toBe(403)
+
+    const unlock = await SELF.fetch('https://blendproof.test/api/shares/suzanne/access', {
+      method: 'POST',
+      headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ password: 'tycon' }),
+    })
+    expect(unlock.status).toBe(204)
+    const accessCookie = (unlock.headers.get('set-cookie') ?? '').split(';', 1)[0]
+    expect(accessCookie).toContain('bp_access_suzanne=')
+
+    const loaded = await SELF.fetch('https://blendproof.test/api/shares/suzanne', {
+      headers: { cookie: accessCookie },
+    })
+    expect(loaded.status).toBe(200)
+    const share = await loaded.json<{ name: string; modelUrl: string; manifest: { scene: string }; comments: Array<{ body: string }> }>()
+    expect(share.name).toBe('Suzanne 演示')
+    expect(share.modelUrl).toBe('/default-monkey.glb')
+    expect(share.manifest.scene).toBe('Suzanne 演示')
+    expect(share.comments.length).toBeGreaterThanOrEqual(3)
+
+    const postComment = await SELF.fetch('https://blendproof.test/api/shares/suzanne/comments', {
+      method: 'POST',
+      headers: { origin, cookie: accessCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        objectName: '苏珊娜',
+        position: [0.1, 0.2, 0.3],
+        normal: [0, 1, 0],
+        camera: { projection: 'perspective', position: [0, 0, 3], quaternion: [0, 0, 0, 1], target: [0, 0, 0], fov: 45 },
+        body: '线上测试批注：猴头材质光泽度良好。',
+        authorName: '在线体验者',
+      }),
+    })
+    expect(postComment.status).toBe(201)
+    const commentResp = await postComment.json<{ comment: { body: string; authorName: string } }>()
+    expect(commentResp.comment.body).toBe('线上测试批注：猴头材质光泽度良好。')
+    expect(commentResp.comment.authorName).toBe('在线体验者')
+
+    const reloaded = await SELF.fetch('https://blendproof.test/api/shares/suzanne', {
+      headers: { cookie: accessCookie },
+    })
+    expect(reloaded.status).toBe(200)
+    const reloadedShare = await reloaded.json<{ comments: Array<{ body: string; authorName: string }> }>()
+    expect(reloadedShare.comments.some((c) => c.body === '线上测试批注：猴头材质光泽度良好。')).toBe(true)
+  })
 })
 
 async function pendingProject(name: string, id = randomHex(16)) {

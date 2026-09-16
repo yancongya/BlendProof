@@ -19,6 +19,7 @@ import {
   User,
   X,
   Box,
+  Eye,
 } from "lucide-react";
 import { BlenderLogo } from "../components/BlenderLogo";
 import { SplashActions } from "../components/TopActions";
@@ -44,6 +45,7 @@ export function StartPage({
   onRegister,
   onLogout,
   onCreateInvite,
+  initialTab = "start",
   onClose,
 }: {
   recentProjects: Project[];
@@ -64,6 +66,7 @@ export function StartPage({
     expiresInHours: number,
     maxUses: number,
   ) => Promise<{ code: string; expiresAt: string; maxUses: number }>;
+  initialTab?: "start" | "recent" | "status" | "account";
   onClose: () => void;
 }) {
   const [shareInput, setShareInput] = useState("");
@@ -78,7 +81,7 @@ export function StartPage({
   const [accountBusy, setAccountBusy] = useState(false);
   const [startTab, setStartTab] = useState<
     "start" | "recent" | "status" | "account"
-  >("start");
+  >(initialTab);
   const [legalDocument, setLegalDocument] = useState<
     "privacy" | "terms" | null
   >(null);
@@ -267,6 +270,14 @@ export function StartPage({
                     <button type="submit">打开</button>
                   </div>
                   {shareError && <small role="alert">{shareError}</small>}
+                  <button
+                    type="button"
+                    className="start-demo-btn"
+                    onClick={() => window.location.assign("/s/suzanne")}
+                  >
+                    <Eye size={14} />
+                    <span>快速体验：Suzanne 猴头公开演示（口令 tycon）</span>
+                  </button>
                 </form>
               </section>
             </div>
@@ -498,6 +509,34 @@ export function StartPage({
                     >
                       <KeyRound size={13} /> 使用邀请码注册
                     </button>
+                  </div>
+                  <div className="demo-account-box" style={{ marginTop: '16px', padding: '12px', background: '#1c1c1c', border: '1px solid #333', borderRadius: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#e87d0d', fontSize: '11px', fontWeight: 600, marginBottom: '6px' }}>
+                      <ShieldCheck size={14} /> 公开体验账号
+                    </div>
+                    <p style={{ margin: '0 0 8px', color: '#999', fontSize: '10px', lineHeight: 1.5 }}>
+                      访客可使用通用体验账号登录，体验完整的项目审稿与批注功能：
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 8px', fontSize: '10px', color: '#bbb', background: '#141414', padding: '8px', borderRadius: '2px', border: '1px solid #282828' }}>
+                      <span style={{ color: '#777' }}>邮箱：</span>
+                      <code>guest@blendproof.itycon.cn</code>
+                      <span style={{ color: '#777' }}>密码：</span>
+                      <code>tycon</code>
+                    </div>
+                    <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        style={{ padding: '4px 10px', background: '#2c2c2c', border: '1px solid #444', color: '#e0e0e0', borderRadius: '2px', fontSize: '10px', cursor: 'pointer' }}
+                        onClick={() => {
+                          setEmail("guest@blendproof.itycon.cn");
+                          setPassword("tycon");
+                          setAuthMode("login");
+                          setAuthOpen(true);
+                        }}
+                      >
+                        一键填入并登录
+                      </button>
+                    </div>
                   </div>
                 </>
               )}

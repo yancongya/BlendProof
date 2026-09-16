@@ -122,6 +122,26 @@ async function register(request: Request, env: AuthEnv): Promise<Response> {
   return sessionResponse(env, user, 201)
 }
 
+export const GUEST_DEMO_EMAIL = 'guest@blendproof.itycon.cn'
+export const GUEST_DEMO_PASSWORD = 'tycon'
+export const GUEST_DEMO_USER_ID = '00000000000000000000000000000002'
+
+async function ensureGuestUser(env: AuthEnv): Promise<UserRow | null> {
+  let row = await env.DB.prepare(`SELECT id, email, password_hash, display_name, role, created_at
+    FROM users WHERE email = ? AND disabled_at IS NULL`).bind(GUEST_DEMO_EMAIL).first<UserRow>()
+  if (!row) {
+    const now = new Date().toISOString()
+    const passwordHash = await hashPassword(GUEST_DEMO_PASSWORD)
+    await env.DB.prepare(`INSERT OR IGNORE INTO users
+      (id, email, password_hash, display_name, role, invite_id, created_at, updated_at)
+      VALUES (?, ?, ?, '访客体验', 'user', NULL, ?, ?)`
+    ).bind(GUEST_DEMO_USER_ID, GUEST_DEMO_EMAIL, passwordHash, now, now).run()
+    row = await env.DB.prepare(`SELECT id, email, password_hash, display_name, role, created_at
+      FROM users WHERE email = ? AND disabled_at IS NULL`).bind(GUEST_DEMO_EMAIL).first<UserRow>()
+  }
+  return row
+}
+
 async function login(request: Request, env: AuthEnv): Promise<Response> {
   const originError = mutationOriginError(request, env)
   if (originError) return originError
@@ -131,8 +151,17 @@ async function login(request: Request, env: AuthEnv): Promise<Response> {
   if (!body || Object.keys(body).some((key) => key !== 'email' && key !== 'password')) return error('邮箱或密码不正确。', 401)
   const email = normalizeEmail(body.email)
   const password = typeof body.password === 'string' ? body.password : ''
-  const row = email ? await env.DB.prepare(`SELECT id, email, password_hash, display_name, role, created_at
-    FROM users WHERE email = ? AND disabled_at IS NULL`).bind(email).first<UserRow>() : null
+  if (!email) return error('邮箱或密码不正确。', 401)
+
+  if (email === GUEST_DEMO_EMAIL && password === GUEST_DEMO_PASSWORD) {
+    const guestRow = await ensureGuestUser(env)
+    if (guestRow) {
+      return sessionResponse(env, publicUser(guestRow), 200)
+    }
+  }
+
+  const row = await env.DB.prepare(`SELECT id, email, password_hash, display_name, role, created_at
+    FROM users WHERE email = ? AND disabled_at IS NULL`).bind(email).first<UserRow>()
   if (!row || !validPassword(password) || !await verifyPassword(password, row.password_hash)) return error('邮箱或密码不正确。', 401)
   return sessionResponse(env, publicUser(row), 200)
 }
