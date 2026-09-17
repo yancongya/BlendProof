@@ -275,6 +275,7 @@
   .perspective-toggle {
     display: flex; gap: 6px; margin-bottom: 16px;
   }
+  .perspective-toggle[hidden] { display: none !important; }
 
   .perspective-btn {
     border: 1px solid var(--border-strong); border-radius: var(--radius);
@@ -604,6 +605,8 @@
     width: 100%;
     max-width: none;
     margin: 0 auto;
+    height: 140px;
+    position: relative;
   }
 
   .quickstart__browser .mk-browser {
@@ -616,7 +619,9 @@
   .quickstart__browser .mk-browser__page {
     position: relative;
     background: var(--stat-bg);
-    min-height: 500px;
+    min-height: 140px;
+    max-height: 140px;
+    overflow: hidden;
   }
 
   .qs-browser__state {
@@ -2605,7 +2610,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
 
         <!-- 客户 CTA：直接进演示视口 -->
         <div class="hero__actions" data-perspective="reviewer">
-          <a class="btn btn--primary" href="https://blendproof.itycon.cn/s/suzanne">立即体验</a>
+          <a class="btn btn--primary" href="https://blendproof.itycon.cn">立即登录注册</a>
         </div>
 
         <!-- 两个视角小字 -->
@@ -2617,6 +2622,12 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
           <span class="hero-tag">无需安装</span>
         </div>
         <p class="hero__subline" data-perspective="reviewer">零安装 · 链接直达 · 点击模型写批注</p>
+        <div class="hero__tags" data-perspective="reviewer">
+          <span class="hero-tag">纯免费</span>
+          <span class="hero-tag">开源</span>
+          <span class="hero-tag">全栈开源</span>
+          <span class="hero-tag">无需安装</span>
+        </div>
       </div>
 
       <div class="hero__viewport">
