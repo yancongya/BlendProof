@@ -214,8 +214,19 @@ function initQuickstart(): void {
     const showStep = (index: number): void => {
       currentStep = index
       steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
-      // mockup 用 class 切换实现 opacity 过渡，不用 hidden（hidden 会跳过 transition）
-      mocks.forEach((mock, i) => { mock.classList.toggle('is-visible', i === index) })
+      // mockup：移除 hidden + class 切换实现 opacity 过渡
+      mocks.forEach((mock, i) => {
+        if (i === index) {
+          mock.hidden = false
+          // 触发 reflow 确保 transition 生效
+          void mock.offsetWidth
+          mock.classList.add('is-visible')
+        } else {
+          mock.classList.remove('is-visible')
+          // 等 fade-out 结束后再 hidden
+          window.setTimeout(() => { if (!mock.classList.contains('is-visible')) mock.hidden = true }, 400)
+        }
+      })
       states.forEach((state, i) => { state.hidden = i !== index })
       if (index === 2) ensureMiniViewer()
     }
@@ -226,7 +237,10 @@ function initQuickstart(): void {
         if (index === currentStep) {
           currentStep = -1
           steps.forEach((s) => s.classList.remove('is-active'))
-          mocks.forEach((m) => { m.classList.remove('is-visible') })
+          mocks.forEach((m) => {
+            m.classList.remove('is-visible')
+            window.setTimeout(() => { if (!m.classList.contains('is-visible')) m.hidden = true }, 400)
+          })
           return
         }
         showStep(index)
