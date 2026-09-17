@@ -303,10 +303,10 @@ app → pages → features → shared
 |---|---|---|
 | 4.0 立规则 | 已完成（2026-09-17） | `docs/ARCHITECTURE_RULES.md` + `scripts/check-architecture.mjs`（零依赖，`npm run check:arch`），已用反向用例验证可拦截三类违规 |
 | A 审稿闭环 | **已完成 6/6**（2026-09-17） | A0 契约、A1 回复、A2 删除、A3 定位、A4 轮询、A5 时间全部完成，且均有测试锁定 |
-| B 容错与状态 | 进行中 4/7（2026-09-17） | B1（加载态）、B2（失败兜底）、B3（错误提示遮挡）、B7（危险操作确认）已完成。**B4/B5/B6 需先抽 SharePanel/UploadFlow（4.5）** |
+| B 容错与状态 | **已完成 7/7**（2026-09-17） | B1 加载态、B2 失败兜底、B3 错误提示、B4 大小上限、B5 自动关窗、B6 内联错误、B7 确认一致全部完成 |
 | C 落地页 | 未开始 | 依赖 4.2 |
 | D 客户视角分层 | 未开始 | 依赖 4.3 |
-| E 文案与面板 | 部分完成 | E6 属性面板高度算式残留已修；其余待做，依赖 4.5、4.6 |
+| E 文案与面板 | **已完成 3/5** | E1 相对时间（A5 已实现）、E4 渐进式展示已在审稿域内体现、E6 面板高度算式已修；E2/E3 待做 |
 | （4.1）拆 review 域 | 已完成（2026-09-17） | `features/review/**` 独立；`Vec3`/`CameraState` 提升到 `shared/types/`；审稿域样式已归位到 `features/review/review.css`（overrides.css -152 行） |
 | （4.2）拆落地页 | 未开始 | |
 | （4.3）拆 viewer 域 | **已完成**（2026-09-17） | `BlenderWorkspace` 1387→1008 行：菜单栏、5 个面板、上传弹窗、状态栏已全部迁入 `features/viewer/components/**`；视口 Canvas 与状态机留在外壳（协调所需，拆出收益低）；Model 492→185 行 + 13 个单测，ViewControls 208→184 行。**后续只减不增。** |
