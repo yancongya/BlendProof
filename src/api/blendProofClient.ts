@@ -5,7 +5,8 @@ import type {
   ReviewReply,
   ReviewReplyDraft,
 } from "../features/review";
-import { convertBlendInBrowser } from "../conversion/browserBlend";
+import type { BrowserBlendResult } from "../conversion/browserBlend";
+
 
 export type OwnerProject = {
   id: string;
@@ -179,7 +180,24 @@ export class BlendProofClient {
 
   /** Browser-only conversion for the supported static .blend subset. */
   async convertInBrowser(file: File): Promise<OwnerProject> {
-    const result = await convertBlendInBrowser(file);
+    const result = await new Promise<BrowserBlendResult>((resolve, reject) => {
+      // Create Vite worker dynamically
+      const worker = new Worker(new URL('../conversion/browserBlend.worker.ts', import.meta.url), { type: 'module' });
+      worker.onmessage = (e) => {
+        if (e.data.type === 'success') {
+          resolve(e.data.result);
+        } else {
+          reject(new Error(e.data.error || "Web Worker 解析失败"));
+        }
+        worker.terminate();
+      };
+      worker.onerror = (err) => {
+        reject(new Error("Worker error: " + err.message));
+        worker.terminate();
+      };
+      worker.postMessage(file);
+    });
+
     const id = `browser-${crypto.randomUUID().replaceAll("-", "")}`;
     const modelUrl = URL.createObjectURL(result.glb);
     const manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(result.manifest)], { type: "application/json" }));

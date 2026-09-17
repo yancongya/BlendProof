@@ -256,10 +256,14 @@ function initQuickstart(): void {
         progress1.hidden = false
         const fill = progress1.querySelector<HTMLElement>('.qs-progress__fill')
         const label = progress1.querySelector<HTMLElement>('.qs-progress__label')
-        if (fill) fill.style.width = '100%'
-        if (label) label.textContent = '已转换 · 点击步骤②配置凭证'
-        // 1.8s 后自动跳到步骤2
-        window.setTimeout(() => { showStep(1) }, 1800)
+        if (fill) { fill.style.width = '100%'; fill.classList.add('is-animating') }
+        if (label) label.textContent = '转换中…'
+        // 1.8s 后停止动画 + 显示完成提示 + 跳到步骤2
+        window.setTimeout(() => {
+          if (fill) fill.classList.remove('is-animating')
+          if (label) label.textContent = '已转换 · 点击步骤②配置凭证'
+        }, 1400)
+        window.setTimeout(() => { showStep(1) }, 2000)
       })
     }
 
@@ -269,14 +273,25 @@ function initQuickstart(): void {
       genBtn.addEventListener('click', () => { showStep(2) })
     }
 
-    // 步骤3：点击分享文本 → 复制到剪贴板 + toast
+    // 步骤3：点击分享文本 → 复制到剪贴板 + flash 动画 + toast
     const shareText = panel.querySelector<HTMLElement>('#qs-share-text')
     const toast = panel.querySelector<HTMLElement>('#qs-share-toast')
     if (shareText) {
       shareText.addEventListener('click', () => {
         const text = '【BlendProof 分享】3D 审稿链接\n\n链接：https://blendproof.itycon.cn/s/suzanne\n提取码：tycon\n\n复制以上内容到浏览器打开，即可查看 3D 模型并添加批注。'
+        shareText.classList.add('is-copied')
+        window.setTimeout(() => shareText.classList.remove('is-copied'), 500)
         void navigator.clipboard?.writeText(text).then(() => {
-          if (toast) { toast.hidden = false; window.setTimeout(() => { toast.hidden = true }, 1600) }
+          if (toast) {
+            toast.hidden = false
+            toast.style.opacity = '1'
+            toast.style.transform = 'translateY(0)'
+            window.setTimeout(() => {
+              toast.style.opacity = '0'
+              toast.style.transform = 'translateY(4px)'
+              window.setTimeout(() => { toast.hidden = true }, 300)
+            }, 1600)
+          }
         }).catch(() => { /* ignore */ })
       })
     }

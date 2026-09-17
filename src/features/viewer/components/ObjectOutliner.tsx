@@ -6,6 +6,8 @@
  */
 
 import { Box, Camera, Eye, Focus, Layers, Lightbulb, Search, X } from "lucide-react";
+import { useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { t, tf } from "../../../i18n";
 import type { Manifest } from "../../../types";
 
@@ -44,6 +46,13 @@ export function ObjectOutliner({
 }) {
   const isIsolated = (name: string) =>
     isolated && selected.size === 1 && selected.has(name);
+
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: objects.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 24, // 默认每行高度 24px
+  });
 
   return (
     <section
@@ -93,11 +102,22 @@ export function ObjectOutliner({
           <span>⌄</span>
           <strong>{manifest?.scene ?? "Scene Collection"}</strong>
         </div>
-        <div className="tree-children">
-          {objects.map((object) => (
+        <div className="tree-children" ref={parentRef} style={{ overflowY: 'auto' }}>
+          <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+          {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+            const object = objects[virtualItem.index];
+            return (
             <div
               className={`tree-row ${selected.has(object.name) ? "selected" : ""}`}
-              key={object.name}
+              key={virtualItem.key}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualItem.size}px`,
+                transform: `translateY(${virtualItem.start}px)`
+              }}
               role="treeitem"
               tabIndex={0}
               aria-selected={selected.has(object.name)}
@@ -148,7 +168,9 @@ export function ObjectOutliner({
                 <Focus />
               </button>
             </div>
-          ))}
+          );
+          })}
+          </div>
           {manifest && objects.length === 0 && (
             <p className="outliner-empty">{t("没有匹配对象")}</p>
           )}
