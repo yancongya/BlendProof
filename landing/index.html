@@ -561,9 +561,7 @@
 
   .quickstart__mockup {
     position: relative;
-    height: 200px;
-    max-width: 520px;
-    margin: 0 auto;
+    height: 220px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--panel);
@@ -579,7 +577,7 @@
     z-index: 1;
   }
 
-  .quickstart__mockup:has(.quickstart__mock:not([hidden]))::before {
+  .quickstart__mockup:has(.quickstart__mock.is-visible)::before {
     display: none;
   }
 
@@ -587,8 +585,15 @@
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
     padding: 16px;
-    transition: opacity .3s ease;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .35s ease;
     z-index: 2;
+  }
+
+  .quickstart__mock.is-visible {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .quickstart__mock[hidden] { display: none; }

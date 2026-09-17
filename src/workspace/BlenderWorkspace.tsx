@@ -207,7 +207,7 @@ export function BlenderWorkspace({
   } | null>(null);
   const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
-  const [commentBody, setCommentBody] = useState("");
+  const [commentBody, setCommentBody] = useState(() => window.sessionStorage.getItem(`blendproof-new-draft:${manifest?.scene ?? "unknown"}`) ?? "");
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [reviewFilter, setReviewFilter] = useState<"all" | "open" | "resolved">("all");
   const [annotationsVisible, setAnnotationsVisible] = useState(true);
@@ -409,6 +409,11 @@ export function BlenderWorkspace({
       first.focus();
     }
   }
+  useEffect(() => {
+    window.sessionStorage.setItem(`blendproof-new-draft:${manifest?.scene ?? "unknown"}`, commentBody);
+  }, [commentBody, manifest?.scene]);
+
+
 
   async function savePendingReview() {
     if (!pendingReview || !onCreateComment || !commentBody.trim()) return;

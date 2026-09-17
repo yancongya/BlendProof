@@ -27,12 +27,18 @@ export function ReviewReplyThread({
   onReply: (body: string) => void;
   onDeleteReply: (replyId: string) => void;
 }) {
-  const [draft, setDraft] = useState("");
+  const storageKey = `blendproof-reply-draft:${comment.id}`;
+  const [draft, setDraft] = useState(() => window.sessionStorage.getItem(storageKey) ?? "");
 
-  // 切换批注时清空输入，避免把上一条的回复内容误发到新批注下。
+  // 切换批注时重新从缓存读取
   useEffect(() => {
-    setDraft("");
-  }, [comment.id]);
+    setDraft(window.sessionStorage.getItem(storageKey) ?? "");
+  }, [storageKey]);
+
+  const handleDraftChange = (val: string) => {
+    setDraft(val);
+    window.sessionStorage.setItem(storageKey, val);
+  };
 
   const trimmed = draft.trim();
 
@@ -72,7 +78,7 @@ export function ReviewReplyThread({
             data-testid="review-reply-body"
             value={draft}
             placeholder={t("回复这条批注")}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => handleDraftChange(event.target.value)}
           />
           <button
             className="primary"
@@ -81,6 +87,7 @@ export function ReviewReplyThread({
             onClick={() => {
               onReply(trimmed);
               setDraft("");
+              window.sessionStorage.removeItem(storageKey);
             }}
           >
             {t("回复")}
