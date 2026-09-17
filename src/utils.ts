@@ -162,3 +162,37 @@ export function captureCameraState(
     fov: (camera as PerspectiveCamera).fov,
   };
 }
+
+// ---------------------------------------------------------------------------
+// GuidedTour steps
+// ---------------------------------------------------------------------------
+
+import type { GuidedTourStep } from "./components/GuidedTour";
+
+export const VIEWPORT_TOUR_STEPS: GuidedTourStep[] = [
+  {
+    id: "step-navigation",
+    title: "第一步：自由观察模型",
+    target: "canvas",
+    placement: "bottom",
+    group: "基础操作",
+    description: "按住 鼠标中键 拖拽可旋转视角，滚轮缩放，Shift+中键平移。手机端支持手势。",
+  },
+  {
+    id: "step-annotation",
+    title: "提出意见",
+    target: "canvas",
+    placement: "right",
+    group: "批注协作",
+    description: "发现需要修改的地方？直接在 3D 模型表面点击，即可原位钉上您的批注气泡。",
+  },
+  {
+    id: "step-review-panel",
+    title: "追踪进度",
+    target: ".review-list",
+    placement: "left",
+    group: "业务闭环",
+    description: "所有的批注卡片都在这里。点击任意卡片，相机会自动带您回到当时的视角。",
+  },
+];
+

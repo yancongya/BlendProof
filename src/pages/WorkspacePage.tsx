@@ -11,6 +11,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { SharePanel } from "../features/share";
+import { GuidedTour } from "../components/GuidedTour";
+import { VIEWPORT_TOUR_STEPS } from "../utils";
 import { BlenderWorkspace } from "../workspace/BlenderWorkspace";
 import { StartPage } from "../start/StartPage";
 import { SenderShareCard } from "../components/ShareCards";
@@ -130,6 +132,19 @@ export function WorkspacePage() {
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("perspective");
   const [currentCamera, setCurrentCamera] = useState<CameraState | null>(null);
   const [startTabHint, setStartTabHint] = useState<"start" | "recent" | "status" | "account" | null>(null);
+
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => {
+    const hasSeen = localStorage.getItem("blendproof:has-seen-tour");
+    if (!hasSeen && (project || (!homeOpen && !file))) {
+      const timer = window.setTimeout(() => setShowTour(true), 1500);
+      return () => window.clearTimeout(timer);
+    }
+  }, [project, homeOpen, file]);
+  const handleCloseTour = useCallback(() => {
+    localStorage.setItem("blendproof:has-seen-tour", "true");
+    setShowTour(false);
+  }, []);
 
   const openUploader = useCallback(() => {
     // Opening the file panel is always a fresh selection flow; the active Viewer project stays intact.
@@ -598,7 +613,8 @@ export function WorkspacePage() {
   }
 
   return (
-    <BlenderWorkspace
+    <>
+      <BlenderWorkspace
       title={project?.name ?? file?.name ?? "Suzanne 演示"}
       shareStatus={shareStatusProp}
       manifest={workspaceManifest}
@@ -680,5 +696,9 @@ export function WorkspacePage() {
         onRevokeShare={() => void revokeShare()}
       />
     </BlenderWorkspace>
+      {showTour && (
+        <GuidedTour steps={VIEWPORT_TOUR_STEPS} onClose={handleCloseTour} />
+      )}
+    </>
   );
 }

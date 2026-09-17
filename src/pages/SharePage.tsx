@@ -20,7 +20,8 @@ import {
 } from "../components/NoticeViews";
 import { blendProofClient, type ProjectTransport } from "../api/blendProofClient";
 import { CLIENT_GUIDE_STEPS } from "../features/viewer";
-import { readSharedView } from "../utils";
+import { readSharedView, VIEWPORT_TOUR_STEPS } from "../utils";
+import { GuidedTour } from "../components/GuidedTour";
 import type { Manifest, DisplayMode, CameraPreset } from "../types";
 import { useGuestReview, type ReviewComment } from "../features/review";
 
@@ -284,8 +285,22 @@ export function SharePage() {
     );
   }
 
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => {
+    const hasSeen = localStorage.getItem("blendproof:has-seen-tour");
+    if (!hasSeen && share) {
+      const timer = window.setTimeout(() => setShowTour(true), 1500);
+      return () => window.clearTimeout(timer);
+    }
+  }, [share]);
+  const handleCloseTour = useCallback(() => {
+    localStorage.setItem("blendproof:has-seen-tour", "true");
+    setShowTour(false);
+  }, []);
+
   return (
-    <BlenderWorkspace
+    <>
+      <BlenderWorkspace
       title={share.manifest.scene}
       manifest={share.manifest}
       hidden={hidden}
@@ -339,5 +354,9 @@ export function SharePage() {
         sourceLabel={isDemoShare ? "平台内置资产" : undefined}
       />
     </BlenderWorkspace>
+      {showTour && (
+        <GuidedTour steps={VIEWPORT_TOUR_STEPS} onClose={handleCloseTour} />
+      )}
+    </>
   );
 }
