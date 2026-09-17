@@ -525,6 +525,41 @@ describe("阶段 2 评论 API", () => {
     })).status, 204);
   });
 
+  test("访客轮询接口只返回批注，不含 manifest", async () => {
+    const share = await request(`/api/local/projects/${projectId}/shares`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ commentsPermission: "comment" }),
+    });
+    assert.equal(share.response.status, 201);
+    const token = String(share.body.token);
+
+    const comment = (await request(`/api/local/projects/${projectId}/comments`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ ...validDraft, body: "轮询可见性" }),
+    })).body.comment as Json;
+
+    const polled = await request(`/api/local/shares/${token}/comments`);
+    assert.equal(polled.response.status, 200);
+    // 轮询路径刻意不带 manifest：否则每 15 秒都会重传一次模型信息。
+    assert.equal(polled.body.manifest, undefined);
+    assert.equal(polled.body.modelUrl, undefined);
+    const listed = polled.body.comments as Json[];
+    assert.ok(listed.some((item) => item.id === comment.id));
+    // 与分享主接口一致：不泄漏 projectId。
+    assert.equal(listed[0].projectId, undefined);
+
+    // 只读分享同样可轮询（读取不受评论权限限制）。
+    const readOnly = await request(`/api/local/projects/${projectId}/shares`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
+      body: JSON.stringify({ commentsPermission: "read_only" }),
+    });
+    const readOnlyPoll = await request(`/api/local/shares/${String(readOnly.body.token)}/comments`);
+    assert.equal(readOnlyPoll.response.status, 200);
+  });
+
   test("删除本地项目必须持有 owner capability，并同时移除派生文件", async () => {
     const denied = await bridgeFetch(`/api/local/projects/${secondProjectId}`, {
       method: "DELETE",

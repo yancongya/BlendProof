@@ -423,6 +423,18 @@ export class BlendProofClient {
     return this.transportJson<{ passwordRequired?: boolean }>(transport, `/api/shares/${encodeURIComponent(token)}/status`);
   }
 
+  /**
+   * 访客侧批注轮询。只取批注，不复用 loadShare ——
+   * 后者每次都带完整 manifest，轮询代价过高。
+   */
+  async listGuestComments(token: string, transport: ProjectTransport = "local") {
+    const body = await this.transportJson<{ comments: ReviewComment[] }>(
+      transport,
+      `/api/shares/${encodeURIComponent(token)}/comments`,
+    );
+    return body.comments;
+  }
+
   unlockShare(token: string, password: string, transport: ProjectTransport = "local") {
     return this.transportVoid(transport, `/api/shares/${encodeURIComponent(token)}/access`, {
       method: "POST",

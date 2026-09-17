@@ -667,6 +667,29 @@ describe('BlendProof Worker local runtime', () => {
     expect(orphans?.count).toBe(0)
   })
 
+  it('polls guest comments without resending the manifest', async () => {
+    const origin = 'http://localhost:5173'
+    const project = await readyProject('Guest Poll')
+    const createdShare = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/shares`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify({ commentsPermission: 'comment' }),
+    })
+    const { token } = await createdShare.json<{ token: string }>()
+
+    const created = await SELF.fetch(`https://blendproof.test/api/projects/${project.id}/comments`, {
+      method: 'POST', headers: ownerJson(origin, project.ownerCapability), body: JSON.stringify(commentDraft()),
+    })
+    const commentId = (await created.json<{ comment: { id: string } }>()).comment.id
+
+    const polled = await SELF.fetch(`https://blendproof.test/api/shares/${token}/comments`)
+    expect(polled.status).toBe(200)
+    const body = await polled.json<{ comments: Array<{ id: string; projectId?: string }>; manifest?: unknown; modelUrl?: unknown }>()
+    // 轮询路径刻意不带 manifest/modelUrl，否则每 15 秒重传一次模型信息。
+    expect(body.manifest).toBeUndefined()
+    expect(body.modelUrl).toBeUndefined()
+    expect(body.comments.some((item) => item.id === commentId)).toBe(true)
+    expect(body.comments[0].projectId).toBeUndefined()
+  })
+
   it('lets guests delete only their own content and only while holding the delete token', async () => {
     const origin = 'http://localhost:5173'
     const deleteTokenHeader = 'x-blendproof-delete-token'

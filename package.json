@@ -10,7 +10,7 @@
     "dev": "BLENDPROOF_PAIRING_CODE=blendproof-local-dev-pairing-code-01 VITE_LOCAL_BRIDGE_PAIRING_CODE=blendproof-local-dev-pairing-code-01 concurrently -k \"npm:dev:web\" \"npm:dev:server\" \"npm:dev:worker\"",
     "dev:web": "vite --host 127.0.0.1",
     "dev:server": "tsx watch server/index.ts",
-    "dev:worker": "wrangler dev --local --port 8787",
+    "dev:worker": "wrangler dev --local --port 8787 --var APP_ORIGIN:http://127.0.0.1:5173",
     "build": "tsc -b && vite build && npm run build:landing",
     "build:app": "tsc -b && vite build",
     "build:landing": "vite build --config landing/vite.config.ts",

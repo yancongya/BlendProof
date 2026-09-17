@@ -71,6 +71,8 @@ export async function handleShareRequest(request: Request, env: ShareEnv, url: U
   const asset = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/(model\.glb|manifest\.json)$/)
   if (asset && request.method === 'GET') return shareAsset(request, env, asset[1], asset[2] as 'model.glb' | 'manifest.json')
   const guestComments = url.pathname.match(/^\/api\/shares\/([a-f0-9]{32}|suzanne)\/comments$/)
+  // 轮询用：只取批注，避免每 15 秒重传一次 manifest 与模型信息。
+  if (guestComments && request.method === 'GET') return guestCommentList(request, env, guestComments[1])
   if (guestComments && request.method === 'POST') {
     const originError = mutationOriginError(request, env)
     return originError ?? createGuestComment(request, env, guestComments[1])
@@ -463,6 +465,21 @@ async function shareAsset(request: Request, env: ShareEnv, token: string, asset:
     'Content-Type': publicAssetContentTypes[asset],
     'Content-Length': String(object.size), 'ETag': object.httpEtag, ...privateHeaders(share),
   } })
+}
+
+/**
+ * 访客侧批注轮询入口。只返回批注，不含 manifest/模型地址，
+ * 让分享页可以低成本地发现创作者的新回复与状态变化。
+ */
+async function guestCommentList(request: Request, env: ShareEnv, token: string): Promise<Response> {
+  const found = await resolveShare(env, token, true, request)
+  if (found instanceof Response) return found
+  const { share, project } = found
+  const rows = await commentsWithRepliesFor(env, project.id)
+  return Response.json(
+    { comments: rows.map(({ comment, replies }) => toPublicComment(comment, replies)) },
+    { headers: privateHeaders(share) },
+  )
 }
 
 async function createGuestComment(request: Request, env: ShareEnv, token: string): Promise<Response> {

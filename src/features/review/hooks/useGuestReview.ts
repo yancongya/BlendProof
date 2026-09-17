@@ -1,20 +1,21 @@
 /**
- * 分享页的访客批注状态与写操作。
+ * 分享页的访客批注状态：列表、轮询、删除权限，并组合写操作。
  *
  * 抽成独立 hook 有两个原因：
  *   1. 分享页是行数超预算的存量文件（见 ARCHITECTURE_RULES §6），只能减不能增；
  *   2. 「访客能删什么」依赖本地删除令牌，属于审稿域规则，不该散在页面里。
  *
- * 离线演示降级见 demoFallback.ts。
+ * 写操作在 useGuestMutations，离线演示降级见 demoFallback.ts。
  */
 
 import { useCallback, useState } from "react";
 import type { ProjectTransport } from "../../../api/blendProofClient";
+import { usePolling } from "../../../shared/hooks/usePolling";
 import { readDeleteToken } from "../deleteTokens";
 import { reviewRepository } from "../api/reviewRepository";
-import { addComment, addReply, dropComment, dropReply } from "../reviewState";
-import { localComment, localReply } from "../demoFallback";
-import type { ReviewComment, ReviewCommentDraft } from "../types";
+import { useGuestMutations } from "./useGuestMutations";
+import { REVIEW_POLL_MS } from "./useReviewComments";
+import type { ReviewComment } from "../types";
 
 export function useGuestReview({
   token,
@@ -41,99 +42,30 @@ export function useGuestReview({
   /** 访客只能删除自己创建的内容，凭据是创建时存下的本地令牌。 */
   const canDelete = useCallback((id: string) => readDeleteToken(id) !== null, []);
 
-  const requireName = useCallback(() => {
-    const name = authorName.trim() || (demoMode ? "访客" : "");
-    if (!name) throw new Error("请先填写审核名称。");
-    return name;
-  }, [authorName, demoMode]);
+  /**
+   * 轮询让客户不必刷新就能看到创作者的处理与回复。
+   * 失败静默——网络抖动不该打断正在看模型的人；写操作进行中跳过本轮，
+   * 否则轮询结果可能早于写请求返回，把刚发出的回复抹掉。
+   */
+  const refresh = useCallback(async () => {
+    if (!token) return;
+    try {
+      setComments(await reviewRepository.listGuest(token, transport));
+    } catch {
+      /* 保持现有列表，等下一轮 */
+    }
+  }, [token, transport]);
+  usePolling(refresh, REVIEW_POLL_MS, Boolean(token), busy);
 
-  /** 演示模式下写失败就本地降级；真实分享照常抛出，由调用方显示原因。 */
-  const run = useCallback(
-    async <T,>(action: () => Promise<T>, fallback?: () => T): Promise<T> => {
-      setBusy(true);
-      setError(null);
-      try {
-        return await action();
-      } catch (reason) {
-        if (demoMode && fallback) return fallback();
-        setError(reason instanceof Error ? reason.message : "操作失败。");
-        throw reason;
-      } finally {
-        setBusy(false);
-      }
-    },
-    [demoMode],
-  );
+  const mutations = useGuestMutations({
+    token,
+    transport,
+    demoMode,
+    authorName,
+    setComments,
+    setBusy,
+    setError,
+  });
 
-  const requireToken = useCallback(() => {
-    if (!token) throw new Error("缺少分享标识。");
-    return token;
-  }, [token]);
-
-  const createComment = useCallback(
-    async (draft: ReviewCommentDraft) => {
-      const shareToken = requireToken();
-      const name = requireName();
-      const comment = await run(
-        () => reviewRepository.createGuest(shareToken, { ...draft, authorName: name }, transport),
-        () => localComment(shareToken, draft, name),
-      );
-      setComments((current) => addComment(current, comment));
-      return comment;
-    },
-    [requireToken, requireName, run, transport],
-  );
-
-  const reply = useCallback(
-    async (commentId: string, body: string) => {
-      const shareToken = requireToken();
-      const name = requireName();
-      const created = await run(
-        () => reviewRepository.replyGuest(shareToken, commentId, { body, authorName: name }, transport),
-        () => localReply(commentId, body, name),
-      );
-      setComments((current) => addReply(current, commentId, created));
-    },
-    [requireToken, requireName, run, transport],
-  );
-
-  const removeComment = useCallback(
-    async (commentId: string) => {
-      const shareToken = requireToken();
-      const deleteToken = readDeleteToken(commentId);
-      if (!deleteToken) throw new Error("只能删除自己创建的批注。");
-      await run(
-        () => reviewRepository.removeGuest(shareToken, commentId, deleteToken, transport),
-        () => undefined,
-      );
-      setComments((current) => dropComment(current, commentId));
-    },
-    [requireToken, run, transport],
-  );
-
-  const removeReply = useCallback(
-    async (commentId: string, replyId: string) => {
-      const shareToken = requireToken();
-      const deleteToken = readDeleteToken(replyId);
-      if (!deleteToken) throw new Error("只能删除自己创建的回复。");
-      await run(
-        () => reviewRepository.removeGuestReply(shareToken, commentId, replyId, deleteToken, transport),
-        () => undefined,
-      );
-      setComments((current) => dropReply(current, commentId, replyId));
-    },
-    [requireToken, run, transport],
-  );
-
-  return {
-    comments,
-    busy,
-    error,
-    reset,
-    canDelete,
-    createComment,
-    reply,
-    removeComment,
-    removeReply,
-  };
+  return { comments, busy, error, reset, canDelete, ...mutations };
 }

@@ -400,6 +400,14 @@ app.get('/api/local/shares/:token/model.glb', async (request, response) => {
   sendStoredAsset(response, asset)
 })
 
+app.get('/api/local/shares/:token/comments', async (request, response) => {
+  const share = await resolveShare(request.params.token, response, true, request.headers.cookie)
+  if (!share) return
+  // 轮询用：只返回批注，不含 manifest，避免每 15 秒重传模型信息。
+  const comments = await repository.listComments(share.projectId)
+  response.json({ comments: comments.map(toSharedComment) })
+})
+
 app.post('/api/local/shares/:token/comments', async (request, response) => {
   const share = await resolveShare(request.params.token, response, true, request.headers.cookie)
   if (!share) return

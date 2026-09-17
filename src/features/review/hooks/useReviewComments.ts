@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectTransport } from "../../../api/blendProofClient";
+import { usePolling } from "../../../shared/hooks/usePolling";
 import { reviewRepository } from "../api/reviewRepository";
 import { useReviewMutations } from "./useReviewMutations";
 import type { ReviewComment } from "../types";
+
+/** 审稿是轻量协作场景，15 秒足够及时且不至于打爆接口。 */
+export const REVIEW_POLL_MS = 15000;
 
 /**
  * 批注列表与轮询（读侧），并把写操作组合成同一个对外接口。
@@ -64,12 +68,11 @@ export function useReviewComments(
     }
   }, [projectId, ownerCapability, transport]);
 
+  // 首屏立即拉一次；之后按间隔轮询，写操作进行中则跳过本轮避免竞争。
   useEffect(() => {
     void reload();
-    if (!projectId || !ownerCapability) return;
-    const timer = window.setInterval(() => void reload(), 15000);
-    return () => window.clearInterval(timer);
   }, [reload]);
+  usePolling(reload, REVIEW_POLL_MS, Boolean(projectId && ownerCapability), loading);
 
   /**
    * 清空未读计数并返回最新一条未读批注的 id，供调用方选中并跳转视角。

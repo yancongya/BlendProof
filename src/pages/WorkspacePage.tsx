@@ -330,6 +330,8 @@ export function WorkspacePage() {
   async function revokeShare() {
     const target = cloudProject ?? project;
     if (!target || !shareId) return;
+    // 撤销不可逆：客户手上的链接会立刻失效，正在进行的审稿会中断，因此先确认。
+    if (!window.confirm("撤销后该分享链接立即失效，客户将无法继续查看与批注。\n\n确定撤销？")) return;
     try {
       await blendProofClient.revokeShare(
         target.id,

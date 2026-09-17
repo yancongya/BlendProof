@@ -83,6 +83,13 @@ export const reviewRepository = {
   // --- 访客通道（凭分享访问 cookie + 删除令牌） ---
 
   /**
+   * 访客侧列表/轮询。只取批注，不走 loadShare —— 后者每次都带完整 manifest。
+   */
+  async listGuest(token: string, transport: ProjectTransport = "local"): Promise<ReviewComment[]> {
+    return blendProofClient.listGuestComments(token, transport);
+  },
+
+  /**
    * 创建访客评论。服务端只在此返回一次删除令牌，这里立即存到本地，
    * 供之后删除自己发的内容；返回评论本身给调用方渲染。
    */
