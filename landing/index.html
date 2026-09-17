@@ -664,31 +664,6 @@
     transition: opacity .3s, transform .3s;
   }
   .qs-share-toast[hidden] { opacity: 0; transform: translateY(4px); pointer-events: none; }
-  /* Customer perspective: shared browser mockup */
-  .quickstart__browser {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--panel);
-    overflow: hidden;
-    width: 100%;
-    max-width: 520px;
-    margin: 0 auto;
-    min-height: 200px;
-    position: relative;
-  }
-
-  .quickstart__browser .mk-browser {
-    border: none;
-    box-shadow: none;
-    margin: 0;
-    max-width: none;
-  }
-
-  .quickstart__browser .mk-browser__page {
-    position: relative;
-    background: var(--stat-bg);
-    min-height: 200px;
-  }
 
   .qs-browser__state {
     position: absolute; inset: 0;
@@ -2881,35 +2856,37 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
             </div>
 
             <!-- 固定浏览器 mockup，3 步共享 -->
-            <div class="quickstart__browser">
-              <div class="mk-browser">
-                <div class="mk-browser__bar">
-                  <span class="mk-browser__dots"><i></i><i></i><i></i></span>
-                  <input type="text" class="mk-browser__url" id="qs-browser-url" placeholder="输入分享链接" value="" readonly>
-                  <button type="button" class="mk-browser__go" id="qs-browser-go">前往</button>
-                </div>
-                <div class="mk-browser__page">
-                  <!-- 步骤1：空白 + 输入链接提示（点击后逐字键入演示链接） -->
-                  <div class="qs-browser__state" data-state="1">
-                    <div class="mk-browser__empty">
-                      <b>收到一条审稿链接</b>
-                      <button type="button" class="qs-browser__fill">填入演示链接 /s/suzanne</button>
-                    </div>
+            <div class="quickstart__mockup">
+              <div class="quickstart__mock is-visible">
+                <div class="mk-browser" style="width:100%">
+                  <div class="mk-browser__bar">
+                    <span class="mk-browser__dots"><i></i><i></i><i></i></span>
+                    <input type="text" class="mk-browser__url" id="qs-browser-url" placeholder="输入分享链接" value="" readonly>
+                    <button type="button" class="mk-browser__go" id="qs-browser-go">前往</button>
                   </div>
-                  <!-- 步骤2：口令逐字填充，点「打开审稿」进入 -->
-                  <div class="qs-browser__state" data-state="2" hidden>
-                    <div class="mk-browser__pass">
-                      <span>口令已自动填充</span>
-                      <input type="password" id="qs-browser-pwd" readonly aria-label="口令">
+                  <div class="mk-browser__page" style="min-height:180px">
+                    <!-- 步骤1：空白 + 输入链接提示（点击后逐字键入演示链接） -->
+                    <div class="qs-browser__state" data-state="1">
+                      <div class="mk-browser__empty">
+                        <b>收到一条审稿链接</b>
+                        <button type="button" class="qs-browser__fill">填入演示链接 /s/suzanne</button>
+                      </div>
                     </div>
-                    <div class="qs-browser__open-row">
-                      <button type="button" class="qs-browser__open" disabled>打开审稿</button>
+                    <!-- 步骤2：口令逐字填充，点「打开审稿」进入 -->
+                    <div class="qs-browser__state" data-state="2" hidden>
+                      <div class="mk-browser__pass">
+                        <span>口令已自动填充</span>
+                        <input type="password" id="qs-browser-pwd" readonly aria-label="口令">
+                      </div>
+                      <div class="qs-browser__open-row">
+                        <button type="button" class="qs-browser__open" disabled>打开审稿</button>
+                      </div>
                     </div>
-                  </div>
-                  <!-- 步骤3：3D 预览（复用 hero 的模型资产与 Blender 导航） -->
-                  <div class="qs-browser__state" data-state="3" hidden>
-                    <div id="qs-mini-viewer"></div>
-                    <div class="qs-browser__foot">中键旋转 · Shift+中键平移 · 滚轮缩放</div>
+                    <!-- 步骤3：3D 预览（复用 hero 的模型资产与 Blender 导航） -->
+                    <div class="qs-browser__state" data-state="3" hidden>
+                      <div id="qs-mini-viewer"></div>
+                      <div class="qs-browser__foot">中键旋转 · Shift+中键平移 · 滚轮缩放</div>
+                    </div>
                   </div>
                 </div>
               </div>

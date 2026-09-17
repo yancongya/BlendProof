@@ -196,14 +196,14 @@ function initQuickstart(): void {
   panels.forEach((panel) => {
     const steps = Array.from(panel.querySelectorAll<HTMLElement>('.quickstart__step'))
     const mocks = Array.from(panel.querySelectorAll<HTMLElement>('.quickstart__mock'))
-    const browser = panel.querySelector<HTMLElement>('.quickstart__browser')
-    const states = browser ? Array.from(browser.querySelectorAll<HTMLElement>('.qs-browser__state')) : []
+    // 客户视角的状态现在也在 quickstart__mock 内的 mk-browser 里
+    const states = Array.from(panel.querySelectorAll<HTMLElement>('.qs-browser__state'))
 
     let currentStep = -1
     let miniViewer: { dispose: () => void } | null = null
 
     const ensureMiniViewer = (): void => {
-      const host = browser?.querySelector<HTMLElement>('#qs-mini-viewer')
+      const host = panel.querySelector<HTMLElement>('#qs-mini-viewer')
       if (!host || miniViewer) return
       window.setTimeout(() => {
         if (miniViewer || !host.isConnected) return
@@ -233,7 +233,6 @@ function initQuickstart(): void {
 
     steps.forEach((step, index) => {
       step.addEventListener('click', () => {
-        if (browser) { showStep(index); return }
         if (index === currentStep) {
           currentStep = -1
           steps.forEach((s) => s.classList.remove('is-active'))
@@ -310,14 +309,14 @@ function initQuickstart(): void {
       })
     }
 
-    if (browser) {
-      const urlInput = browser.querySelector<HTMLInputElement>('#qs-browser-url')
-      const pwdInput = browser.querySelector<HTMLInputElement>('#qs-browser-pwd')
-      const goBtn = browser.querySelector<HTMLButtonElement>('#qs-browser-go')
-      const fillBtn = browser.querySelector<HTMLButtonElement>('.qs-browser__fill')
-      const openBtn = browser.querySelector<HTMLButtonElement>('.qs-browser__open')
+    // 客户视角浏览器 mockup 交互（现在也在 panel 内）
+    const urlInput = panel.querySelector<HTMLInputElement>('#qs-browser-url')
+    const pwdInput = panel.querySelector<HTMLInputElement>('#qs-browser-pwd')
+    const goBtn = panel.querySelector<HTMLButtonElement>('#qs-browser-go')
+    const fillBtn = panel.querySelector<HTMLButtonElement>('.qs-browser__fill')
+    const openBtn = panel.querySelector<HTMLButtonElement>('.qs-browser__open')
 
-      const typeText = (input: HTMLInputElement, text: string, done: () => void): void => {
+    const typeText = (input: HTMLInputElement, text: string, done: () => void): void => {
         input.value = ''
         let i = 0
         const timer = window.setInterval(() => {
@@ -342,13 +341,12 @@ function initQuickstart(): void {
         typeText(pwdInput, 'tycon', () => { if (openBtn) openBtn.disabled = false })
       }
       const passObserver = new MutationObserver(() => {
-        const state = browser.querySelector<HTMLElement>('[data-state="2"]')
+        const state = panel.querySelector<HTMLElement>('[data-state="2"]')
         if (state && !state.hidden) fillPassphrase()
       })
       states.forEach((state) => passObserver.observe(state, { attributes: true, attributeFilter: ['hidden'] }))
 
       openBtn?.addEventListener('click', () => { if (openBtn.disabled) return; showStep(2) })
-    }
   })
 }
 

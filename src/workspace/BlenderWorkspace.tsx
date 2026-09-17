@@ -227,11 +227,11 @@ export function BlenderWorkspace({
   const [rightPanelWidth, setRightPanelWidth] = useState(282);
   const [rightPanelVisible, setRightPanelVisible] = useState(true);
 
-  const startResizing = useCallback((e) => {
+  const startResizing = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = rightPanelWidth;
-    const onPointerMove = (moveEvent) => {
+    const onPointerMove = (moveEvent: PointerEvent) => {
       const delta = startX - moveEvent.clientX;
       let newWidth = startWidth + delta;
       if (newWidth < 180) newWidth = 180;
@@ -598,7 +598,7 @@ export function BlenderWorkspace({
           }}
         />
       )}
-      <div className="blender-main">
+      <div className="blender-main" style={{ gridTemplateColumns: `minmax(0, 1fr) ${rightPanelVisible ? rightPanelWidth : 0}px` }}>
         <section className="editor">
           <div className="editor-header">
             <div
@@ -656,6 +656,14 @@ export function BlenderWorkspace({
                     onClick={() => onDisplayMode("material")}
                   >
                     <Palette />
+                  </button>
+                </div>
+                <div className="icon-group" aria-label="面板控制">
+                  <button
+                    title="显示/隐藏侧边栏"
+                    onClick={() => setRightPanelVisible(v => !v)}
+                  >
+                    {rightPanelVisible ? <PanelRightClose /> : <PanelRightOpen />}
                   </button>
                 </div>
                 <div className="icon-group camera-group" aria-label="镜头预设">
@@ -952,7 +960,21 @@ export function BlenderWorkspace({
               : "独显"}
           </div>
         </section>
-        <aside className="right-editors">
+        {rightPanelVisible && (
+        <aside className="right-editors" style={{ position: 'relative', overflow: 'hidden' }}>
+          <div 
+            className="panel-resizer" 
+            onPointerDown={startResizing}
+            style={{
+              position: "absolute",
+              left: -4,
+              top: 0,
+              bottom: 0,
+              width: 8,
+              cursor: "ew-resize",
+              zIndex: 10
+            }}
+          />
           <ObjectOutliner
             collapsed={outlinerCollapsed}
             height={outlinerHeight}
@@ -1036,6 +1058,7 @@ export function BlenderWorkspace({
             onDeleteReply={(commentId, replyId) => void deleteReviewReply(commentId, replyId)}
           />
         </aside>
+        )}
       </div>
       {uploader && uploaderOpen && (
         <UploaderDialog
