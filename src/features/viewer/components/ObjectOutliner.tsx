@@ -83,7 +83,7 @@ export function ObjectOutliner({
           <Focus size={12} />
         </button>
       </div>
-      <div className="panel-body">
+      <div className="panel-body" style={{ display: "flex", flexDirection: "column" }}>
         <label className="outliner-search">
           <Search size={12} />
           <input
@@ -102,7 +102,7 @@ export function ObjectOutliner({
           <span>⌄</span>
           <strong>{manifest?.scene ?? "Scene Collection"}</strong>
         </div>
-        <div className="tree-children" ref={parentRef} style={{ overflowY: 'auto' }}>
+        <div className="tree-children" ref={parentRef} style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
           <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
           {rowVirtualizer.getVirtualItems().map((virtualItem) => {
             const object = objects[virtualItem.index];
