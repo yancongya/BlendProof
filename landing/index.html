@@ -499,12 +499,12 @@
   .quickstart { margin-top: 28px; }
 
   .quickstart__steps {
-    display: flex; align-items: flex-start; gap: 12px;
+    display: flex; align-items: stretch; gap: 12px;
     margin-bottom: 24px;
   }
 
   .quickstart__step {
-    display: flex; gap: 10px; flex: 1;
+    display: flex; gap: 10px; flex: 1 1 0; min-width: 0;
     padding: 14px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -2028,6 +2028,9 @@ grid-template-columns: minmax(0, 1fr);
     .hero3d__view { height: 330px; }
     .facts { gap: 20px; }
     .stat dd { font-size: 19px; }
+    .quickstart__steps { flex-direction: column; }
+    .quickstart__step { flex: none; }
+    .quickstart__arrow { display: none; }
   }
 
   /* ---------- 移动端适配 ---------- */
