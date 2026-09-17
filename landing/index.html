@@ -587,20 +587,20 @@
   }
 
   .quickstart__mock {
-    display: flex; align-items: stretch; justify-content: center;
+    /* 所有 mock 始终在布局流中，opacity 控制可见性 */
+    display: none;
+    align-items: stretch;
+    justify-content: center;
     opacity: 0;
     transform: translateY(12px) scale(.97);
-    pointer-events: none;
     transition: opacity .4s cubic-bezier(.22,1,.36,1), transform .4s cubic-bezier(.22,1,.36,1);
   }
 
   .quickstart__mock.is-visible {
+    display: flex;
     opacity: 1;
     transform: translateY(0) scale(1);
-    pointer-events: auto;
   }
-
-  .quickstart__mock[hidden] { display: none; }
 
   .quickstart__mock .mk-dropzone,
   .quickstart__mock .mk-cred {
@@ -2771,7 +2771,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
 
             <div class="quickstart__mockup">
               <!-- 步骤1：选择文件 — 复用 mk-browser -->
-              <div class="quickstart__mock" data-show="1" hidden>
+              <div class="quickstart__mock" data-show="1">
                 <div class="mk-browser" style="width:100%">
                   <div class="mk-browser__bar">
                     <span class="mk-browser__dots"><i></i><i></i><i></i></span>
@@ -2791,7 +2791,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
                 </div>
               </div>
               <!-- 步骤2：配置凭证 — 复用 mk-browser -->
-              <div class="quickstart__mock" data-show="2" hidden>
+              <div class="quickstart__mock" data-show="2">
                 <div class="mk-browser" style="width:100%">
                   <div class="mk-browser__bar">
                     <span class="mk-browser__dots"><i></i><i></i><i></i></span>
@@ -2811,7 +2811,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
                 </div>
               </div>
               <!-- 步骤3：分享文本 — 复用 mk-browser -->
-              <div class="quickstart__mock" data-show="3" hidden>
+              <div class="quickstart__mock" data-show="3">
                 <div class="mk-browser" style="width:100%">
                   <div class="mk-browser__bar">
                     <span class="mk-browser__dots"><i></i><i></i><i></i></span>
