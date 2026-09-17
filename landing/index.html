@@ -333,6 +333,23 @@
     border-top: 1px solid var(--border);
   }
 
+  .hero__tags {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 12px 0 0; padding: 0;
+  }
+  .hero-tag {
+    display: inline-block;
+    padding: 5px 14px;
+    border-radius: 20px;
+    background: rgba(248,166,38,.1);
+    border: 1px solid rgba(248,166,38,.25);
+    color: #f8a626;
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: .3px;
+    white-space: nowrap;
+  }
+
   .facts li { color: var(--faint); font-size: 12.5px; }
 
   .facts b {
@@ -505,6 +522,12 @@
     transform: translateY(0);
   }
 
+  .quickstart__step.is-active {
+    border-color: var(--accent);
+    background: rgba(248,166,38,.08);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
   .quickstart__num {
     color: var(--accent);
     font-family: var(--mono);
@@ -537,7 +560,7 @@
 
   .quickstart__mockup {
     position: relative;
-    height: 120px;
+    height: 140px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--panel);
@@ -2552,7 +2575,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
   <section class="hero">
     <div class="wrap hero__grid">
       <div>
-        <div class="perspective-toggle" role="group" aria-label="切换视角">
+        <div class="perspective-toggle" role="group" aria-label="切换视角" hidden>
           <button type="button" class="perspective-btn" data-view="creator" aria-pressed="true">我是创作者</button>
           <button type="button" class="perspective-btn" data-view="reviewer" aria-pressed="false">我是客户</button>
         </div>
@@ -2577,8 +2600,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
 
         <!-- 创作者 CTA：动作动词，强调上传 -->
         <div class="hero__actions" data-perspective="creator">
-          <a class="btn btn--primary" href="https://blendproof.itycon.cn">上传我的 .blend</a>
-          <a class="btn" href="https://blendproof.itycon.cn/s/suzanne">预览客户看到的画面</a>
+          <a class="btn btn--primary" href="https://blendproof.itycon.cn">立即登录注册</a>
         </div>
 
         <!-- 客户 CTA：直接进演示视口 -->
@@ -2588,13 +2610,13 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
 
         <!-- 两个视角小字 -->
         <p class="hero__subline" data-perspective="creator">源文件不出本机 · 一条链接搞定审稿 · 你也能在模型上批注回复</p>
+        <div class="hero__tags" data-perspective="creator">
+          <span class="hero-tag">纯免费</span>
+          <span class="hero-tag">开源</span>
+          <span class="hero-tag">全栈开源</span>
+          <span class="hero-tag">无需安装</span>
+        </div>
         <p class="hero__subline" data-perspective="reviewer">零安装 · 链接直达 · 点击模型写批注</p>
-        <ul class="facts">
-          <li><b>5 GB</b>私有空间，项目隔离互不影响</li>
-          <li><b>48 h</b>到期自动清空，一件不留</li>
-          <li><b>415 硬拒绝</b>，不接受 .blend 原文件上传</li>
-          <li><b>¥0</b>注册和审稿都不收费</li>
-        </ul>
       </div>
 
       <div class="hero__viewport">
@@ -2623,11 +2645,11 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
         <!-- 创作者视角：分享凭证面板 -->
         <div data-perspective="creator">
           <figure class="mockup" style="height:100%">
-            <div class="mk-chrome"><span>审稿凭证</span><i>配置权限 · 设置有效期 · 复制链接</i></div>
+            <div class="mk-chrome"><span>分享信息</span><i>配置权限 · 设置有效期 · 一键复制</i></div>
             <div class="mk-cred">
               <div class="mk-cred-chips">
-                <button type="button" class="mk-chip" data-k="perm" data-v="comment" aria-pressed="true">可评论</button>
-                <button type="button" class="mk-chip" data-k="perm" data-v="readonly" aria-pressed="false">只读</button>
+                <button type="button" class="mk-chip" data-k="perm" data-v="comment" aria-pressed="true">可批注</button>
+                <button type="button" class="mk-chip" data-k="perm" data-v="readonly" aria-pressed="false">仅查看</button>
                 <span class="mk-chip-sep"></span>
                 <button type="button" class="mk-chip" data-k="exp" data-v="24" aria-pressed="true">24h</button>
                 <button type="button" class="mk-chip" data-k="exp" data-v="48" aria-pressed="false">48h</button>
@@ -2636,16 +2658,16 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
               </div>
               <div class="mk-cred-code">/s/suzanne</div>
               <dl>
-                <div><dt>权限</dt><dd id="mk-dd-perm-hero">可评论</dd></div>
+                <div><dt>权限</dt><dd id="mk-dd-perm-hero">可批注</dd></div>
                 <div><dt>到期</dt><dd id="mk-dd-exp-hero">24 小时后</dd></div>
                 <div><dt>密码</dt><dd id="mk-dd-pwd-hero">已设置</dd></div>
               </dl>
               <div class="mk-cred-actions">
-                <button type="button" id="mk-copy-hero">复制链接</button>
+                <button type="button" id="mk-copy-hero">复制分享文本</button>
                 <a href="https://blendproof.itycon.cn/s/suzanne" target="_blank" rel="noreferrer">打开检查</a>
               </div>
             </div>
-            <figcaption><b>分享凭证。</b>权限、有效期、密码都在这里定，发出之后随时可以撤销。</figcaption>
+            <figcaption><b>分享信息。</b>权限、有效期、密码都在这里定，复制后发给客户即可。点击「复制」会生成包含链接、密码和说明的完整文本。</figcaption>
           </figure>
         </div>
       </div>

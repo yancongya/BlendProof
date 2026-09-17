@@ -189,8 +189,107 @@ function initCards(): void {
   })
 }
 
+function initQuickstart(): void {
+  const panels = Array.from(document.querySelectorAll<HTMLElement>('.quickstart'))
+  if (panels.length === 0) return
+
+  panels.forEach((panel) => {
+    const steps = Array.from(panel.querySelectorAll<HTMLElement>('.quickstart__step'))
+    const mocks = Array.from(panel.querySelectorAll<HTMLElement>('.quickstart__mock'))
+    const browser = panel.querySelector<HTMLElement>('.quickstart__browser')
+    const states = browser ? Array.from(browser.querySelectorAll<HTMLElement>('.qs-browser__state')) : []
+
+    let currentStep = -1
+    let miniViewer: { dispose: () => void } | null = null
+
+    const ensureMiniViewer = (): void => {
+      const host = browser?.querySelector<HTMLElement>('#qs-mini-viewer')
+      if (!host || miniViewer) return
+      window.setTimeout(() => {
+        if (miniViewer || !host.isConnected) return
+        miniViewer = createMiniViewer(host)
+      }, 120)
+    }
+
+    const showStep = (index: number): void => {
+      currentStep = index
+      steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
+      mocks.forEach((mock, i) => { mock.hidden = i !== index })
+      states.forEach((state, i) => { state.hidden = i !== index })
+      if (index === 2) ensureMiniViewer()
+    }
+
+    steps.forEach((step, index) => {
+      step.addEventListener('click', () => {
+        if (browser) { showStep(index); return }
+        if (index === currentStep) {
+          currentStep = -1
+          steps.forEach((s) => s.classList.remove('is-active'))
+          mocks.forEach((m) => { m.hidden = true })
+          return
+        }
+        showStep(index)
+      })
+    })
+
+    panel.querySelectorAll<HTMLElement>('.quickstart__mock .mk-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const group = chip.closest('.mk-cred-chips')
+        if (!group) return
+        group.querySelectorAll<HTMLElement>('.mk-chip').forEach((other) => {
+          const otherText = other.textContent?.trim()
+          const chipText = chip.textContent?.trim()
+          if (otherText !== chipText) other.setAttribute('aria-pressed', 'false')
+        })
+        chip.setAttribute('aria-pressed', 'true')
+      })
+    })
+
+    if (browser) {
+      const urlInput = browser.querySelector<HTMLInputElement>('#qs-browser-url')
+      const pwdInput = browser.querySelector<HTMLInputElement>('#qs-browser-pwd')
+      const goBtn = browser.querySelector<HTMLButtonElement>('#qs-browser-go')
+      const fillBtn = browser.querySelector<HTMLButtonElement>('.qs-browser__fill')
+      const openBtn = browser.querySelector<HTMLButtonElement>('.qs-browser__open')
+
+      const typeText = (input: HTMLInputElement, text: string, done: () => void): void => {
+        input.value = ''
+        let i = 0
+        const timer = window.setInterval(() => {
+          i += 1
+          input.value = text.slice(0, i)
+          if (i >= text.length) { window.clearInterval(timer); done() }
+        }, 45)
+      }
+
+      const DEMO_URL = 'blendproof.itycon.cn/s/suzanne'
+
+      fillBtn?.addEventListener('click', () => {
+        if (!urlInput || fillBtn.disabled) return
+        fillBtn.disabled = true
+        typeText(urlInput, DEMO_URL, () => { window.setTimeout(() => showStep(1), 450) })
+      })
+
+      goBtn?.addEventListener('click', () => { if (urlInput?.value === DEMO_URL) showStep(1) })
+
+      const fillPassphrase = (): void => {
+        if (!pwdInput || pwdInput.value.length > 0) return
+        typeText(pwdInput, 'tycon', () => { if (openBtn) openBtn.disabled = false })
+      }
+      const passObserver = new MutationObserver(() => {
+        const state = browser.querySelector<HTMLElement>('[data-state="2"]')
+        if (state && !state.hidden) fillPassphrase()
+      })
+      states.forEach((state) => passObserver.observe(state, { attributes: true, attributeFilter: ['hidden'] }))
+
+      openBtn?.addEventListener('click', () => { if (openBtn.disabled) return; showStep(2) })
+    }
+  })
+}
+
 export function init(): void {
   initPainFlip()
+  initQuickstart()
   initLegalModals()
   initChromeDots()
   initCardInteractions()

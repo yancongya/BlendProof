@@ -159,18 +159,26 @@ function initCopyDemo(): void {
 
   copyButton.addEventListener('click', () => {
     const link = 'https://blendproof.itycon.cn/s/suzanne'
+    const shareText = [
+      '【BlendProof 分享】3D 审稿链接',
+      '',
+      '链接：' + link,
+      '提取码：tycon',
+      '',
+      '复制以上内容到浏览器打开，即可查看 3D 模型并添加批注。',
+    ].join('\n')
     const cred = copyButton.closest<HTMLElement>('.mk-cred')
 
     const stamp = (): void => {
       setNodeText(copyButton, '已复制')
       cred?.classList.add('stamped')
       window.setTimeout(() => {
-        setNodeText(copyButton, '复制链接')
+        setNodeText(copyButton, '复制分享文本')
         cred?.classList.remove('stamped')
       }, 1600)
     }
-    void navigator.clipboard?.writeText(link).then(stamp).catch(() => {
-      window.prompt(t('复制这条演示链接：'), link)
+    void navigator.clipboard?.writeText(shareText).then(stamp).catch(() => {
+      window.prompt(t('复制这段分享文本：'), shareText)
     })
 
     // 接收方联动：右卡收到链接（脉冲 + 浏览器状态行提示）
@@ -196,18 +204,28 @@ function initHeroCopyDemo(): void {
 
   copyButton.addEventListener('click', () => {
     const link = 'https://blendproof.itycon.cn/s/suzanne'
+    // 百度网盘风格的分享文本块：链接 + 提取码 + 说明
+    const shareText = [
+      '【BlendProof 分享】3D 审稿链接',
+      '',
+      '链接：' + link,
+      '提取码：tycon',
+      '',
+      '复制以上内容到浏览器打开，即可查看 3D 模型并添加批注。',
+    ].join('\n')
+
     const cred = copyButton.closest<HTMLElement>('.mk-cred')
 
     const stamp = (): void => {
       setNodeText(copyButton, '已复制')
       cred?.classList.add('stamped')
       window.setTimeout(() => {
-        setNodeText(copyButton, '复制链接')
+        setNodeText(copyButton, '复制分享文本')
         cred?.classList.remove('stamped')
       }, 1600)
     }
-    void navigator.clipboard?.writeText(link).then(stamp).catch(() => {
-      window.prompt(t('复制这条演示链接：'), link)
+    void navigator.clipboard?.writeText(shareText).then(stamp).catch(() => {
+      window.prompt(t('复制这段分享文本：'), shareText)
     })
   })
 }
