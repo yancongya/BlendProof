@@ -245,6 +245,41 @@ function initQuickstart(): void {
       })
     })
 
+    // 创作者视角 mockup 交互
+    // 步骤1：dropzone 点击 → 模拟进度条动画
+    const dropzone = panel.querySelector<HTMLElement>('#qs-dropzone')
+    const progress1 = panel.querySelector<HTMLElement>('#qs-progress-1')
+    if (dropzone && progress1) {
+      dropzone.addEventListener('click', () => {
+        dropzone.hidden = true
+        progress1.hidden = false
+        const fill = progress1.querySelector<HTMLElement>('.qs-progress__fill')
+        const label = progress1.querySelector<HTMLElement>('.qs-progress__label')
+        if (fill) fill.style.width = '100%'
+        if (label) label.textContent = '已转换 · 点击步骤②配置凭证'
+        // 1.8s 后自动跳到步骤2
+        window.setTimeout(() => { showStep(1) }, 1800)
+      })
+    }
+
+    // 步骤2：生成按钮 → 跳到步骤3
+    const genBtn = panel.querySelector<HTMLElement>('#qs-gen-btn')
+    if (genBtn) {
+      genBtn.addEventListener('click', () => { showStep(2) })
+    }
+
+    // 步骤3：点击分享文本 → 复制到剪贴板 + toast
+    const shareText = panel.querySelector<HTMLElement>('#qs-share-text')
+    const toast = panel.querySelector<HTMLElement>('#qs-share-toast')
+    if (shareText) {
+      shareText.addEventListener('click', () => {
+        const text = '【BlendProof 分享】3D 审稿链接\n\n链接：https://blendproof.itycon.cn/s/suzanne\n提取码：tycon\n\n复制以上内容到浏览器打开，即可查看 3D 模型并添加批注。'
+        void navigator.clipboard?.writeText(text).then(() => {
+          if (toast) { toast.hidden = false; window.setTimeout(() => { toast.hidden = true }, 1600) }
+        }).catch(() => { /* ignore */ })
+      })
+    }
+
     if (browser) {
       const urlInput = browser.querySelector<HTMLInputElement>('#qs-browser-url')
       const pwdInput = browser.querySelector<HTMLInputElement>('#qs-browser-pwd')

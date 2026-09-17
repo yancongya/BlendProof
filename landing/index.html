@@ -598,6 +598,38 @@
     width: 100%;
   }
 
+  /* Quickstart mockup: progress animation (step 1) */
+  .qs-progress { width: 100%; text-align: center; }
+  .qs-progress__bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+  .qs-progress__fill { height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width .6s ease; }
+  .qs-progress__label { color: var(--muted); font-size: 10px; }
+
+  /* Quickstart mockup: generate button (step 2) */
+  .qs-gen-btn {
+    display: block; width: 100%; margin-top: 8px; padding: 8px 0;
+    border: 1px solid var(--accent); border-radius: 3px;
+    background: var(--accent); color: #fff;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: background .2s;
+  }
+  .qs-gen-btn:hover { background: #e09520; }
+
+  /* Quickstart mockup: share text block (step 3) */
+  .qs-share-text {
+    background: var(--mk-inset); border: 1px solid var(--mk-chip-border); border-radius: 4px;
+    padding: 10px 12px; cursor: pointer; font-size: 11px; line-height: 1.5;
+    transition: border-color .2s;
+  }
+  .qs-share-text:hover { border-color: var(--accent); }
+  .qs-share-text__header { font-weight: 600; color: var(--ink-bright); margin-bottom: 4px; }
+  .qs-share-text__body { color: var(--ink); font-family: var(--mono); font-size: 10.5px; margin-bottom: 6px; }
+  .qs-share-text__footer { color: var(--muted); font-size: 10px; }
+
+  /* Quickstart mockup: toast (step 3) */
+  .qs-share-toast {
+    margin-top: 6px; text-align: center; font-size: 11px; color: var(--accent);
+    transition: opacity .3s;
+  }
   /* Customer perspective: shared browser mockup */
   .quickstart__browser {
     border: 1px solid var(--border);
@@ -2723,29 +2755,66 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
             </div>
 
             <div class="quickstart__mockup">
+              <!-- 步骤1：选择文件 + 模拟进度动画 -->
               <div class="quickstart__mock" data-show="1" hidden>
-                <div class="mk-dropzone">
-                  <b>⇪</b>
-                  <strong>点击选择 .blend 文件</strong>
-                  <small>仅接受 .blend · 文件不会上传</small>
-                </div>
-              </div>
-              <div class="quickstart__mock" data-show="2" hidden>
-                <div class="mk-cred" style="margin:0">
-                  <div class="mk-cred-chips">
-                    <button type="button" class="mk-chip" aria-pressed="true">可评论</button>
-                    <button type="button" class="mk-chip" aria-pressed="false">只读</button>
-                    <span class="mk-chip-sep"></span>
-                    <button type="button" class="mk-chip" aria-pressed="true">24h</button>
-                    <button type="button" class="mk-chip" aria-pressed="false">48h</button>
+                <div class="mk-browser">
+                  <div class="mk-browser__bar">
+                    <span class="mk-browser__dots"><i></i><i></i><i></i></span>
+                    <input type="text" class="mk-browser__url" value="blendproof.itycon.cn" readonly>
                   </div>
-                  <div class="mk-cred-code">/s/suzanne</div>
+                  <div class="mk-browser__page" style="padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px">
+                    <div class="mk-dropzone" id="qs-dropzone" style="width:100%">
+                      <b>⇪</b>
+                      <strong>点击选择 .blend 文件</strong>
+                      <small>仅接受 .blend · 文件不会上传</small>
+                    </div>
+                    <div class="qs-progress" id="qs-progress-1" hidden>
+                      <div class="qs-progress__bar"><div class="qs-progress__fill"></div></div>
+                      <small class="qs-progress__label">转换中…</small>
+                    </div>
+                  </div>
                 </div>
               </div>
+              <!-- 步骤2：配置凭证 + 生成按钮 -->
+              <div class="quickstart__mock" data-show="2" hidden>
+                <div class="mk-browser">
+                  <div class="mk-browser__bar">
+                    <span class="mk-browser__dots"><i></i><i></i><i></i></span>
+                    <input type="text" class="mk-browser__url" value="blendproof.itycon.cn" readonly>
+                  </div>
+                  <div class="mk-browser__page" style="padding:12px;display:flex;flex-direction:column;justify-content:center">
+                    <div class="mk-cred" style="margin:0;border:0;border-radius:0;background:transparent">
+                      <div class="mk-cred-chips">
+                        <button type="button" class="mk-chip" aria-pressed="true">可批注</button>
+                        <button type="button" class="mk-chip" aria-pressed="false">仅查看</button>
+                        <span class="mk-chip-sep"></span>
+                        <button type="button" class="mk-chip" aria-pressed="true">24h</button>
+                        <button type="button" class="mk-chip" aria-pressed="false">48h</button>
+                      </div>
+                      <div class="mk-cred-code">/s/suzanne</div>
+                    </div>
+                    <button type="button" class="qs-gen-btn" id="qs-gen-btn">生成分享链接</button>
+                  </div>
+                </div>
+              </div>
+              <!-- 步骤3：分享文本块（点击复制） -->
               <div class="quickstart__mock" data-show="3" hidden>
-                <div class="mk-cred-actions" style="border:0;border-radius:3px;overflow:hidden">
-                  <button type="button" class="quickstart__copy-btn">复制链接</button>
-                  <a href="https://blendproof.itycon.cn/s/suzanne" target="_blank" rel="noreferrer">打开检查</a>
+                <div class="mk-browser">
+                  <div class="mk-browser__bar">
+                    <span class="mk-browser__dots"><i></i><i></i><i></i></span>
+                    <input type="text" class="mk-browser__url" value="blendproof.itycon.cn" readonly>
+                  </div>
+                  <div class="mk-browser__page" style="padding:12px;display:flex;flex-direction:column;justify-content:center">
+                    <div class="qs-share-text" id="qs-share-text">
+                      <div class="qs-share-text__header">【BlendProof 分享】3D 审稿链接</div>
+                      <div class="qs-share-text__body">
+                        链接：https://blendproof.itycon.cn/s/suzanne<br>
+                        提取码：tycon
+                      </div>
+                      <div class="qs-share-text__footer">复制以上内容到浏览器打开，即可查看 3D 模型并添加批注。</div>
+                    </div>
+                    <div class="qs-share-toast" id="qs-share-toast" hidden>已复制到剪贴板</div>
+                  </div>
                 </div>
               </div>
             </div>
