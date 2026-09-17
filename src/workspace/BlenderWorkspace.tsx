@@ -17,6 +17,8 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
+
 import { Environment } from "@react-three/drei";
 import {
   Box,
@@ -222,6 +224,28 @@ export function BlenderWorkspace({
         : comments.filter((comment) => comment.status === reviewFilter),
     [comments, reviewFilter],
   );
+  const [rightPanelWidth, setRightPanelWidth] = useState(282);
+  const [rightPanelVisible, setRightPanelVisible] = useState(true);
+
+  const startResizing = useCallback((e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = rightPanelWidth;
+    const onPointerMove = (moveEvent) => {
+      const delta = startX - moveEvent.clientX;
+      let newWidth = startWidth + delta;
+      if (newWidth < 180) newWidth = 180;
+      if (newWidth > 800) newWidth = 800;
+      setRightPanelWidth(newWidth);
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }, [rightPanelWidth]);
+
   const [outlinerHeight, setOutlinerHeight] = useState(280);
   const [outlinerCollapsed, setOutlinerCollapsed] = useState(false);
   const [propertyHeight, setPropertyHeight] = useState(132);

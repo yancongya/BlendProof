@@ -569,34 +569,7 @@
   .quickstart__mockup {
     position: relative;
     height: 220px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--panel);
     overflow: hidden;
-  }
-
-  /* 产品 mockup 卡片（创作者视角三步共用） */
-  .qs-mock-card {
-    width: 100%; height: 100%;
-    display: flex; flex-direction: column;
-    border: 1px solid var(--mk-chip-border);
-    border-radius: 3px;
-    background: var(--stat-bg);
-    overflow: hidden;
-  }
-  .qs-mock-card__chrome {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--mk-line);
-    background: var(--mk-btn-bg);
-    font-size: 10px; color: var(--ink); font-weight: 500;
-  }
-  .qs-mock-card__chrome-dots { display: inline-flex; gap: 4px; margin-right: 4px; }
-  .qs-mock-card__chrome-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--mk-chip-border); }
-  .qs-mock-card__body {
-    flex: 1; display: flex; flex-direction: column; justify-content: center;
-    padding: 14px 16px;
-    gap: 6px;
   }
 
   .quickstart__mockup::before {
@@ -2816,15 +2789,15 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
             </div>
 
             <div class="quickstart__mockup">
-              <!-- 步骤1：选择文件 — 产品上传工作台 mockup -->
+              <!-- 步骤1：选择文件 — 复用 mk-browser -->
               <div class="quickstart__mock" data-show="1" hidden>
-                <div class="qs-mock-card">
-                  <div class="qs-mock-card__chrome">
-                    <span class="qs-mock-card__chrome-dots"><i></i><i></i><i></i></span>
-                    <span>上传工作台</span>
+                <div class="mk-browser" style="width:100%">
+                  <div class="mk-browser__bar">
+                    <span class="mk-browser__dots"><i></i><i></i><i></i></span>
+                    <span class="mk-browser__url" style="border:0;background:transparent;color:var(--ink);font-size:10px;cursor:default">上传工作台</span>
                   </div>
-                  <div class="qs-mock-card__body">
-                    <div class="mk-dropzone" id="qs-dropzone">
+                  <div class="mk-browser__page" style="padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">
+                    <div class="mk-dropzone" id="qs-dropzone" style="width:100%;max-width:360px">
                       <b>⇪</b>
                       <strong>点击选择 .blend 文件</strong>
                       <small>仅接受 .blend · 文件不会上传</small>
@@ -2836,34 +2809,34 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
                   </div>
                 </div>
               </div>
-              <!-- 步骤2：配置凭证 — 产品分享面板 mockup -->
+              <!-- 步骤2：配置凭证 — 复用 mk-browser -->
               <div class="quickstart__mock" data-show="2" hidden>
-                <div class="qs-mock-card">
-                  <div class="qs-mock-card__chrome">
-                    <span class="qs-mock-card__chrome-dots"><i></i><i></i><i></i></span>
-                    <span>分享信息</span>
+                <div class="mk-browser" style="width:100%">
+                  <div class="mk-browser__bar">
+                    <span class="mk-browser__dots"><i></i><i></i><i></i></span>
+                    <span class="mk-browser__url" style="border:0;background:transparent;color:var(--ink);font-size:10px;cursor:default">分享信息</span>
                   </div>
-                  <div class="qs-mock-card__body">
-                    <div class="mk-cred-chips" style="margin-bottom:8px">
+                  <div class="mk-browser__page" style="padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">
+                    <div class="mk-cred-chips">
                       <button type="button" class="mk-chip" aria-pressed="true">可批注</button>
                       <button type="button" class="mk-chip" aria-pressed="false">仅查看</button>
                       <span class="mk-chip-sep"></span>
                       <button type="button" class="mk-chip" aria-pressed="true">24h</button>
                       <button type="button" class="mk-chip" aria-pressed="false">48h</button>
                     </div>
-                    <div class="mk-cred-code" style="margin-bottom:10px">/s/suzanne</div>
+                    <div class="mk-cred-code">/s/suzanne</div>
                     <button type="button" class="qs-gen-btn" id="qs-gen-btn">生成分享链接</button>
                   </div>
                 </div>
               </div>
-              <!-- 步骤3：分享文本 — 百度网盘风格分享文本块 mockup -->
+              <!-- 步骤3：分享文本 — 复用 mk-browser -->
               <div class="quickstart__mock" data-show="3" hidden>
-                <div class="qs-mock-card">
-                  <div class="qs-mock-card__chrome">
-                    <span class="qs-mock-card__chrome-dots"><i></i><i></i><i></i></span>
-                    <span>分享已生成</span>
+                <div class="mk-browser" style="width:100%">
+                  <div class="mk-browser__bar">
+                    <span class="mk-browser__dots"><i></i><i></i><i></i></span>
+                    <span class="mk-browser__url" style="border:0;background:transparent;color:var(--ink);font-size:10px;cursor:default">分享已生成</span>
                   </div>
-                  <div class="qs-mock-card__body">
+                  <div class="mk-browser__page" style="padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center">
                     <div class="qs-share-text" id="qs-share-text">
                       <div class="qs-share-text__header">【BlendProof 分享】3D 审稿链接</div>
                       <div class="qs-share-text__body">
