@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { convertBlendInBrowser } from "./browserBlend";
 
-self.onmessage = async (event: MessageEvent<File>) => {
+self.onmessage = async (event: MessageEvent<File | ArrayBuffer>) => {
   try {
     const result = await convertBlendInBrowser(event.data);
     self.postMessage({ type: 'success', result });

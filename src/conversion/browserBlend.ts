@@ -40,8 +40,8 @@ export type BrowserBlendResult = {
 const objectType = (type: number) => ({ 1: "MESH", 10: "LIGHT", 11: "CAMERA", 25: "ARMATURE" } as Record<number, string>)[type] ?? "OTHER";
 
 /** Converts the supported static subset without sending the source file anywhere. */
-export async function convertBlendInBrowser(file: File): Promise<BrowserBlendResult> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
+export async function convertBlendInBrowser(file: File | ArrayBuffer): Promise<BrowserBlendResult> {
+  const bytes = new Uint8Array(file instanceof ArrayBuffer ? file : await file.arrayBuffer());
   const blend = parseBlend(bytes);
   const scenes = extractScenes(blend);
   const objects = extractObjects(blend);

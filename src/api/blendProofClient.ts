@@ -6,6 +6,8 @@ import type {
   ReviewReplyDraft,
 } from "../features/review";
 import type { BrowserBlendResult } from "../conversion/browserBlend";
+import ConvertWorker from "../conversion/browserBlend.worker?worker";
+
 
 
 export type OwnerProject = {
@@ -182,7 +184,7 @@ export class BlendProofClient {
   async convertInBrowser(file: File): Promise<OwnerProject> {
     const result = await new Promise<BrowserBlendResult>((resolve, reject) => {
       // Create Vite worker dynamically
-      const worker = new Worker(new URL('../conversion/browserBlend.worker.ts', import.meta.url), { type: 'module' });
+      const worker = new ConvertWorker();
       worker.onmessage = (e) => {
         if (e.data.type === 'success') {
           resolve(e.data.result);
@@ -195,7 +197,7 @@ export class BlendProofClient {
         reject(new Error("Worker error: " + err.message));
         worker.terminate();
       };
-      worker.postMessage(file);
+      file.arrayBuffer().then(buf => worker.postMessage(buf));
     });
 
     const id = `browser-${crypto.randomUUID().replaceAll("-", "")}`;

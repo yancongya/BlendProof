@@ -568,7 +568,11 @@
 
   .quickstart__mockup {
     position: relative;
-    min-height: 220px;
+    height: 260px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
   }
 
   .quickstart__mockup::before {
@@ -606,6 +610,16 @@
   .quickstart__mock .mk-dropzone,
   .quickstart__mock .mk-cred {
     width: 100%;
+  }
+
+  .quickstart__mockup .mk-browser__page {
+    height: auto;
+    min-height: 0;
+  }
+  .quickstart__mockup .mk-browser {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   /* Quickstart mockup: progress animation (step 1) */
