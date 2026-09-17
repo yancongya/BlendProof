@@ -25,10 +25,19 @@ function initTarotPortal(): void {
 
   let isLaunching = false
 
-  // Lock scroll; always show portal on every page load/refresh
+  // C1: 只在首次访问时展示塔罗门；回访直接进正文。
+  // 用 localStorage 记住选择，保留"重新选择"入口供主动重置。
+  let identitySeen = false
+  try { identitySeen = localStorage.getItem('bp-identity-seen') === '1' } catch { /* ignore */ }
+
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
   window.scrollTo(0, 0)
-  root.dataset.identityChosen = 'false'
+
+  if (identitySeen) {
+    root.dataset.identityChosen = 'true'
+  } else {
+    root.dataset.identityChosen = 'false'
+  }
 
   const noMotion = prefersReducedMotion()
 
@@ -77,6 +86,8 @@ function initTarotPortal(): void {
 
   // Enter site
   const enter = (role: 'creator' | 'reviewer'): void => {
+    // C1: 记住用户已选择过身份，下次直接进正文
+    try { localStorage.setItem('bp-identity-seen', '1') } catch { /* ignore */ }
     root.dataset.identityChosen = 'true'
     const btn = document.querySelector<HTMLButtonElement>(`.perspective-btn[data-view="${role}"]`)
     if (btn) {
@@ -154,10 +165,12 @@ function initTarotPortal(): void {
 
   skipBtn?.addEventListener('click', () => {
     if (isLaunching) return
+    try { localStorage.setItem('bp-identity-seen', '1') } catch { /* ignore */ }
     root.dataset.identityChosen = 'true'
   })
 
   reopenBtn?.addEventListener('click', () => {
+    try { localStorage.removeItem('bp-identity-seen') } catch { /* ignore */ }
     isLaunching = false
     const portal = document.getElementById('tarot-portal')
     portal?.classList.remove('is-launching')
@@ -172,6 +185,7 @@ function initTarotPortal(): void {
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && root.dataset.identityChosen === 'false' && !isLaunching) {
+      try { localStorage.setItem('bp-identity-seen', '1') } catch { /* ignore */ }
       root.dataset.identityChosen = 'true'
     }
   })

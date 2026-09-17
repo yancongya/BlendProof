@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-identity-chosen="false">
+<html lang="zh-CN" data-identity-chosen="true">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -2085,8 +2085,8 @@ grid-template-columns: minmax(0, 1fr);
 
   /* ============================================================
      Tarot Identity Portal — Atropos 2.0.2 multi-layer cards
-     State: html[data-identity-chosen="false"] → portal open
-            html[data-identity-chosen="true"]  → portal closed
+     State: html[data-identity-chosen="true"]  → portal closed (default, no-JS safe)
+            html[data-identity-chosen="false"] → portal open (JS sets on first visit)
   ============================================================ */
 
   /* Lock body while portal is open; hide page content */
