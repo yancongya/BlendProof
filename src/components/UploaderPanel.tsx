@@ -29,6 +29,9 @@ type ManifestLike = {
   };
 };
 
+/** 100 MB — 超过此大小的 .blend 文件在浏览器内转换会显著变慢，且 WebGPU 资源可能不足。 */
+const MAX_BLEND_SIZE = 100 * 1024 * 1024;
+
 export function UploaderPanel({
   file,
   stage,
@@ -70,6 +73,14 @@ export function UploaderPanel({
     if (!next) return;
     if (!next.name.toLowerCase().endsWith(".blend")) {
       setFileError("文件格式不受支持，请选择 .blend 文件。");
+      if (input.current) input.current.value = "";
+      onFile(null);
+      return;
+    }
+    if (next.size > MAX_BLEND_SIZE) {
+      setFileError(
+        `文件过大（${formatBytes(next.size)}），建议控制在 100 MB 以内以确保浏览器内转换正常。`,
+      );
       if (input.current) input.current.value = "";
       onFile(null);
       return;
@@ -154,7 +165,7 @@ export function UploaderPanel({
         <span className="blend-dropzone-icon"><FolderOpen size={21} /></span>
         <strong>打开 .blend</strong>
         <span>或将文件拖放到这里</span>
-        <small>仅支持 Blender 原生工程文件</small>
+        <small>仅支持 Blender 原生工程文件（上限 100 MB）</small>
       </button>
 
       {file ? (
