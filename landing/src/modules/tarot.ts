@@ -193,6 +193,25 @@ function initTarotPortal(): void {
   // Initial selection state matches current perspective
   const view = root.dataset.view ?? 'creator'
   units.forEach((u) => u.classList.toggle('is-selected', u.dataset.role === view))
+
+  // 动态更新 reopen 按钮：图标 + 文字反映当前身份
+  const reopenIcon = document.getElementById('tarot-reopen-icon')
+  const reopenLabel = document.getElementById('tarot-reopen-label')
+  const roleLabels: Record<string, { icon: string; label: string }> = {
+    creator: { icon: '✦', label: t('造物者') },
+    reviewer: { icon: '◈', label: t('审视者') },
+  }
+  const updateReopen = (): void => {
+    const current = root.dataset.view ?? 'creator'
+    const info = roleLabels[current] ?? roleLabels.creator
+    if (reopenIcon) reopenIcon.textContent = info.icon
+    if (reopenLabel) reopenLabel.textContent = info.label
+  }
+  updateReopen()
+
+  // 观察视角切换时更新
+  const observer = new MutationObserver(updateReopen)
+  observer.observe(root, { attributes: true, attributeFilter: ['data-view'] })
 }
 
 export function init(): void {
