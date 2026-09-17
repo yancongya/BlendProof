@@ -1,0 +1,84 @@
+/**
+ * 视图域样式。
+ *
+ * 当前只包含新引入的加载态与错误兜底（B1/B2）。
+ * 视口与面板布局的既有规则仍在 src/overrides.css，待 4.7 按域归位 ——
+ * 从本文件起不再往全局 overrides 追加规则（见 ARCHITECTURE_RULES §5）。
+ */
+
+/* ---- 模型加载态（B1） ---- */
+.viewport-loading {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 6;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  background: linear-gradient(to top, #1b1b1bee, #1b1b1b00);
+  color: #ddd;
+  font-size: 11px;
+  pointer-events: none;
+}
+.viewport-loading-track {
+  height: 3px;
+  border-radius: 2px;
+  background: #333;
+  overflow: hidden;
+}
+.viewport-loading-track > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: #e87d0d;
+  transition: width .2s ease-out;
+}
+.viewport-loading p {
+  margin: 0;
+  color: #e0e0e0;
+}
+.viewport-loading small {
+  color: #9a9a9a;
+}
+
+/* ---- 模型失败兜底（B2） ---- */
+.viewport-error {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px;
+  background: #1b1b1b;
+  color: #ccc;
+  text-align: center;
+}
+.viewport-error p {
+  margin: 0;
+  color: #f0a04a;
+  font-size: 13px;
+  font-weight: 600;
+}
+.viewport-error-reason {
+  max-width: 460px;
+  color: #bbb;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.viewport-error-hint {
+  max-width: 460px;
+  color: #888;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.viewport-error button {
+  padding: 6px 14px;
+  border: 1px solid #b96511;
+  border-radius: 3px;
+  background: #a85109;
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+}

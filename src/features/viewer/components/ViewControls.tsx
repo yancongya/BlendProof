@@ -19,10 +19,11 @@ import {
   type Camera as ThreeCamera,
   type Object3D,
 } from "three";
-import type { CameraPreset } from "../types";
-import type { CameraState } from "../shared/types/camera";
-import type { Vec3 } from "../shared/types/geometry";
-import { captureCameraState } from "../utils";
+import type { CameraPreset } from "../../../types";
+import { cloneFileCamera, fileCameraTarget, frameScene } from "../cameraPresets";
+import type { CameraState } from "../../../shared/types/camera";
+import type { Vec3 } from "../../../shared/types/geometry";
+import { captureCameraState } from "../../../utils";
 
 export type { CameraState };
 
@@ -53,50 +54,25 @@ export function BlenderViewControls({
       ? fileCameras.find((item) => item.uuid === preset.slice(5))
       : undefined;
     if (source) {
-      source.updateWorldMatrix(true, false);
-      const fileCamera = source.clone() as ThreeCamera;
-      source.getWorldPosition(fileCamera.position);
-      source.getWorldQuaternion(fileCamera.quaternion);
-      if (fileCamera.type === "PerspectiveCamera") {
-        (fileCamera as any).aspect = size.width / size.height;
+      const fileCamera = cloneFileCamera(source, size);
+      set({ camera: fileCamera as never });
+      if (controls.current) {
+        controls.current.object = fileCamera;
+        controls.current.target.copy(fileCameraTarget(fileCamera));
       }
-      (fileCamera as any).updateProjectionMatrix();
-      set({ camera: fileCamera as any });
-      if (controls.current) controls.current.object = fileCamera;
-      const forward = new Vector3(0, 0, -1).applyQuaternion(fileCamera.quaternion);
-      controls.current?.target.copy(fileCamera.position).add(forward.multiplyScalar(10));
     } else {
       const activeCamera = navigationCamera.current!;
-      set({ camera: activeCamera as any });
+      set({ camera: activeCamera as never });
       if (controls.current) controls.current.object = activeCamera;
-      const bounds = scene ? new Box3().setFromObject(scene) : null;
-      const center =
-        bounds && !bounds.isEmpty() ? bounds.getCenter(new Vector3()) : new Vector3();
-      const radius =
-        bounds && !bounds.isEmpty()
-          ? Math.max(bounds.getSize(new Vector3()).length() / 2, 1)
-          : 4;
-      const distance = radius * 2.4;
-      const position: [number, number, number] =
-        preset === "front"
-          ? [center.x, center.y - distance, center.z]
-          : preset === "right"
-          ? [center.x + distance, center.y, center.z]
-          : preset === "top"
-          ? [center.x, center.y, center.z + distance]
-          : [
-              center.x + distance * 0.62,
-              center.y - distance * 0.62,
-              center.z + distance * 0.5,
-            ];
+      const { center, position } = frameScene(scene, preset);
       activeCamera.position.set(...position);
       controls.current?.target.copy(center);
       activeCamera.lookAt(center);
-      (activeCamera as any).updateProjectionMatrix();
+      (activeCamera as ThreeCamera & { updateProjectionMatrix: () => void }).updateProjectionMatrix();
     }
     controls.current?.update();
     if (controls.current) onTargetChange(controls.current.target.toArray() as Vec3);
-  }, [fileCameras, onTargetChange, preset, scene, set, size.height, size.width]);
+  }, [fileCameras, onTargetChange, preset, scene, set, size]);
 
   useEffect(() => {
     if (!reviewCameraRequest) return;

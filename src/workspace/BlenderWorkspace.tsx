@@ -48,19 +48,27 @@ import { ConversionSummary } from "../components/ConversionSummary";
 import {
   ReviewAnnotations,
   ReviewPanel,
-  type AnnotationHit,
   type PendingReview,
   type ReviewComment,
   type ReviewCommentDraft,
   type ReviewCommentPatch,
 } from "../features/review";
-import { BlenderViewportGrid } from "./BlenderViewportGrid";
-import { BlenderViewControls } from "./BlenderViewControls";
 import {
-  Model,
   AnnotationHoverMarker,
+  BlenderViewControls,
+  BlenderViewportGrid,
   BoxSelectionController,
-} from "./Model";
+  ClockIcon,
+  DecorativeBoundary,
+  FileIcon,
+  Model,
+  PanelResizeHandle,
+  TrashIcon,
+  clearModelCache,
+  VIEWER_GUIDE_STEPS,
+  ViewportErrorBoundary,
+  ViewportLoading,
+} from "../features/viewer";
 import { t, tf } from "../i18n";
 import { formatShareExpiry } from "../utils";
 import type {
@@ -73,110 +81,9 @@ import type {
   ShadingMode,
 } from "../types";
 import type { CameraState } from "../shared/types/camera";
+import type { SurfaceHit } from "../shared/types/picking";
 import type { Vec3 } from "../shared/types/geometry";
 
-
-// ---------------------------------------------------------------------------
-// Local helpers (icons and resize handle)
-// ---------------------------------------------------------------------------
-
-function FileIcon() {
-  return (
-    <span className="start-file-icon">
-      <Box size={15} />
-    </span>
-  );
-}
-
-function ClockIcon() {
-  return <History size={14} />;
-}
-
-function TrashIcon() {
-  return <Trash2 size={14} />;
-}
-
-function PanelResizeHandle({
-  label,
-  onDelta,
-}: {
-  label: string;
-  onDelta: (delta: number) => void;
-}) {
-  const lastY = useRef(0);
-  return (
-    <div
-      className="panel-resize-handle"
-      role="separator"
-      aria-label={label}
-      aria-orientation="horizontal"
-      tabIndex={0}
-      onPointerDown={(event) => {
-        lastY.current = event.clientY;
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }}
-      onPointerMove={(event) => {
-        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-        const delta = event.clientY - lastY.current;
-        if (delta === 0) return;
-        lastY.current = event.clientY;
-        onDelta(delta);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "ArrowUp") onDelta(-12);
-        if (event.key === "ArrowDown") onDelta(12);
-      }}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Guided tour steps
-// ---------------------------------------------------------------------------
-
-const VIEWER_GUIDE_STEPS: GuidedTourStep[] = [
-  {
-    id: "file",
-    title: "打开 Blender 文件",
-    description: "从文件菜单选择 .blend，文件会先在本机转换。",
-    target: '[data-guide="file-menu"]',
-    placement: "bottom",
-    group: "开始",
-  },
-  {
-    id: "viewport",
-    title: "操作 3D 视图",
-    description: "中键旋转，Shift + 中键平移，滚轮缩放；空白区域取消选择。",
-    target: '[data-guide="viewport"]',
-    placement: "right",
-    group: "视图",
-  },
-  {
-    id: "outliner",
-    title: "查看场景结构",
-    description: "在 Outliner 中选择对象、控制显隐，按 / 可独显。",
-    target: '[data-guide="outliner"]',
-    placement: "left",
-    group: "场景",
-  },
-  {
-    id: "annotation",
-    title: "添加批注",
-    description:
-      "进入标注模式，悬停模型表面查看吸附点，右键在当前视角位置创建批注。",
-    target: '[data-guide="annotation-tool"]',
-    placement: "bottom",
-    group: "审稿",
-  },
-  {
-    id: "share",
-    title: "创建分享",
-    description: "选择只读或可评论，设置密码和有效期后复制链接给客户。",
-    target: '[data-guide="share-button"]',
-    placement: "bottom",
-    group: "协作",
-  },
-];
 
 // ---------------------------------------------------------------------------
 // BlenderWorkspace
@@ -283,7 +190,7 @@ export function BlenderWorkspace({
   const [sceneRoot, setSceneRoot] = useState<Object3D | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox>(null);
   const [annotationMode, setAnnotationMode] = useState(false);
-  const [annotationHover, setAnnotationHover] = useState<AnnotationHit | null>(null);
+  const [annotationHover, setAnnotationHover] = useState<SurfaceHit | null>(null);
   const [annotationPopover, setAnnotationPopover] = useState<{
     x: number;
     y: number;
@@ -930,6 +837,14 @@ export function BlenderWorkspace({
             aria-label="3D 模型视图"
           >
             {modelUrl ? (
+              <ViewportErrorBoundary
+                hint={
+                  readOnly
+                    ? t("请把这条提示发给分享者，让对方确认模型文件是否仍然可用。")
+                    : t("可以重新上传 .blend，或在文件菜单中选择其他项目。")
+                }
+                onRetry={() => clearModelCache(modelUrl)}
+              >
               <Canvas
                 camera={{ position: [7, 7, 5], fov: 45 }}
                 dpr={[1, 2]}
@@ -960,8 +875,10 @@ export function BlenderWorkspace({
                     hoveredName={annotationHover?.objectName ?? null}
                     navigationTarget={navigationTarget}
                     onHoverAnnotation={setAnnotationHover}
-                    onAnnotation={(draft, screen) => {
-                      setPendingReview(draft);
+                    onAnnotation={(hit, camera, screen) => {
+                      // viewer 只上报拾取结果与相机；「批注草稿」是审稿域的概念，
+                      // 由这里组装，viewer 因此不必依赖 review 域。
+                      setPendingReview({ ...hit, camera });
                       setAnnotationHover(null);
                       setAnnotationPopover({
                         x: screen.x > 700 ? screen.x - 270 : screen.x,
@@ -985,7 +902,10 @@ export function BlenderWorkspace({
                       onSelect={selectReviewComment}
                     />
                   )}
-                  <Environment preset="city" />
+                  {/* 环境贴图来自 CDN：失败只是少了氛围，不该让用户看到「模型无法加载」。 */}
+                  <DecorativeBoundary>
+                    <Environment preset="city" />
+                  </DecorativeBoundary>
                 </Suspense>
                 <BlenderViewControls
                   preset={cameraPreset}
@@ -1007,12 +927,22 @@ export function BlenderWorkspace({
                   />
                 )}
               </Canvas>
+              </ViewportErrorBoundary>
             ) : (
               <div className="empty-viewport">
                 <BlenderLogo />
                 <p>打开 .blend 以开始审稿</p>
               </div>
             )}
+            {/* 慢网或大模型下必须有进度反馈：此前 Suspense fallback 为 null，
+                客户看到空白视口会以为链接坏了。 */}
+            <ViewportLoading
+              hint={
+                readOnly
+                  ? t("首次打开需要下载模型，请稍候。")
+                  : t("正在从本机读取已转换的模型。")
+              }
+            />
             {overlaysVisible && (
               <div className="axis-widget">
                 <b>Z</b>
