@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Share2 } from "lucide-react";
+import { SharePanel } from "../features/share";
 import { BlenderWorkspace } from "../workspace/BlenderWorkspace";
 import { StartPage } from "../start/StartPage";
 import { SenderShareCard } from "../components/ShareCards";
@@ -655,121 +655,24 @@ export function WorkspacePage() {
         />
       }
     >
-      <div className="share-menu-wrap">
-        <button
-          type="button"
-          className="menu-item share-trigger"
-          data-guide="share-button"
-          aria-haspopup="dialog"
-          aria-expanded={sharePanelOpen}
-          onClick={() => setSharePanelOpen((current) => !current)}
-        >
-          <Share2 size={13} /> 分享
-        </button>
-        {sharePanelOpen && (
-          <>
-            <div
-              className="share-panel-backdrop"
-              onClick={() => setSharePanelOpen(false)}
-            />
-            <form
-              className="share-panel"
-              role="dialog"
-              aria-label="分享设置"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void createShare();
-              }}
-            >
-              {!project ? (
-                <>
-                  <div className="share-panel-title">
-                    <Share2 size={14} /> 管理员公开示例
-                  </div>
-                  <p className="demo-share-note">
-                    Suzanne 由平台管理员长期公开，不占用用户空间，也不会随普通项目自动清理。
-                  </p>
-                  <SenderShareCard
-                    url={DEMO_SHARE_URL}
-                    expiresAt={null}
-                    permission="read_only"
-                    protectedByPassword
-                  />
-                  <p className="demo-share-password">
-                    访问密码 <code>{DEMO_SHARE_PASSWORD}</code>
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div className="share-panel-title">
-                    <Share2 size={14} /> 分享当前项目
-                  </div>
-                  <label className="share-setting">
-                    <span>密码</span>
-                    <input
-                      aria-label="分享密码"
-                      type="password"
-                      value={sharePassword}
-                      placeholder="可选"
-                      onChange={(event) =>
-                        setSharePassword(event.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="share-setting">
-                    <span>有效期</span>
-                    <select
-                      aria-label="分享有效期"
-                      value={shareHours}
-                      onChange={(event) => setShareHours(event.target.value)}
-                    >
-                      <option value="6">6 小时</option>
-                      <option value="24">24 小时（推荐）</option>
-                      <option value="48">48 小时（最长）</option>
-                    </select>
-                  </label>
-                  <label className="share-setting">
-                    <span>权限</span>
-                    <select
-                      aria-label="分享评论权限"
-                      value={sharePermission}
-                      onChange={(event) =>
-                        setSharePermission(
-                          event.target.value as "read_only" | "comment",
-                        )
-                      }
-                    >
-                      <option value="read_only">只读</option>
-                      <option value="comment">可评论</option>
-                    </select>
-                  </label>
-                  <button type="submit" className="share-panel-primary">
-                    <Share2 size={13} />{" "}
-                    {cloudProject ? "创建云端分享" : "创建本地分享"}
-                  </button>
-                  {shareUrl && (
-                    <SenderShareCard
-                      url={shareUrl}
-                      expiresAt={shareExpiresAt}
-                      permission={sharePermission}
-                      protectedByPassword={Boolean(sharePassword)}
-                    />
-                  )}
-                  {shareId && (
-                    <button
-                      type="button"
-                      className="share-panel-revoke"
-                      onClick={() => void revokeShare()}
-                    >
-                      撤销分享
-                    </button>
-                  )}
-                </>
-              )}
-            </form>
-          </>
-        )}
-      </div>
+      <SharePanel
+        hasProject={Boolean(project)}
+        sharePassword={sharePassword}
+        shareHours={shareHours}
+        sharePermission={sharePermission}
+        shareUrl={shareUrl}
+        shareExpiresAt={shareExpiresAt}
+        shareId={shareId}
+        isOpen={sharePanelOpen}
+        isCloud={Boolean(cloudProject)}
+        onToggle={() => setSharePanelOpen((c) => !c)}
+        onBackdropClick={() => setSharePanelOpen(false)}
+        onPasswordChange={setSharePassword}
+        onHoursChange={setShareHours}
+        onPermissionChange={setSharePermission}
+        onCreateShare={() => void createShare()}
+        onRevokeShare={() => void revokeShare()}
+      />
     </BlenderWorkspace>
   );
 }
