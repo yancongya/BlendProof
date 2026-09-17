@@ -309,7 +309,7 @@ app → pages → features → shared
 | E 文案与面板 | 部分完成 | E6 属性面板高度算式残留已修；其余待做，依赖 4.5、4.6 |
 | （4.1）拆 review 域 | 已完成（2026-09-17） | `features/review/**` 独立；`Vec3`/`CameraState` 提升到 `shared/types/`；审稿域样式已归位到 `features/review/review.css`（overrides.css -152 行） |
 | （4.2）拆落地页 | 未开始 | |
-| （4.3）拆 viewer 域 | **部分完成**（2026-09-17） | 域已建立：`features/viewer/**`（纯逻辑 modelPicking/modelAppearance/modelIsolation/modelInteraction/cameraPresets + 叶组件），Model 从 492→185 行且有 13 个单测。**仍待办：外壳 `BlenderWorkspace.tsx` 未拆**（1387 行，含布局/菜单/面板/状态），D1–D3 需要它 |
+| （4.3）拆 viewer 域 | **已完成**（2026-09-17） | `BlenderWorkspace` 1387→1008 行：菜单栏、5 个面板、上传弹窗、状态栏已全部迁入 `features/viewer/components/**`；视口 Canvas 与状态机留在外壳（协调所需，拆出收益低）；Model 492→185 行 + 13 个单测，ViewControls 208→184 行。**后续只减不增。** |
 | （4.4）拆 api 域 | 未开始 | |
 | （4.5）拆 pages | 未开始 | |
 | （4.6）拆 i18n | 未开始 | |
