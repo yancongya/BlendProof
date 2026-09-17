@@ -21,12 +21,10 @@ import { Environment } from "@react-three/drei";
 import {
   Box,
   Camera,
-  ChevronDown,
   Circle,
   Eye,
   FileText,
   Focus,
-  FolderOpen,
   Grid2X2,
   History,
   Layers,
@@ -35,7 +33,6 @@ import {
   Palette,
   Search,
   Settings2,
-  Share2,
   SlidersHorizontal,
   Trash2,
   X,
@@ -58,12 +55,16 @@ import {
   BlenderViewControls,
   BlenderViewportGrid,
   BoxSelectionController,
-  ClockIcon,
+  ConversionPanel,
   DecorativeBoundary,
-  FileIcon,
   Model,
+  ObjectOutliner,
   PanelResizeHandle,
-  TrashIcon,
+  PropertyInspector,
+  ReviewPanelHost,
+  UploaderDialog,
+  ViewerMenubar,
+  ViewerStatusbar,
   clearModelCache,
   VIEWER_GUIDE_STEPS,
   ViewportErrorBoundary,
@@ -529,151 +530,22 @@ export function BlenderWorkspace({
 
   return (
     <main className="blender-shell" data-testid="blendproof-app" data-readonly={readOnly}>
-      <header className="blender-menubar">
-        <button
-          type="button"
-          className="brand-mark"
-          aria-label="返回 BlendProof 启动页"
-          onClick={onHome}
-        >
-          <BlenderLogo />
-          <span>BlendProof</span>
-        </button>
-        {uploader && onOpenUploader && (
-          <div className="file-menu-wrap">
-            <button
-              ref={uploaderTriggerRef}
-              type="button"
-              className="menu-item file-menu-trigger"
-              data-guide="file-menu"
-              data-testid="open-uploader"
-              aria-haspopup="menu"
-              aria-expanded={fileMenuOpen}
-              title="文件菜单"
-              onClick={() =>
-                setFileMenuOpen((current) => {
-                  if (!current) onOpenFileMenu?.();
-                  return !current;
-                })
-              }
-            >
-              <FolderOpen size={13} /> 文件 <ChevronDown size={11} />
-            </button>
-            {fileMenuOpen && (
-              <div className="file-menu" role="menu" aria-label="文件菜单">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setFileMenuOpen(false);
-                    onOpenUploader();
-                  }}
-                >
-                  <FolderOpen size={14} /> 打开上传工作台
-                </button>
-                <div className="file-menu-item-with-submenu">
-                  <button type="button" role="menuitem" aria-haspopup="menu">
-                    <ChevronDown size={14} /> 最近项目{" "}
-                    <span className="submenu-arrow">›</span>
-                  </button>
-                  <div
-                    className="file-recent-submenu"
-                    role="menu"
-                    aria-label="最近项目"
-                  >
-                    {recentProjects.length ? (
-                      recentProjects.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setFileMenuOpen(false);
-                            onProjectSelect?.(item);
-                          }}
-                        >
-                          <FileIcon /> <span>{item.name}</span>
-                        </button>
-                      ))
-                    ) : (
-                      <p>暂无最近项目</p>
-                    )}
-                  </div>
-                </div>
-                <div className="file-menu-separator" />
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={!onDeleteProject}
-                  onClick={() => {
-                    setFileMenuOpen(false);
-                    onDeleteProject?.();
-                  }}
-                >
-                  <span style={{ display: "contents" }}>🗑</span> 删除当前本地项目
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-        <div className="project-name">
-          <span>{title}</span>
-          {shareStatus && (
-            <span
-              className="project-share-status"
-              role="status"
-              aria-label={
-                shareStatus.expiresAt
-                  ? tf(
-                      "已分享，%s，%s到期",
-                      shareStatus.permission === "comment"
-                        ? t("可评论")
-                        : t("只读"),
-                      formatShareExpiry(shareStatus.expiresAt),
-                    )
-                  : tf(
-                      "已分享，%s，%s",
-                      shareStatus.permission === "comment"
-                        ? t("可评论")
-                        : t("只读"),
-                      formatShareExpiry(shareStatus.expiresAt),
-                    )
-              }
-              title={
-                shareStatus.expiresAt
-                  ? tf(
-                      "已分享 · %s · %s到期",
-                      shareStatus.permission === "comment"
-                        ? t("可评论")
-                        : t("只读"),
-                      formatShareExpiry(shareStatus.expiresAt),
-                    )
-                  : tf(
-                      "已分享 · %s · %s",
-                      shareStatus.permission === "comment"
-                        ? t("可评论")
-                        : t("只读"),
-                      formatShareExpiry(shareStatus.expiresAt),
-                    )
-              }
-            >
-              <Share2 size={11} strokeWidth={2.2} />
-            </span>
-          )}
-          <button
-            type="button"
-            className="guide-trigger"
-            title="打开操作指南"
-            onClick={() => setGuideOpen(true)}
-          >
-            ?
-          </button>
-        </div>
-        <div className="header-actions">
-          {children ?? <span>只读审稿</span>}
-          <MenubarActions />
-        </div>
-      </header>
+      <ViewerMenubar
+        title={title}
+        shareStatus={shareStatus}
+        fileMenuOpen={fileMenuOpen}
+        showFileMenu={Boolean(uploader && onOpenUploader)}
+        recentProjects={recentProjects}
+        onHome={onHome}
+        onOpenFileMenu={onOpenFileMenu}
+        onOpenUploader={onOpenUploader}
+        onProjectSelect={onProjectSelect}
+        onDeleteProject={onDeleteProject}
+        onToggleFileMenu={setFileMenuOpen}
+        onOpenGuide={() => setGuideOpen(true)}
+      >
+        {children}
+      </ViewerMenubar>
       {guideOpen && (
         <GuidedTour
           steps={VIEWER_GUIDE_STEPS.filter(
@@ -1036,142 +908,23 @@ export function BlenderWorkspace({
           </div>
         </section>
         <aside className="right-editors">
-          <section
-            className={`panel outliner-panel ${outlinerCollapsed ? "collapsed" : ""}`}
-            data-guide="outliner"
-            style={{ height: outlinerCollapsed ? 28 : outlinerHeight }}
-          >
-            <div className="panel-header">
-              <button
-                type="button"
-                className="panel-toggle"
-                onClick={() => setOutlinerCollapsed((c) => !c)}
-                title="折叠/展开"
-              >
-                <span className="panel-icon">
-                  <Layers size={13} />
-                </span>
-                <span>场景集合</span>
-              </button>
-              <button
-                type="button"
-                className="outliner-focus"
-                disabled={selected.size === 0}
-                title="聚焦选中对象（小键盘 .）"
-                aria-label="聚焦选中对象"
-                onClick={() =>
-                  setFocusRequest({ names: [...selected], nonce: Date.now() })
-                }
-              >
-                <Focus size={12} />
-              </button>
-            </div>
-            <div className="panel-body">
-              <label className="outliner-search">
-                <Search size={12} />
-                <input
-                  value={outlinerQuery}
-                  onChange={(event) => setOutlinerQuery(event.target.value)}
-                  placeholder="搜索对象"
-                  aria-label="搜索场景对象"
-                />
-                {outlinerQuery && (
-                  <button
-                    type="button"
-                    aria-label="清除对象搜索"
-                    onClick={() => setOutlinerQuery("")}
-                  >
-                    <X size={11} />
-                  </button>
-                )}
-              </label>
-              <div className="tree-root">
-                <span>⌄</span>
-                <strong>{manifest?.scene ?? "Scene Collection"}</strong>
-              </div>
-              <div className="tree-children">
-                {filteredObjects.map((object) => (
-                  <div
-                    className={`tree-row ${
-                      selected.has(object.name) ? "selected" : ""
-                    }`}
-                    key={object.name}
-                    role="treeitem"
-                    tabIndex={0}
-                    aria-selected={selected.has(object.name)}
-                    onClick={() => onSelect(object.name)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onSelect(object.name);
-                      }
-                    }}
-                  >
-                    <span className="tree-icon">
-                      {object.type === "CAMERA" ? (
-                        <Camera />
-                      ) : object.type === "LIGHT" ? (
-                        <Lightbulb />
-                      ) : (
-                        <Box />
-                      )}
-                    </span>
-                    <span>{object.name}</span>
-                    <button
-                      type="button"
-                      aria-label={tf(
-                        hidden.has(object.name) ? "显示 %s" : "隐藏 %s",
-                        object.name,
-                      )}
-                      className="eye"
-                      disabled={readOnly}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onToggle(object.name);
-                      }}
-                    >
-                      <Eye
-                        className={hidden.has(object.name) ? "muted-eye" : ""}
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      className={`isolate ${
-                        isolated &&
-                        selected.size === 1 &&
-                        selected.has(object.name)
-                          ? "active"
-                          : ""
-                      }`}
-                      aria-label={
-                        isolated &&
-                        selected.size === 1 &&
-                        selected.has(object.name)
-                          ? tf("退出 %s 的独显", object.name)
-                          : tf("独显 %s", object.name)
-                      }
-                      title={
-                        isolated &&
-                        selected.size === 1 &&
-                        selected.has(object.name)
-                          ? t("退出独显")
-                          : t("独显此对象")
-                      }
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        isolateOutlinerObject(object.name);
-                      }}
-                    >
-                      <Focus />
-                    </button>
-                  </div>
-                ))}
-                {manifest && filteredObjects.length === 0 && (
-                  <p className="outliner-empty">没有匹配对象</p>
-                )}
-              </div>
-            </div>
-          </section>
+          <ObjectOutliner
+            collapsed={outlinerCollapsed}
+            height={outlinerHeight}
+            query={outlinerQuery}
+            manifest={manifest}
+            objects={filteredObjects}
+            selected={selected}
+            hidden={hidden}
+            readOnly={readOnly}
+            isolated={isolated}
+            onToggleCollapse={() => setOutlinerCollapsed((c) => !c)}
+            onQueryChange={setOutlinerQuery}
+            onSelect={(name) => onSelect(name)}
+            onToggle={onToggle}
+            onIsolate={isolateOutlinerObject}
+            onFocus={() => setFocusRequest({ names: [...selected], nonce: Date.now() })}
+          />
           <PanelResizeHandle
             label="调整场景集合面板高度"
             onDelta={(delta) =>
@@ -1180,51 +933,12 @@ export function BlenderWorkspace({
               )
             }
           />
-          <section
-            className={`panel properties-panel ${
-              propertyCollapsed ? "collapsed" : ""
-            }`}
-            // 只依赖 propertyHeight：「转换内容」已是独立面板，
-            // 把它算进来会让拖转换内容的把手连带撑高本面板。
-            style={{ height: propertyCollapsed ? 28 : propertyHeight + 28 }}
-          >
-            <div className="panel-header">
-              <button
-                type="button"
-                className="panel-toggle"
-                onClick={() => setPropertyCollapsed((c) => !c)}
-                title="折叠/展开属性"
-              >
-                <span className="panel-icon">
-                  <SlidersHorizontal size={13} />
-                </span>
-                <span>属性</span>
-              </button>
-            </div>
-            <div className="panel-body">
-              {active && (
-                <div
-                  className="property-body"
-                  style={{ height: propertyHeight }}
-                >
-                  <p className="property-kicker">{active.type}</p>
-                  <label>
-                    对象名称
-                    <input value={active.name} readOnly />
-                  </label>
-                  <label>
-                    集合
-                    <input
-                      value={
-                        active.collections.join(", ") || "Scene Collection"
-                      }
-                      readOnly
-                    />
-                  </label>
-                </div>
-              )}
-            </div>
-          </section>
+          <PropertyInspector
+            collapsed={propertyCollapsed}
+            height={propertyHeight}
+            active={active}
+            onToggleCollapse={() => setPropertyCollapsed((c) => !c)}
+          />
           <PanelResizeHandle
             label="调整属性面板高度"
             onDelta={(delta) =>
@@ -1233,29 +947,12 @@ export function BlenderWorkspace({
               )
             }
           />
-          <section
-            className={`panel summary-panel ${
-              summaryCollapsed ? "collapsed" : ""
-            }`}
-            style={{ height: summaryCollapsed ? 28 : summaryHeight }}
-          >
-            <div className="panel-header">
-              <button
-                type="button"
-                className="panel-toggle"
-                onClick={() => setSummaryCollapsed((c) => !c)}
-                title="折叠/展开转换内容"
-              >
-                <span className="panel-icon">
-                  <FileText size={13} />
-                </span>
-                <span>转换内容</span>
-              </button>
-            </div>
-            <div className="panel-body">
-              <ConversionSummary manifest={manifest} />
-            </div>
-          </section>
+          <ConversionPanel
+            collapsed={summaryCollapsed}
+            height={summaryHeight}
+            manifest={manifest}
+            onToggleCollapse={() => setSummaryCollapsed((c) => !c)}
+          />
           <PanelResizeHandle
             label="调整转换信息面板高度"
             onDelta={(delta) =>
@@ -1264,124 +961,48 @@ export function BlenderWorkspace({
               )
             }
           />
-          <section
-            className={`panel review-panel-section ${
-              reviewCollapsed ? "collapsed" : ""
-            }`}
-            style={{ flex: 1, minHeight: reviewCollapsed ? 28 : 80 }}
-          >
-            <div className="panel-header">
-              <button
-                type="button"
-                className="panel-toggle"
-                onClick={() => setReviewCollapsed((c) => !c)}
-                title="折叠/展开审稿批注"
-              >
-                <span className="panel-icon">
-                  <MessageSquarePlus size={13} />
-                </span>
-                <span>审稿批注</span>
-                <b data-testid="review-count">
-                  {visibleComments.length}
-                  {reviewNewCount > 0 ? ` · 新 ${reviewNewCount}` : ""}
-                </b>
-              </button>
-              <div className="review-filters" aria-label="批注状态筛选">
-                {(
-                  [
-                    ["all", "⬡", "全部"],
-                    ["open", "●", "待处理"],
-                    ["resolved", "✓", "已解决"],
-                  ] as const
-                ).map(([value, icon, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    title={label}
-                    className={reviewFilter === value ? "active" : ""}
-                    onClick={() => setReviewFilter(value)}
-                  >
-                    {icon}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="panel-body">
-              <ReviewPanel
-                comments={visibleComments}
-                newCount={reviewNewCount}
-                onAcknowledgeNew={acknowledgeAndLocateReview}
-                selectedId={selectedCommentId}
-                pending={null}
-                body={commentBody}
-                readOnly={readOnly}
-                canComment={canComment}
-                // 错误优先于成功文案：否则保存成功一次后，后续错误永远看不见。
-                message={reviewError ?? reviewMessage}
-                busy={reviewBusy}
-                canDelete={canDeleteComment ?? (() => !readOnly)}
-                onBody={setCommentBody}
-                onSelect={selectReviewComment}
-                onSave={() => void savePendingReview()}
-                onCancel={() => {
-                  setPendingReview(null);
-                  setCommentBody("");
-                }}
-                onToggleStatus={(comment) => void toggleReviewStatus(comment)}
-                onEdit={(comment, body) => void editReviewComment(comment, body)}
-                onDeleteComment={(comment) => void deleteReviewComment(comment)}
-                onReply={(commentId, text) => void replyReviewComment(commentId, text)}
-                onDeleteReply={(commentId, replyId) => void deleteReviewReply(commentId, replyId)}
-                collapsed={reviewCollapsed}
-                onToggleCollapse={() => setReviewCollapsed((c) => !c)}
-                hideTitle
-              />
-            </div>
-          </section>
+          <ReviewPanelHost
+            collapsed={reviewCollapsed}
+            comments={visibleComments}
+            newCount={reviewNewCount}
+            filter={reviewFilter}
+            selectedId={selectedCommentId}
+            commentBody={commentBody}
+            readOnly={readOnly}
+            canComment={canComment}
+            // 错误优先于成功文案：否则保存成功一次后，后续错误永远看不见。
+            message={reviewError ?? reviewMessage}
+            busy={reviewBusy}
+            canDelete={canDeleteComment ?? (() => !readOnly)}
+            onToggleCollapse={() => setReviewCollapsed((c) => !c)}
+            onFilterChange={setReviewFilter}
+            onAcknowledgeNew={acknowledgeAndLocateReview}
+            onBody={setCommentBody}
+            onSelect={selectReviewComment}
+            onSave={() => void savePendingReview()}
+            onCancelDraft={() => {
+              setPendingReview(null);
+              setCommentBody("");
+            }}
+            onToggleStatus={(comment) => void toggleReviewStatus(comment)}
+            onEdit={(comment, body) => void editReviewComment(comment, body)}
+            onDeleteComment={(comment) => void deleteReviewComment(comment)}
+            onReply={(commentId, text) => void replyReviewComment(commentId, text)}
+            onDeleteReply={(commentId, replyId) => void deleteReviewReply(commentId, replyId)}
+          />
         </aside>
       </div>
       {uploader && uploaderOpen && (
-        <div
-          className="uploader-modal-backdrop"
-          data-testid="uploader-modal"
-          role="presentation"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) onCloseUploader?.();
-          }}
+        <UploaderDialog
+          onClose={onCloseUploader}
+          onKeyDown={handleUploaderDialogKeyDown}
+          dialogRef={uploaderDialogRef}
+          closeButtonRef={uploaderCloseRef}
         >
-          <section
-            ref={uploaderDialogRef}
-            id="uploader-dialog"
-            className="uploader-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="uploader-dialog-title"
-            onKeyDown={handleUploaderDialogKeyDown}
-          >
-            <div className="uploader-dialog-bar">
-              <h2 id="uploader-dialog-title">文件 / 打开 .blend</h2>
-              <button
-                ref={uploaderCloseRef}
-                type="button"
-                className="uploader-dialog-close"
-                data-testid="close-uploader"
-                aria-label="关闭上传工作台"
-                onClick={onCloseUploader}
-              >
-                ×
-              </button>
-            </div>
-            {uploader}
-          </section>
-        </div>
+          {uploader}
+        </UploaderDialog>
       )}
-      <footer className="blender-status">
-        <span>{message}</span>
-        <span>
-          {isolated ? "局部视图" : readOnly ? "共享视图" : "本地工程"} ·
-          BlendProof
-        </span>
-      </footer>
+      <ViewerStatusbar message={message} isolated={isolated} readOnly={readOnly} />
     </main>
   );
 }
