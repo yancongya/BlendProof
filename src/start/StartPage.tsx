@@ -252,7 +252,7 @@ export function StartPage({
                   <label htmlFor="start-share-code">
                     <Link2 size={18} />
                     <span>
-                      <strong>审稿链接或分享码</strong>
+                      <strong>分享链接或分享码</strong>
                       <small>无需账号即可打开只读分享</small>
                     </span>
                   </label>

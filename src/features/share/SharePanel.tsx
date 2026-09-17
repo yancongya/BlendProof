@@ -135,8 +135,8 @@ export function SharePanel({
                       onPermissionChange(event.target.value as "read_only" | "comment")
                     }
                   >
-                    <option value="read_only">只读</option>
-                    <option value="comment">可评论</option>
+                    <option value="read_only">仅查看</option>
+                    <option value="comment">可批注</option>
                   </select>
                 </label>
                 <button type="submit" className="share-panel-primary">

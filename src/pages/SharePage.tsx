@@ -301,7 +301,7 @@ export function SharePage() {
       }
       message={
         isDemoShare
-          ? "管理员永久公开示例 · 可评论 · 不限时。"
+          ? "管理员永久公开示例 · 可批注 · 不限时。"
           : share.commentsPermission === "comment"
           ? "访客可在模型表面添加批注。"
           : transport === "cloud"

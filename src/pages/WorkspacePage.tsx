@@ -316,11 +316,11 @@ export function WorkspacePage() {
       setMessage(
         sharePermission === "comment"
           ? tf(
-              "已建立%s可评论分享链接。",
+              "已建立%s可批注分享链接。",
               cloudProject ? t("云端") : t("本地"),
             )
           : tf(
-              "已建立%s只读分享链接。",
+              "已建立%s仅查看分享链接。",
               cloudProject ? t("云端") : t("本地"),
             ),
       );

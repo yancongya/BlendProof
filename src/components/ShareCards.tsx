@@ -27,10 +27,10 @@ export function SenderShareCard({
   const [copied, setCopied] = useState(false);
   return (
     <section className="share-credential-card sender-card" aria-label="发送方分享凭证">
-      <header><span>审稿凭证</span><b>已就绪</b></header>
+      <header><span>分享信息</span><b>已就绪</b></header>
       <div className="share-credential-code">{url.split("/s/").at(-1)?.split(/[?#]/)[0] ?? url}</div>
       <dl>
-        <div><dt>权限</dt><dd>{permission === "comment" ? "可评论" : "只读"}</dd></div>
+        <div><dt>权限</dt><dd>{permission === "comment" ? "可批注" : "仅查看"}</dd></div>
         <div><dt>到期</dt><dd>{formatShareExpiry(expiresAt)}</dd></div>
         <div><dt>密码</dt><dd>{protectedByPassword ? "已设置" : "无"}</dd></div>
       </dl>
@@ -67,14 +67,14 @@ export function ReceiverShareCard({
   return (
     <div className="receiver-card-wrap">
       <button type="button" className="receiver-card-trigger" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-        <ShieldCheck size={13} /> {permission === "comment" ? "可评论审稿" : "只读审稿"}
+        <ShieldCheck size={13} /> {permission === "comment" ? "可批注" : "仅查看"}
       </button>
       {open && (
-        <section className="share-credential-card receiver-card" aria-label="接收方审稿凭证">
-          <header><span>审稿通行证</span><b>访问有效</b></header>
+        <section className="share-credential-card receiver-card" aria-label="接收方分享信息">
+          <header><span>分享信息</span><b>访问有效</b></header>
           <p>{publisher ? tf("%s发布的永久公开示例。", publisher) : "此页面只读取派生的 Web 模型，不包含原始 Blender 工程。"}</p>
           <dl>
-            <div><dt>权限</dt><dd>{permission === "comment" ? "查看与批注" : "仅查看"}</dd></div>
+            <div><dt>权限</dt><dd>{permission === "comment" ? "可批注" : "仅查看"}</dd></div>
             <div><dt>来源</dt><dd>{sourceLabel ?? (transport === "cloud" ? "云端快递柜" : "本机分享")}</dd></div>
             <div><dt>到期</dt><dd>{formatShareExpiry(expiresAt)}</dd></div>
           </dl>

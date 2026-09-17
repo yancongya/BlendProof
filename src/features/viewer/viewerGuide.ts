@@ -44,7 +44,7 @@ export const VIEWER_GUIDE_STEPS: GuidedTourStep[] = [
   {
     id: "share",
     title: "创建分享",
-    description: "选择只读或可评论，设置密码和有效期后复制链接给客户。",
+    description: "选择仅查看或可批注，设置密码和有效期后复制链接给客户。",
     target: '[data-guide="share-button"]',
     placement: "bottom",
     group: "协作",

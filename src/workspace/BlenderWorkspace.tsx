@@ -582,7 +582,7 @@ export function BlenderWorkspace({
             <div className="header-right">
               {readOnly && !canComment && modelUrl && (
                 <span className="annotation-hint" style={{ fontSize: 10, color: '#999', marginRight: 8 }}>
-                  {t("当前为只读，需要批注请联系分享者")}
+                  {t("仅查看，需要批注请联系分享者")}
                 </span>
               )}
               {canComment && modelUrl && (

@@ -21,7 +21,7 @@ export function PasswordNotice({
   return (
     <div className="notice">
       <BlenderLogo />
-      <h1>受保护的审稿链接</h1>
+      <h1>受保护的分享链接</h1>
       <p>{error ?? "请输入分享密码后继续。"}</p>
       <input
         aria-label="访问密码"

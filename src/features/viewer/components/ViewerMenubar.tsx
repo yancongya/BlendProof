@@ -16,7 +16,7 @@ import { FileIcon } from "./ViewerIcons";
 
 /** 分享状态的一句话描述。分隔符不同，其余完全一致。 */
 function shareStatusText(status: ActiveShareStatus, separator: string) {
-  const permission = status.permission === "comment" ? t("可评论") : t("只读");
+  const permission = status.permission === "comment" ? t("可批注") : t("仅查看");
   const expiry = formatShareExpiry(status.expiresAt);
   return status.expiresAt
     ? tf(`已分享${separator}%s${separator}%s到期`, permission, expiry)
@@ -156,7 +156,7 @@ export function ViewerMenubar({
         </button>
       </div>
       <div className="header-actions">
-        {children ?? <span>{t("只读审稿")}</span>}
+        {children ?? <span>{t("仅查看")}</span>}
         <MenubarActions />
       </div>
     </header>
