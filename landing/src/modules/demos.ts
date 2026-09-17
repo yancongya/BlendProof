@@ -180,20 +180,6 @@ function initCopyDemo(): void {
     void navigator.clipboard?.writeText(shareText).then(stamp).catch(() => {
       window.prompt(t('复制这段分享文本：'), shareText)
     })
-
-    // 接收方联动：右卡收到链接（脉冲 + 浏览器状态行提示）
-    const receiverCard = document.getElementById('mk-receiver-card')
-    const browserStatus = document.getElementById('mk-browser-status')
-    const browserUrl = document.getElementById('mk-browser-url') as HTMLInputElement | null
-    if (!receiverCard) return
-    receiverCard.classList.remove('receiving')
-    void receiverCard.offsetWidth
-    receiverCard.classList.add('receiving')
-    if (browserUrl && browserStatus && !browserUrl.value) {
-      browserUrl.value = 'blendproof.itycon.cn/s/suzanne'
-      setNodeText(browserStatus, '已收到链接 · 点「前往」打开')
-      browserStatus.dataset.kind = 'busy'
-    }
   })
 }
 

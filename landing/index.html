@@ -3330,15 +3330,15 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
   <section class="band" data-perspective-all>
     <div class="wrap share-duo">
 
-      <div class="card" data-anim id="mk-sender-card">
+      <div class="card" data-anim id="mk-sender-card" data-perspective="creator">
         <div class="card__chrome"><span class="card__index">04</span><span class="card__name">发出分享</span><i class="card__tag">Sender Credential</i></div>
         <div class="card__body">
-          <h2>配置一张审稿凭证。</h2>
-          <p class="lead" style="margin-bottom:18px">权限、有效期、密码都在这里定，发出之后随时可以撤销。</p>
+          <h2>配置分享信息。</h2>
+          <p class="lead" style="margin-bottom:18px">权限、有效期、密码都在这里定，复制后发给客户即可。</p>
           <div class="mk-cred">
             <div class="mk-cred-chips">
-              <button type="button" class="mk-chip" data-k="perm" data-v="comment" aria-pressed="true">可评论</button>
-              <button type="button" class="mk-chip" data-k="perm" data-v="readonly" aria-pressed="false">只读</button>
+              <button type="button" class="mk-chip" data-k="perm" data-v="comment" aria-pressed="true">可批注</button>
+              <button type="button" class="mk-chip" data-k="perm" data-v="readonly" aria-pressed="false">仅查看</button>
               <span class="mk-chip-sep"></span>
               <button type="button" class="mk-chip" data-k="exp" data-v="24" aria-pressed="true">24h</button>
               <button type="button" class="mk-chip" data-k="exp" data-v="48" aria-pressed="false">48h</button>
@@ -3352,15 +3352,15 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
               <div><dt>密码</dt><dd id="mk-dd-pwd">已设置</dd></div>
             </dl>
             <div class="mk-cred-actions">
-              <button type="button" id="mk-copy">复制链接</button>
+              <button type="button" id="mk-copy">复制分享文本</button>
               <a href="https://blendproof.itycon.cn/s/suzanne" target="_blank" rel="noreferrer">打开检查</a>
             </div>
           </div>
-          <p class="card__note">chips 切换会实时改写明细，并同步到右边接收方的通行证。码框里的 <code>/s/suzanne</code> 是<b>真实可开</b>的公开演示（口令 <code>tycon</code>），现在就能在别的电脑上验证。</p>
+          <p class="card__note">chips 切换会实时改写明细。点击复制会生成百度网盘风格的分享文本。码框里的 <code>/s/suzanne</code> 是<b>真实可开</b>的公开演示（口令 <code>tycon</code>），现在就能在别的电脑上验证。</p>
         </div>
       </div>
 
-      <div class="card" data-anim id="mk-receiver-card">
+      <div class="card" data-anim id="mk-receiver-card" data-perspective="reviewer">
         <div class="card__chrome"><span class="card__index">05</span><span class="card__name">读取分享</span><i class="card__tag">Receiver Pass</i></div>
         <div class="card__body">
           <h2>对方打开链接，看到的是这个。</h2>
@@ -3387,7 +3387,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
               </div>
             </div>
           </div>
-          <p class="card__note">试试点「填入演示链接」——口令自动通过，模型载入。左边改权限，这张通行证的明细会跟着变。</p>
+          <p class="card__note">试试点「填入演示链接」——口令自动通过，模型载入。</p>
         </div>
       </div>
 
