@@ -1346,12 +1346,12 @@
 
   .share-duo {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 22px;
     align-items: stretch;
   }
 
-  .share-duo .card { display: flex; flex-direction: column; }
+  .share-duo .card { display: flex; flex-direction: column; max-width: 680px; margin: 0 auto; width: 100%; }
   .share-duo .card__body { display: flex; flex-direction: column; flex: 1; }
   .share-duo .card__note { margin-top: auto; padding-top: 16px; }
 
@@ -2018,9 +2018,6 @@ grid-template-columns: minmax(0, 1fr);
     .legal-grid { grid-template-columns: minmax(0, 1fr); }
   }
 
-  @media (max-width: 900px) {
-    .share-duo { grid-template-columns: minmax(0, 1fr); }
-  }
 
   @media (max-width: 760px) {
     .mockup-duo { grid-template-columns: minmax(0, 1fr); }
