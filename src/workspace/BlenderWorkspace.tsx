@@ -102,6 +102,8 @@ export function BlenderWorkspace({
   message,
   modelUrl,
   readOnly,
+  canView = !readOnly,
+  canAnnotate = !readOnly,
   canComment = !readOnly,
   commentAuthorName = "本地创建者",
   displayMode,
@@ -142,6 +144,10 @@ export function BlenderWorkspace({
   message: string;
   modelUrl?: string;
   readOnly: boolean;
+  /** 允许视图操作（框选/独显/聚焦）但不能编辑项目 */
+  canView?: boolean;
+  /** 允许添加/删除批注 */
+  canAnnotate?: boolean;
   canComment?: boolean;
   commentAuthorName?: string;
   displayMode: DisplayMode;
@@ -571,12 +577,17 @@ export function BlenderWorkspace({
               <Box size={14} /> 3D 视图
             </div>
             <div className="header-right">
+              {readOnly && !canComment && modelUrl && (
+                <span className="annotation-hint" style={{ fontSize: 10, color: '#999', marginRight: 8 }}>
+                  {t("当前为只读，需要批注请联系分享者")}
+                </span>
+              )}
               {canComment && modelUrl && (
                 <button
                   className={`annotation-tool ${annotationMode ? "active" : ""}`}
                   data-testid="annotation-toggle"
                   data-guide="annotation-tool"
-                  title="进入标注模式：悬停吸附，右键添加"
+                  title={t("在模型上点击添加批注")}
                   aria-pressed={annotationMode}
                   onClick={() => {
                     setAnnotationMode((current) => !current);
@@ -588,7 +599,7 @@ export function BlenderWorkspace({
                   }}
                 >
                   <MessageSquarePlus size={13} />
-                  {annotationMode ? "悬停吸附 · 右键添加" : "添加批注"}
+                  {annotationMode ? t("退出标注模式") : t("添加批注")}
                 </button>
               )}
               <div className="view-controls" aria-label="视图控制">
@@ -784,6 +795,7 @@ export function BlenderWorkspace({
                   fileCameras={fileCameras}
                   scene={sceneRoot}
                   onTargetChange={setNavigationTarget}
+              annotationMode={annotationMode}
                   reviewCameraRequest={reviewCameraRequest}
                   focusRequest={focusRequest}
                   onViewStateChange={onViewStateChange}
@@ -895,8 +907,9 @@ export function BlenderWorkspace({
               </>
             ) : (
               <>
-                左键拖拽框选 <span>·</span> 中键旋转 <span>·</span> Shift +
-                中键平移{" "}
+                {readOnly
+                  ? t("拖动旋转 · Shift+右键平移")
+                  : t("左键拖拽框选 · 中键旋转 · Shift+中键平移")}
               </>
             )}
             <span>·</span> 滚轮缩放 <span>·</span>/{" "}
@@ -916,7 +929,7 @@ export function BlenderWorkspace({
             objects={filteredObjects}
             selected={selected}
             hidden={hidden}
-            readOnly={readOnly}
+            readOnly={!canView}
             isolated={isolated}
             onToggleCollapse={() => setOutlinerCollapsed((c) => !c)}
             onQueryChange={setOutlinerQuery}
@@ -968,7 +981,7 @@ export function BlenderWorkspace({
             filter={reviewFilter}
             selectedId={selectedCommentId}
             commentBody={commentBody}
-            readOnly={readOnly}
+            readOnly={!canView}
             canComment={canComment}
             // 错误优先于成功文案：否则保存成功一次后，后续错误永远看不见。
             message={reviewError ?? reviewMessage}

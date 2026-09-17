@@ -35,6 +35,7 @@ export function BlenderViewControls({
   reviewCameraRequest,
   focusRequest,
   onViewStateChange,
+  annotationMode,
 }: {
   preset: CameraPreset;
   fileCameras: ThreeCamera[];
@@ -43,6 +44,7 @@ export function BlenderViewControls({
   reviewCameraRequest: { camera: CameraState; nonce: number } | null;
   focusRequest: { names: string[]; nonce: number } | null;
   onViewStateChange?: (camera: CameraState) => void;
+  annotationMode?: boolean;
 }) {
   const { camera, gl, set, size } = useThree();
   const controls = useRef<any>(null);
@@ -177,7 +179,11 @@ export function BlenderViewControls({
     <OrbitControls
       ref={controls}
       makeDefault
-      mouseButtons={{ LEFT: undefined, MIDDLE: MOUSE.ROTATE, RIGHT: MOUSE.PAN }}
+      mouseButtons={{
+        LEFT: undefined,
+        MIDDLE: MOUSE.ROTATE,
+        RIGHT: annotationMode ? undefined : MOUSE.PAN,
+      }}
     />
   );
 }

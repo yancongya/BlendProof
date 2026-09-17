@@ -309,6 +309,7 @@ export function SharePage() {
       }
       modelUrl={share.modelUrl}
       readOnly
+      canView={!isDemoShare}
       canComment={share.commentsPermission === "comment"}
       commentAuthorName={guestName.trim() || "访客"}
       displayMode={displayMode}

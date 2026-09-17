@@ -380,4 +380,9 @@ export const EN: Record<string, string> = {
   ' · 新 %s': ' · %s new',
   '有效期：%s': 'Valid: %s',
   '有效期至 %s': 'Valid until %s',
+  '在模型上点击添加批注': 'Click on model to add annotation',
+  '退出标注模式': 'Exit annotation mode',
+  '拖动旋转 · Shift+右键平移': 'Drag to rotate · Shift+right-click to pan',
+  '左键拖拽框选 · 中键旋转 · Shift+中键平移': 'Left-drag to box-select · Middle-drag to orbit · Shift+middle to pan',
+  '当前为只读，需要批注请联系分享者': 'Read-only. Contact the sharer to enable annotations.',
 }
