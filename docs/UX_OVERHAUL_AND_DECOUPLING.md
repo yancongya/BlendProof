@@ -303,13 +303,13 @@ app → pages → features → shared
 |---|---|---|
 | 4.0 立规则 | 已完成（2026-09-17） | `docs/ARCHITECTURE_RULES.md` + `scripts/check-architecture.mjs`（零依赖，`npm run check:arch`），已用反向用例验证可拦截三类违规 |
 | A 审稿闭环 | **已完成 6/6**（2026-09-17） | A0 契约、A1 回复、A2 删除、A3 定位、A4 轮询、A5 时间全部完成，且均有测试锁定 |
-| B 容错与状态 | 进行中 2/7（2026-09-17） | B3（错误提示遮挡）、B7（危险操作确认）已完成。**B1/B2 需先拆 viewer 域，B4/B5/B6 需先抽 SharePanel/UploadFlow**，否则只能在超预算文件里继续加代码 |
+| B 容错与状态 | 进行中 4/7（2026-09-17） | B1（加载态）、B2（失败兜底）、B3（错误提示遮挡）、B7（危险操作确认）已完成。**B4/B5/B6 需先抽 SharePanel/UploadFlow（4.5）** |
 | C 落地页 | 未开始 | 依赖 4.2 |
 | D 客户视角分层 | 未开始 | 依赖 4.3 |
 | E 文案与面板 | 部分完成 | E6 属性面板高度算式残留已修；其余待做，依赖 4.5、4.6 |
 | （4.1）拆 review 域 | 已完成（2026-09-17） | `features/review/**` 独立；`Vec3`/`CameraState` 提升到 `shared/types/`；审稿域样式已归位到 `features/review/review.css`（overrides.css -152 行） |
 | （4.2）拆落地页 | 未开始 | |
-| （4.3）拆 viewer 域 | 未开始 | **当前阻塞点**：B1/B2、D1–D3、D7 都在等它 |
+| （4.3）拆 viewer 域 | **部分完成**（2026-09-17） | 域已建立：`features/viewer/**`（纯逻辑 modelPicking/modelAppearance/modelIsolation/modelInteraction/cameraPresets + 叶组件），Model 从 492→185 行且有 13 个单测。**仍待办：外壳 `BlenderWorkspace.tsx` 未拆**（1387 行，含布局/菜单/面板/状态），D1–D3 需要它 |
 | （4.4）拆 api 域 | 未开始 | |
 | （4.5）拆 pages | 未开始 | |
 | （4.6）拆 i18n | 未开始 | |
