@@ -225,16 +225,7 @@ function initQuickstart(): void {
 
     steps.forEach((step, index) => {
       step.addEventListener('click', () => {
-        if (index === currentStep) {
-          // 再次点击同一步骤：取消选择
-          currentStep = -1
-          steps.forEach((s) => s.classList.remove('is-active'))
-          mocks.forEach((m) => {
-            m.classList.remove('is-visible')
-            m.setAttribute('aria-hidden', 'true')
-          })
-          return
-        }
+        if (index === currentStep) return // 同一步骤不重复切换
         showStep(index)
       })
     })
