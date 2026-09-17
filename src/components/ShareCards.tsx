@@ -18,11 +18,15 @@ export function SenderShareCard({
   expiresAt,
   permission,
   protectedByPassword,
+  projectName,
+  passwordText,
 }: {
   url: string;
   expiresAt: string | null;
   permission: "read_only" | "comment";
   protectedByPassword: boolean;
+  projectName?: string;
+  passwordText?: string;
 }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -36,10 +40,18 @@ export function SenderShareCard({
       </dl>
       <div className="share-credential-actions">
         <button type="button" onClick={async () => {
-          await navigator.clipboard.writeText(new URL(url, window.location.origin).toString());
+          const fullUrl = new URL(url, window.location.origin).toString();
+          let copyText = `[BlendProof] 邀请您审阅 3D 项目：${projectName || '当前模型'}\n👉 链接：${fullUrl}`;
+          if (protectedByPassword && passwordText) {
+            copyText += `\n🔑 密码：${passwordText}`;
+          }
+          if (expiresAt) {
+            copyText += `\n(分享将于 ${formatShareExpiry(expiresAt)} 失效)`;
+          }
+          await navigator.clipboard.writeText(copyText);
           setCopied(true);
           window.setTimeout(() => setCopied(false), 1600);
-        }}>{copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}{copied ? "已复制" : "复制链接"}</button>
+        }}>{copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}{copied ? "已复制" : "复制口令"}</button>
         <a href={url} target="_blank" rel="noreferrer">打开检查</a>
       </div>
     </section>

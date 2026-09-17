@@ -94,6 +94,8 @@ export function SharePanel({
                   expiresAt={null}
                   permission="read_only"
                   protectedByPassword
+                  projectName="Suzanne 演示模型"
+                  passwordText={DEMO_SHARE_PASSWORD}
                 />
                 <p className="demo-share-password">
                   访问密码 <code>{DEMO_SHARE_PASSWORD}</code>
@@ -148,6 +150,8 @@ export function SharePanel({
                     expiresAt={shareExpiresAt}
                     permission={sharePermission}
                     protectedByPassword={Boolean(sharePassword)}
+                    projectName={document.title.replace(" - BlendProof", "")}
+                    passwordText={sharePassword}
                   />
                 )}
                 {shareId && (

@@ -102,6 +102,46 @@ export function StartPage({
     return Math.max(1, Math.round(elapsed || performance.now()));
   }, []);
 
+  const [clipboardMatch, setClipboardMatch] = useState<{ url: string; password?: string; projectName?: string } | null>(null);
+
+  useEffect(() => {
+    function parseClipboardText(text: string) {
+      const urlMatch = text.match(/https?:\/\/[^\s]+\/s\/([a-zA-Z0-9_-]+)/);
+      const pwdMatch = text.match(/密码：([^\s]+)/);
+      const projMatch = text.match(/项目：([^\n]+)/);
+      
+      if (urlMatch) {
+         setClipboardMatch({
+           url: urlMatch[0],
+           password: pwdMatch ? pwdMatch[1] : undefined,
+           projectName: projMatch ? projMatch[1] : undefined
+         });
+      }
+    }
+
+    async function checkClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        parseClipboardText(text);
+      } catch (e) {
+        // Ignored
+      }
+    }
+    
+    function handlePaste(e: ClipboardEvent) {
+      const text = e.clipboardData?.getData("text");
+      if (text) parseClipboardText(text);
+    }
+
+    window.addEventListener("focus", checkClipboard);
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("focus", checkClipboard);
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, []);
+
+
   function openShare() {
     const value = shareInput.trim();
     const candidate = value.match(/^[a-f0-9]{32}$/)
