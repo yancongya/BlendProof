@@ -32,6 +32,7 @@ export type SharePanelProps = {
   onHoursChange: (v: string) => void;
   onPermissionChange: (v: "read_only" | "comment") => void;
   onCreateShare: () => void;
+  shareError: string | null;
   onRevokeShare: () => void;
   isCloud: boolean;
 };
@@ -51,6 +52,7 @@ export function SharePanel({
   onHoursChange,
   onPermissionChange,
   onCreateShare,
+  shareError,
   onRevokeShare,
   isCloud,
 }: SharePanelProps) {
@@ -78,6 +80,7 @@ export function SharePanel({
               onCreateShare();
             }}
           >
+            {shareError && <p className="share-panel-error" role="alert" style={{ color: "#e08b6a", margin: "0 0 8px", padding: "0 8px", background: "#3a2320", borderRadius: 3, fontSize: 11 }}>{shareError}</p>}
             {!hasProject ? (
               <>
                 <div className="share-panel-title">

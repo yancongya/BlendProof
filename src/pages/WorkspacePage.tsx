@@ -121,6 +121,7 @@ export function WorkspacePage() {
   const [shareHours, setShareHours] = useState("24");
   const [sharePermission, setSharePermission] = useState<"read_only" | "comment">("read_only");
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [homeOpen, setHomeOpen] = useState(true);
   const [publicStats, setPublicStats] = useState<PublicStats | null>(null);
   const [account, setAccount] = useState<AccountUser | null>(null);
@@ -258,10 +259,11 @@ export function WorkspacePage() {
       setShareExpiresAt(null);
       setCloudProject(null);
       setUploadStage("ready");
+      closeUploader();
       setMessage(
         result.id.startsWith("browser-")
-          ? "浏览器本地转换完成。"
-          : "本机 Blender 转换完成。",
+          ? "模型已在 3D 视口中就绪。"
+          : "模型已在 3D 视口中就绪。",
       );
     } catch (reason) {
       setUploadStage("error");
@@ -309,6 +311,8 @@ export function WorkspacePage() {
       setShareUrl(`${baseUrl}${view}`);
       setShareId(share.id);
       setShareExpiresAt(share.expiresAt);
+      setShareError(null);
+      setShareError(null);
       setMessage(
         sharePermission === "comment"
           ? tf(
@@ -321,7 +325,7 @@ export function WorkspacePage() {
             ),
       );
     } catch (reason) {
-      setMessage(
+      setShareError(
         reason instanceof Error ? reason.message : "无法建立分享链接。",
       );
     }
@@ -343,8 +347,9 @@ export function WorkspacePage() {
       setShareId(null);
       setShareExpiresAt(null);
       setMessage("分享已撤销。");
+      setShareError(null);
     } catch (reason) {
-      setMessage(
+      setShareError(
         reason instanceof Error ? reason.message : "无法撤销分享。",
       );
     }
@@ -671,6 +676,7 @@ export function WorkspacePage() {
         onHoursChange={setShareHours}
         onPermissionChange={setSharePermission}
         onCreateShare={() => void createShare()}
+        shareError={shareError}
         onRevokeShare={() => void revokeShare()}
       />
     </BlenderWorkspace>
