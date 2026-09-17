@@ -156,7 +156,7 @@ export function SharePage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [passwordRequired, setPasswordRequired] = useState(isDemoShare);
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(() => new URLSearchParams(window.location.search).get("pwd") || "");
   const [guestName, setGuestName] = useState(() =>
     token
       ? window.localStorage.getItem(`blendproof-guest-name:${token}`) ?? ""
@@ -258,6 +258,14 @@ export function SharePage() {
       setError(reason instanceof Error ? reason.message : "密码验证失败。");
     }
   }
+
+  useEffect(() => {
+    if (passwordRequired && password && !share && !error) {
+      unlockShare();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [passwordRequired]);
+
 
   if (passwordRequired)
     return (

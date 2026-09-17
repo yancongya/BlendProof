@@ -56,7 +56,7 @@ check('无"5 GB</b>私有空间"', !html.includes('5 GB</b>私有空间'))
 check('无"¥0</b>注册"', !html.includes('¥0</b>注册'))
 
 console.log('\n7. mockup 高度一致')
-check('browser height:140px', html.includes('quickstart__browser') && html.includes('height: 140px'))
+check('browser height:200px', html.includes('quickstart__browser') && html.includes('height: 200px'))
 
 console.log('\n8. JS 交互逻辑')
 // initQuickstart 被混淆，用 CSS 类名检查：quickstart__step + is-active

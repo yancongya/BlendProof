@@ -282,6 +282,25 @@ export function StartPage({
               </section>
               <section className="start-action-section">
                 <h2>打开分享</h2>
+                {clipboardMatch && (
+                  <div className="clipboard-toast" style={{ background: 'var(--panel-bg-hover, #2c2c2c)', padding: '10px 12px', borderRadius: '6px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid var(--border-color, #444)' }}>
+                    <div>
+                      <div style={{ color: 'var(--text-color, #e5e5e5)', fontSize: '13px', fontWeight: 'bold' }}>检测到分享口令</div>
+                      <div style={{ color: 'var(--text-muted, #aaa)', fontSize: '11px', marginTop: '2px' }}>{clipboardMatch.projectName || "3D 协作模型"}</div>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                         let target = clipboardMatch.url;
+                         if (clipboardMatch.password) target += `?pwd=${encodeURIComponent(clipboardMatch.password)}`;
+                         window.location.assign(target);
+                      }}
+                      style={{ background: 'var(--accent-color, #3b82f6)', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', border: 'none', fontWeight: 500 }}
+                    >
+                      立即打开
+                    </button>
+                  </div>
+                )}
                 <form
                   className="start-share-entry"
                   onSubmit={(event) => {
