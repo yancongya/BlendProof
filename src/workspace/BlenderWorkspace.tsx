@@ -66,6 +66,7 @@ import {
   ViewerMenubar,
   ViewerStatusbar,
   clearModelCache,
+  CLIENT_GUIDE_STEPS,
   VIEWER_GUIDE_STEPS,
   ViewportErrorBoundary,
   ViewportLoading,
@@ -120,6 +121,7 @@ export function BlenderWorkspace({
   onDeleteReply,
   canDeleteComment,
   onReplyComment,
+  guideSteps,
   initialCamera = null,
   onViewStateChange,
   uploaderOpen = false,
@@ -174,6 +176,7 @@ export function BlenderWorkspace({
   canDeleteComment?: (id: string) => boolean;
   /** 正文由页面补上作者名；返回值只用于等待完成，不消费结果。 */
   onReplyComment?: (commentId: string, body: string) => Promise<unknown> | void;
+  guideSteps?: GuidedTourStep[];
   initialCamera?: CameraState | null;
   onViewStateChange?: (camera: CameraState) => void;
   uploaderOpen?: boolean;

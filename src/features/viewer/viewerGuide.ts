@@ -50,3 +50,24 @@ export const VIEWER_GUIDE_STEPS: GuidedTourStep[] = [
     group: "协作",
   },
 ];
+
+
+/**
+ * 客户视角的操作指南：去掉「创建分享」步骤，且每步的描述
+ * 不包含 Blender 术语（与 D1 的视口 hints 保持一致）。
+ */
+export const CLIENT_GUIDE_STEPS: GuidedTourStep[] = [
+  VIEWER_GUIDE_STEPS.find((s) => s.id === "viewport") && {
+    ...VIEWER_GUIDE_STEPS.find((s) => s.id === "viewport")!,
+    description: "拖动旋转，Shift+右键平移，滚轮缩放；空白区域取消选择。",
+  },
+  VIEWER_GUIDE_STEPS.find((s) => s.id === "outliner")!,
+  {
+    id: "annotation",
+    title: "添加批注",
+    description: "点击「添加批注」，在模型上右键即可添加。",
+    target: '[data-guide="annotation-tool"]',
+    placement: "bottom",
+    group: "审稿",
+  },
+].filter(Boolean) as GuidedTourStep[];

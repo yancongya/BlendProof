@@ -24,5 +24,5 @@ export { UploaderDialog } from "./components/UploaderDialog";
 export { ViewportLoading } from "./components/ViewportLoading";
 export { ViewportErrorBoundary } from "./components/ViewportErrorBoundary";
 export { DecorativeBoundary } from "./components/DecorativeBoundary";
-export { VIEWER_GUIDE_STEPS } from "./viewerGuide";
+export { CLIENT_GUIDE_STEPS, VIEWER_GUIDE_STEPS } from "./viewerGuide";
 export { clearModelCache } from "./meshCache";

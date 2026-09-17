@@ -19,6 +19,7 @@ import {
   GuestNameNotice,
 } from "../components/NoticeViews";
 import { blendProofClient, type ProjectTransport } from "../api/blendProofClient";
+import { CLIENT_GUIDE_STEPS } from "../features/viewer";
 import { readSharedView } from "../utils";
 import type { Manifest, DisplayMode, CameraPreset } from "../types";
 import { useGuestReview, type ReviewComment } from "../features/review";
@@ -310,6 +311,7 @@ export function SharePage() {
       modelUrl={share.modelUrl}
       readOnly
       canView={!isDemoShare}
+      guideSteps={CLIENT_GUIDE_STEPS}
       canComment={share.commentsPermission === "comment"}
       commentAuthorName={guestName.trim() || "访客"}
       displayMode={displayMode}
