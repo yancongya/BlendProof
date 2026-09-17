@@ -1,10 +1,3 @@
-/**
- * 场景集合（Outliner）面板。
- *
- * 负责对象列表、搜索、显隐、聚焦与独显入口。高度与折叠状态由外壳持有
- * ——面板高度是整体布局的一部分，拖拽把手也留在外壳的面板之间。
- */
-
 import { Box, Camera, Eye, Focus, Layers, Lightbulb, Search, X } from "lucide-react";
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -48,15 +41,16 @@ export function ObjectOutliner({
     isolated && selected.size === 1 && selected.has(name);
 
   const parentRef = useRef<HTMLDivElement>(null);
+  
   const rowVirtualizer = useVirtualizer({
     count: objects.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 24, // 默认每行高度 24px
+    estimateSize: () => 24,
   });
 
   return (
     <section
-      className={`panel outliner-panel ${collapsed ? "collapsed" : ""}`}
+      className={`panel outliner-panel \${collapsed ? "collapsed" : ""}`}
       data-guide="outliner"
       style={{ height: collapsed ? 28 : height }}
     >
@@ -83,7 +77,7 @@ export function ObjectOutliner({
           <Focus size={12} />
         </button>
       </div>
-      <div className="panel-body" style={{ display: "flex", flexDirection: "column" }}>
+      <div className="panel-body">
         <label className="outliner-search">
           <Search size={12} />
           <input
@@ -102,24 +96,31 @@ export function ObjectOutliner({
           <span>⌄</span>
           <strong>{manifest?.scene ?? "Scene Collection"}</strong>
         </div>
-        <div className="tree-children" ref={parentRef} style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
-          <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+        <div 
+          className="tree-children" 
+          ref={parentRef} 
+          style={{ 
+            height: height - 78 > 0 ? height - 78 : 0, 
+            overflowY: "auto" 
+          }}
+        >
+          <div style={{ height: `\${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
           {rowVirtualizer.getVirtualItems().map((virtualItem) => {
             const object = objects[virtualItem.index];
             return (
             <div
-              className={`tree-row ${selected.has(object.name) ? "selected" : ""}`}
+              className={`tree-row \${selected.has(object.name) ? "selected" : ""}`}
               key={virtualItem.key}
+              role="treeitem"
+              tabIndex={0}
               style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 width: '100%',
-                height: `${virtualItem.size}px`,
-                transform: `translateY(${virtualItem.start}px)`
+                height: `\${virtualItem.size}px`,
+                transform: `translateY(\${virtualItem.start}px)`
               }}
-              role="treeitem"
-              tabIndex={0}
               aria-selected={selected.has(object.name)}
               onClick={() => onSelect(object.name)}
               onKeyDown={(event) => {
@@ -153,7 +154,7 @@ export function ObjectOutliner({
               </button>
               <button
                 type="button"
-                className={`isolate ${isIsolated(object.name) ? "active" : ""}`}
+                className={`isolate \${isIsolated(object.name) ? "active" : ""}`}
                 aria-label={
                   isIsolated(object.name)
                     ? tf("退出 %s 的独显", object.name)
@@ -168,7 +169,7 @@ export function ObjectOutliner({
                 <Focus />
               </button>
             </div>
-          );
+            );
           })}
           </div>
           {manifest && objects.length === 0 && (

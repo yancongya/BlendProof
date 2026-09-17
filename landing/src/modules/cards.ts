@@ -214,11 +214,17 @@ function initQuickstart(): void {
     const showStep = (index: number): void => {
       currentStep = index
       steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
-      // mockup：用 opacity 控制可见性，始终不设 hidden（避免高度闪变）
-      mocks.forEach((mock, i) => {
-        mock.classList.toggle('is-visible', i === index)
-        mock.setAttribute('aria-hidden', String(i !== index))
-      })
+      // mockup：多个 mock 时按 index 切换；单个 mock（客户视角）时始终显示
+      if (mocks.length > 1) {
+        mocks.forEach((mock, i) => {
+          mock.classList.toggle('is-visible', i === index)
+          mock.setAttribute('aria-hidden', String(i !== index))
+        })
+      } else {
+        // 客户视角：只有一个 mock，始终可见，通过 states 切换内部内容
+        mocks[0]?.classList.add('is-visible')
+      }
+      // states（qs-browser__state）：按 index 切换 hidden
       states.forEach((state, i) => { state.hidden = i !== index })
       if (index === 2) ensureMiniViewer()
     }
