@@ -23,6 +23,13 @@ export type {
 export { reviewRepository } from "./api/reviewRepository";
 export { useReviewComments } from "./hooks/useReviewComments";
 export { useGuestReview } from "./hooks/useGuestReview";
+export { useDemoReview } from "./hooks/useDemoReview";
+export {
+  DEMO_COMMENTS,
+  DEMO_SHARE_PASSWORD,
+  DEMO_SHARE_TOKEN,
+  cloneDemoComments,
+} from "./demoComments";
 export {
   forgetDeleteToken,
   readDeleteToken,

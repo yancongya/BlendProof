@@ -815,6 +815,10 @@ export function BlenderWorkspace({
                       setReviewMessage("已定位批注，请填写内容。");
                     }}
                   />
+                </Suspense>
+                {/* 批注与环境贴图各自独立挂起：它们内部的 drei <Text>/<Html>/HDR
+                    都会 suspend，共用一个边界会把模型一起憋住（视口长时间空白）。 */}
+                <Suspense fallback={null}>
                   {annotationMode && annotationHover && (
                     <AnnotationHoverMarker hit={annotationHover} />
                   )}
@@ -825,6 +829,8 @@ export function BlenderWorkspace({
                       onSelect={selectReviewComment}
                     />
                   )}
+                </Suspense>
+                <Suspense fallback={null}>
                   {/* 环境贴图来自 CDN：失败只是少了氛围，不该让用户看到「模型无法加载」。 */}
                   <DecorativeBoundary>
                     <Environment preset="city" />

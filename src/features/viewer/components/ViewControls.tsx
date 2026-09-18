@@ -51,9 +51,8 @@ export function BlenderViewControls({
   const navigationCamera = useRef<ThreeCamera | null>(null);
   if (!navigationCamera.current) navigationCamera.current = camera;
 
-  // 回调与数组参数存 ref：把它们放进依赖数组会让任何一次父级重渲染都重跑下面的
-  // effect，而 effect 内部又 set(...) 写回 r3f store —— 形成「渲染 → effect →
-  // set → 渲染」的自激循环，主线程会被打满。
+  // 回调与数组参数存 ref：放进依赖数组会让父级任何一次重渲染都重跑下面的 effect，
+  // 而 effect 内部又 set(...) 写回 r3f store —— 形成「渲染 → effect → set → 渲染」的自激循环。
   const onTargetChangeRef = useRef(onTargetChange);
   onTargetChangeRef.current = onTargetChange;
   const onViewStateChangeRef = useRef(onViewStateChange);

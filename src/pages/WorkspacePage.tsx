@@ -25,7 +25,7 @@ import {
   type ProjectTransport,
   type PublicStats,
 } from "../api/blendProofClient";
-import { useReviewComments } from "../features/review";
+import { useDemoReview, useReviewComments } from "../features/review";
 import { useI18n, t, tf } from "../i18n";
 import { encodeSharedView, isLocalBridgeResource } from "../utils";
 import type {
@@ -36,6 +36,10 @@ import type {
   Project,
 } from "../types";
 import type { CameraState } from "../shared/types/camera";
+import {
+  DEFAULT_MONKEY_MANIFEST,
+  DEFAULT_MONKEY_MODEL_URL,
+} from "./demoProject";
 
 // ---------------------------------------------------------------------------
 // Constants shared between workspace and the demo overlay
@@ -43,16 +47,6 @@ import type { CameraState } from "../shared/types/camera";
 
 const DEMO_SHARE_URL = `/s/suzanne`;
 const DEMO_SHARE_PASSWORD = "tycon";
-
-const DEFAULT_MONKEY_MANIFEST: Manifest = {
-  scene: "Suzanne 演示",
-  camera: null,
-  cameras: [],
-  objects: [{ name: "苏珊娜", type: "MESH", collections: ["Collection"] }],
-  collections: ["Collection"],
-  materials: ["Material"],
-  export: { glbBytes: 69708, objectCount: 1 },
-};
 
 /** Runtime guard: validates a value loaded from localStorage is a Project. */
 function isStoredProject(value: unknown): value is Project {
@@ -155,14 +149,16 @@ export function WorkspacePage() {
   const closeUploader = useCallback(() => setUploaderOpen(false), []);
 
   const reviewProject = cloudProject ?? project;
-  const reviews = useReviewComments(
+  // 有项目走真实审稿接口；没有项目（Suzanne 演示）走纯本地演示态。
+  // 两者形状一致，下游无需分支。演示态可写，用于本地/远程一致的体验验证。
+  const ownerReviews = useReviewComments(
     reviewProject?.id ?? null,
     reviewProject?.ownerCapability ?? null,
     cloudProject ? "cloud" : "local",
   );
-  // Use demo comments when no project is loaded (Suzanne overlay)
-  const DEMO_COMMENTS = [] as typeof reviews.comments; // keep demo-only comments in SharePage
-  const displayComments = reviewProject ? reviews.comments : DEMO_COMMENTS;
+  const demoReviews = useDemoReview();
+  const reviews = reviewProject ? ownerReviews : demoReviews;
+  const displayComments = reviews.comments;
 
   // 批注与回复的作者名取自登录账号，与创建批注时保持一致。
   const reviewAuthorName = account?.displayName?.trim() || "本地创建者";
@@ -529,7 +525,7 @@ export function WorkspacePage() {
   const workspaceModelUrl = manifest
     ? project?.modelUrl
     : !project
-    ? "/default-monkey.glb"
+    ? DEFAULT_MONKEY_MODEL_URL
     : undefined;
 
   const shareStatusProp: ActiveShareStatus | null = shareUrl
@@ -553,7 +549,6 @@ export function WorkspacePage() {
           message={message}
           modelUrl={workspaceModelUrl}
           readOnly={false}
-          canComment={Boolean(project)}
           displayMode={displayMode}
           onDisplayMode={setDisplayMode}
           cameraPreset={cameraPreset}
@@ -626,7 +621,6 @@ export function WorkspacePage() {
       message={message}
       modelUrl={workspaceModelUrl}
       readOnly={false}
-      canComment={Boolean(project)}
       displayMode={displayMode}
       onDisplayMode={setDisplayMode}
       cameraPreset={cameraPreset}
