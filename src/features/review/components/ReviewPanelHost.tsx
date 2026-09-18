@@ -10,7 +10,8 @@
 
 import { MessageSquarePlus } from "lucide-react";
 import { t, tf } from "../../../i18n";
-import { ReviewPanel, type ReviewComment } from "../../../features/review";
+import { ReviewPanel } from "./ReviewPanel";
+import type { ReviewComment } from "../types";
 
 const FILTERS = [
   ["all", "⬡", "全部"],

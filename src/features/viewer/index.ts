@@ -19,7 +19,6 @@ export { ViewerStatusbar } from "./components/ViewerStatusbar";
 export { ObjectOutliner } from "./components/ObjectOutliner";
 export { PropertyInspector } from "./components/PropertyInspector";
 export { ConversionPanel } from "./components/ConversionPanel";
-export { ReviewPanelHost } from "./components/ReviewPanelHost";
 export { UploaderDialog } from "./components/UploaderDialog";
 export { ViewportLoading } from "./components/ViewportLoading";
 export { ViewportErrorBoundary } from "./components/ViewportErrorBoundary";

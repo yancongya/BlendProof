@@ -36,4 +36,5 @@ export {
   rememberDeleteToken,
 } from "./deleteTokens";
 export { ReviewPanel } from "./components/ReviewPanel";
+export { ReviewPanelHost } from "./components/ReviewPanelHost";
 export { ReviewAnnotations } from "./components/ReviewAnnotations";

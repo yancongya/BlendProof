@@ -47,6 +47,7 @@ import { ConversionSummary } from "../components/ConversionSummary";
 import {
   ReviewAnnotations,
   ReviewPanel,
+  ReviewPanelHost,
   type PendingReview,
   type ReviewComment,
   type ReviewCommentDraft,
@@ -63,7 +64,6 @@ import {
   ObjectOutliner,
   PanelResizeHandle,
   PropertyInspector,
-  ReviewPanelHost,
   UploaderDialog,
   ViewerMenubar,
   ViewerStatusbar,
