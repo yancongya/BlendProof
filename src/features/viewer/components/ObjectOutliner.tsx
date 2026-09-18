@@ -40,7 +40,7 @@ export function ObjectOutliner({
 
   return (
     <section
-      className={`panel outliner-panel \${collapsed ? "collapsed" : ""}`}
+      className={`panel outliner-panel ${collapsed ? "collapsed" : ""}`}
       data-guide="outliner"
       style={{ height: collapsed ? 28 : height }}
     >
@@ -89,7 +89,7 @@ export function ObjectOutliner({
         <div className="tree-children">
           {objects.map((object) => (
             <div
-              className={`tree-row \${selected.has(object.name) ? "selected" : ""}`}
+              className={`tree-row ${selected.has(object.name) ? "selected" : ""}`}
               key={object.name}
               role="treeitem"
               tabIndex={0}
@@ -126,7 +126,7 @@ export function ObjectOutliner({
               </button>
               <button
                 type="button"
-                className={`isolate \${isIsolated(object.name) ? "active" : ""}`}
+                className={`isolate ${isIsolated(object.name) ? "active" : ""}`}
                 aria-label={
                   isIsolated(object.name)
                     ? tf("退出 %s 的独显", object.name)

@@ -51,20 +51,31 @@ export function BlenderViewControls({
   const navigationCamera = useRef<ThreeCamera | null>(null);
   if (!navigationCamera.current) navigationCamera.current = camera;
 
+  // 回调与数组参数存 ref：把它们放进依赖数组会让任何一次父级重渲染都重跑下面的
+  // effect，而 effect 内部又 set(...) 写回 r3f store —— 形成「渲染 → effect →
+  // set → 渲染」的自激循环，主线程会被打满。
+  const onTargetChangeRef = useRef(onTargetChange);
+  onTargetChangeRef.current = onTargetChange;
+  const onViewStateChangeRef = useRef(onViewStateChange);
+  onViewStateChangeRef.current = onViewStateChange;
+  const fileCamerasRef = useRef(fileCameras);
+  fileCamerasRef.current = fileCameras;
+
   useEffect(() => {
     const source = preset.startsWith("file:")
-      ? fileCameras.find((item) => item.uuid === preset.slice(5))
+      ? fileCamerasRef.current.find((item) => item.uuid === preset.slice(5))
       : undefined;
     if (source) {
       const fileCamera = cloneFileCamera(source, size);
-      set({ camera: fileCamera as never });
+      // 相机没换就不要写 store：每次写新对象都会触发 r3f 全树重渲染。
+      if (camera !== fileCamera) set({ camera: fileCamera as never });
       if (controls.current) {
         controls.current.object = fileCamera;
         controls.current.target.copy(fileCameraTarget(fileCamera));
       }
     } else {
       const activeCamera = navigationCamera.current!;
-      set({ camera: activeCamera as never });
+      if (camera !== activeCamera) set({ camera: activeCamera as never });
       if (controls.current) controls.current.object = activeCamera;
       const { center, position } = frameScene(scene, preset);
       activeCamera.position.set(...position);
@@ -73,8 +84,8 @@ export function BlenderViewControls({
       (activeCamera as ThreeCamera & { updateProjectionMatrix: () => void }).updateProjectionMatrix();
     }
     controls.current?.update();
-    if (controls.current) onTargetChange(controls.current.target.toArray() as Vec3);
-  }, [fileCameras, onTargetChange, preset, scene, set, size]);
+    if (controls.current) onTargetChangeRef.current(controls.current.target.toArray() as Vec3);
+  }, [camera, preset, scene, set, size.width, size.height]);
 
   useEffect(() => {
     if (!reviewCameraRequest) return;
@@ -102,8 +113,8 @@ export function BlenderViewControls({
       controls.current.target.fromArray(saved.target);
       controls.current.update();
     }
-    onTargetChange(saved.target);
-  }, [onTargetChange, reviewCameraRequest, set, size.height, size.width]);
+    onTargetChangeRef.current(saved.target);
+  }, [reviewCameraRequest, set, size.height, size.width]);
 
   useEffect(() => {
     if (!focusRequest || !scene || !controls.current) return;
@@ -136,21 +147,21 @@ export function BlenderViewControls({
     }
     controls.current.target.copy(center);
     controls.current.update();
-    onTargetChange(center.toArray() as Vec3);
-  }, [focusRequest, onTargetChange, scene]);
+    onTargetChangeRef.current(center.toArray() as Vec3);
+  }, [focusRequest, scene]);
 
   useEffect(() => {
     const current = controls.current;
     if (!current) return;
     const onChange = () => {
       const target = current.target.toArray() as Vec3;
-      onTargetChange(target);
-      if (onViewStateChange)
-        onViewStateChange(captureCameraState(current.object as ThreeCamera, target));
+      onTargetChangeRef.current(target);
+      if (onViewStateChangeRef.current)
+        onViewStateChangeRef.current(captureCameraState(current.object as ThreeCamera, target));
     };
     current.addEventListener("change", onChange);
     return () => current.removeEventListener("change", onChange);
-  }, [onTargetChange, onViewStateChange]);
+  }, []);
 
   useEffect(() => {
     const element = gl.domElement;

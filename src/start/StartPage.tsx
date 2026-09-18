@@ -119,24 +119,16 @@ export function StartPage({
       }
     }
 
-    async function checkClipboard() {
-      try {
-        const text = await navigator.clipboard.readText();
-        parseClipboardText(text);
-      } catch (e) {
-        // Ignored
-      }
-    }
-    
     function handlePaste(e: ClipboardEvent) {
       const text = e.clipboardData?.getData("text");
       if (text) parseClipboardText(text);
     }
 
-    window.addEventListener("focus", checkClipboard);
+    // 刻意不在 window 的 focus 上读剪贴板：焦点变化（点击任意按钮都会触发）
+    // 并不构成用户手势，此时 navigator.clipboard.readText() 会挂起等待授权，
+    // 冻结整个渲染进程。粘贴交给用户主动触发的 paste 事件。
     window.addEventListener("paste", handlePaste);
     return () => {
-      window.removeEventListener("focus", checkClipboard);
       window.removeEventListener("paste", handlePaste);
     };
   }, []);

@@ -41,7 +41,11 @@ const objectType = (type: number) => ({ 1: "MESH", 10: "LIGHT", 11: "CAMERA", 25
 
 /** Converts the supported static subset without sending the source file anywhere. */
 export async function convertBlendInBrowser(file: File | ArrayBuffer): Promise<BrowserBlendResult> {
-  const bytes = new Uint8Array(file instanceof ArrayBuffer ? file : await file.arrayBuffer());
+  const isBuffer = file instanceof ArrayBuffer;
+  const bytes = new Uint8Array(isBuffer ? file : await file.arrayBuffer());
+  // Worker 路径只传 ArrayBuffer，拿不到文件名与体积，退回占位名与缓冲区长度。
+  const fileName = isBuffer ? "scene.blend" : file.name;
+  const sourceBytes = isBuffer ? file.byteLength : file.size;
   const blend = parseBlend(bytes);
   const scenes = extractScenes(blend);
   const objects = extractObjects(blend);
@@ -81,13 +85,13 @@ export async function convertBlendInBrowser(file: File | ArrayBuffer): Promise<B
   return {
     glb,
     manifest: {
-      scene: activeScene?.name ?? file.name.replace(/\.blend$/i, ""),
+      scene: activeScene?.name ?? fileName.replace(/\.blend$/i, ""),
       camera: activeScene?.cameraObject ?? null,
       cameras: cameras.map((camera) => ({ name: camera.name, projection: camera.type })),
       objects: objects.map((object) => ({ name: object.name, type: objectType(object.type), collections: [] })),
       collections: collections.map((collection) => collection.name),
       materials: materials.map((entry) => entry.name),
-      export: { sourceBytes: file.size, glbBytes: glb.size, objectCount: objects.length },
+      export: { sourceBytes, glbBytes: glb.size, objectCount: objects.length },
     },
   };
 }
