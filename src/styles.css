@@ -30,7 +30,9 @@ button {
   white-space: nowrap;
 }
 .blender-shell {
-  min-height: 100dvh;
+  /* 必须是确定高度而非 min-height：容器高度为 auto 时 grid 的 1fr 会退化成
+     按内容计算，中间行会被画布撑开，整壳超出视口后被 body 的 overflow 剪掉。 */
+  height: 100dvh;
   display: grid;
   grid-template-rows: 32px minmax(0, 1fr) 22px;
   background: #1d1d1d;
