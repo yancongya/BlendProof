@@ -187,6 +187,21 @@ export function SharePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [passwordRequired]);
 
+  // 必须留在下方所有提前 return 之前：解锁会让 passwordRequired 翻转，
+  // 若这些 hook 在 return 之后，首次渲染与解锁后渲染的 hook 数量不同，
+  // React 会抛 "Rendered more hooks than during the previous render" 并整页白屏。
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => {
+    const hasSeen = localStorage.getItem("blendproof:has-seen-tour");
+    if (!hasSeen && share) {
+      const timer = window.setTimeout(() => setShowTour(true), 1500);
+      return () => window.clearTimeout(timer);
+    }
+  }, [share]);
+  const handleCloseTour = useCallback(() => {
+    localStorage.setItem("blendproof:has-seen-tour", "true");
+    setShowTour(false);
+  }, []);
 
   if (passwordRequired)
     return (
@@ -213,19 +228,6 @@ export function SharePage() {
       />
     );
   }
-
-  const [showTour, setShowTour] = useState(false);
-  useEffect(() => {
-    const hasSeen = localStorage.getItem("blendproof:has-seen-tour");
-    if (!hasSeen && share) {
-      const timer = window.setTimeout(() => setShowTour(true), 1500);
-      return () => window.clearTimeout(timer);
-    }
-  }, [share]);
-  const handleCloseTour = useCallback(() => {
-    localStorage.setItem("blendproof:has-seen-tour", "true");
-    setShowTour(false);
-  }, []);
 
   return (
     <>
