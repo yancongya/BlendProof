@@ -25,6 +25,8 @@ import { LocalReviewDatabase } from './local-database.js'
 import { LocalShareAccess } from './local-share-access.js'
 import { BRIDGE_NONCE_HEADER, LocalBridgePairing } from './local-pairing.js'
 import { normalizeUploadFilename } from './upload-filename.js'
+import { resolveShareExpiry } from './share-policy.js'
+import { assertPublicAssetContent, publicAssetContentTypes } from './asset-policy.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const storageRoot = process.env.BLENDPROOF_STORAGE_ROOT ?? path.join(root, 'storage', 'projects')
@@ -126,6 +128,9 @@ app.post('/api/local/convert', upload.single('blend'), async (request, response)
 
   try {
     await runBlender(blenderBin, sourcePath, glbPath, manifestPath)
+    // Blender 子进程直接把产物写进目录，绕过了 LocalProjectStorage.put 的校验。
+    // 在这里补上，避免「本机放行坏产物、云端却拒收」的行为漂移。
+    await assertDerivedAssets(glbPath, manifestPath)
     const project = await repository.registerProject({
       id: projectId,
       name: uploadName,
@@ -155,11 +160,10 @@ app.post('/api/local/projects/:projectId/shares', async (request, response) => {
   if (!await requireOwner(request, response, request.params.projectId)) return
   const input = request.body as { password?: unknown; expiresAt?: unknown; commentsPermission?: unknown }
   const password = typeof input?.password === 'string' && input.password.length > 0 ? input.password : null
-  const expiresAt = input?.expiresAt === null || input?.expiresAt === undefined || input?.expiresAt === ''
-    ? null
-    : String(input.expiresAt)
   const commentsPermission = input?.commentsPermission ?? 'read_only'
   try {
+    // 用户上传的模型一律带有效期；永久有效只留给内置猴头演示（不走这里）。
+    const expiresAt = resolveShareExpiry(input?.expiresAt)
     const share = await repository.createShare(request.params.projectId, {
       passwordHash: password ? await hashPassword(password) : null,
       expiresAt,
@@ -648,6 +652,12 @@ function isCameraState(value: unknown) {
     camera.quaternion.some((item) => Math.abs(item) > 1e-8) &&
     (projection !== 'perspective' || (typeof camera.fov === 'number' && camera.fov > 0 && camera.fov < 180)) &&
     (projection !== 'orthographic' || (typeof camera.zoom === 'number' && camera.zoom > 0))
+}
+
+/** 校验 Blender 产物，契约与云端一致（见 asset-policy.ts）。 */
+async function assertDerivedAssets(glbPath: string, manifestPath: string): Promise<void> {
+  assertPublicAssetContent('model.glb', await readFile(glbPath), publicAssetContentTypes['model.glb'])
+  assertPublicAssetContent('manifest.json', await readFile(manifestPath), publicAssetContentTypes['manifest.json'])
 }
 
 function runBlender(bin: string, sourcePath: string, glbPath: string, manifestPath: string) {

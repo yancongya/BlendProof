@@ -61,10 +61,12 @@ export async function convertBlendInBrowser(file: File | ArrayBuffer): Promise<B
   root.rotation.x = -Math.PI / 2;
   const material = (materials[0] ? toMaterial(materials[0]) : new MeshStandardMaterial({ color: 0xb8bec4 }));
 
+  let meshCount = 0;
   for (const object of objects) {
     if (object.type !== 1) continue;
     const source = meshes.get(object.name);
     if (!source) continue;
+    meshCount += 1;
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(source.vertices, 3));
     if (source.vertexNormals?.length) geometry.setAttribute("normal", new BufferAttribute(source.vertexNormals, 3));
@@ -78,6 +80,12 @@ export async function convertBlendInBrowser(file: File | ArrayBuffer): Promise<B
     mesh.matrix.copy(new Matrix4().fromArray(object.worldMatrix));
     mesh.matrixAutoUpdate = false;
     root.add(mesh);
+  }
+
+  // 没有任何网格时不要返回「成功的空模型」：调用方需要靠这个失败回退本机 Blender，
+  // 静默产出空 GLB 会让用户以为文件只有一个空场景。
+  if (meshCount === 0) {
+    throw new Error("浏览器转换不支持该文件：没有可导出的网格对象。");
   }
 
   const glb = await new Promise<Blob>((resolve, reject) => new GLTFExporter().parse(root, (result) => resolve(new Blob([result as ArrayBuffer], { type: "model/gltf-binary" })), reject, { binary: true }));

@@ -25,6 +25,10 @@ export default {
       if (contentType.includes('multipart/form-data') || contentType.includes('application/x-blender')) {
         return Response.json({ error: '云端不接收原始 .blend 文件。' }, { status: 415 })
       }
+      // 只认 Content-Type 会被 application/octet-stream 绕过，因此再核一次文件头。
+      if (await hasBlendMagic(request)) {
+        return Response.json({ error: '云端不接收原始 .blend 文件。' }, { status: 415 })
+      }
       const originError = mutationOriginError(request, env)
       if (originError) return originError
       return initializeProject(request, env, await currentUser(request, env))
@@ -57,4 +61,24 @@ function mutationOriginError(request: Request, env: UploadEnv): Response | null 
   const origin = request.headers.get('origin')
   if (origin !== env.APP_ORIGIN) return Response.json({ error: '请求来源无效。' }, { status: 403 })
   return null
+}
+
+const BLEND_MAGIC = new TextEncoder().encode('BLENDER')
+
+/**
+ * 未压缩的 .blend 以 "BLENDER" 开头。这里只读首块字节，
+ * 不用把整个请求体拉进内存 —— 命中即为拒绝路径。
+ */
+async function hasBlendMagic(request: Request): Promise<boolean> {
+  const reader = request.clone().body?.getReader()
+  if (!reader) return false
+  try {
+    const { value } = await reader.read()
+    if (!value || value.byteLength < BLEND_MAGIC.byteLength) return false
+    return BLEND_MAGIC.every((byte, index) => value[index] === byte)
+  } catch {
+    return false
+  } finally {
+    await reader.cancel().catch(() => undefined)
+  }
 }

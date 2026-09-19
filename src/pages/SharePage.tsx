@@ -47,15 +47,19 @@ export function SharePage() {
     .at(-1);
   const sharedView = useMemo(readSharedView, []);
   const searchSource = new URLSearchParams(window.location.search).get("source");
+  // 内置猴头演示：永久有效，不走 createShare，也不依赖任何后端账号。
   const isDemoShare = token === DEMO_SHARE_TOKEN;
+  // `?source=browser` 由本机创建分享时写入，指向浏览器 IndexedDB 里的数据。
   const transport: ProjectTransport =
-    searchSource === "cloud" ||
-    isDemoShare ||
-    (!searchSource &&
-      window.location.hostname !== "localhost" &&
-      window.location.hostname !== "127.0.0.1")
-      ? "cloud"
-      : "local";
+    searchSource === "browser"
+      ? "browser"
+      : searchSource === "cloud" ||
+          isDemoShare ||
+          (!searchSource &&
+            window.location.hostname !== "localhost" &&
+            window.location.hostname !== "127.0.0.1")
+        ? "cloud"
+        : "local";
   const [share, setShare] = useState<{
     name: string;
     modelUrl: string;

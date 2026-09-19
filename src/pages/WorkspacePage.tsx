@@ -48,10 +48,19 @@ import {
 const DEMO_SHARE_URL = `/s/suzanne`;
 const DEMO_SHARE_PASSWORD = "tycon";
 
-/** Runtime guard: validates a value loaded from localStorage is a Project. */
+/**
+ * Runtime guard: validates a value loaded from localStorage is a Project.
+ *
+ * browser transport 的 modelUrl 是 blob: URL（只在本会话有效），
+ * 因此不能用 isLocalBridgeResource 判定；它每次都由 IndexedDB 重新物化，
+ * 这里的 URL 只要存在即可。
+ */
 function isStoredProject(value: unknown): value is Project {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const item = value as Record<string, unknown>;
+  const isBrowser = item.transport === "browser";
+  const hasResourceUrl = (candidate: unknown): boolean =>
+    typeof candidate === "string" && (isBrowser ? candidate.startsWith("blob:") : isLocalBridgeResource(candidate));
   return (
     typeof item.id === "string" &&
     /^[a-zA-Z0-9_-]{1,64}$/.test(item.id) &&
@@ -60,11 +69,19 @@ function isStoredProject(value: unknown): value is Project {
     item.name.length <= 512 &&
     typeof item.ownerCapability === "string" &&
     item.ownerCapability.length > 0 &&
-    typeof item.modelUrl === "string" &&
-    isLocalBridgeResource(item.modelUrl) &&
-    typeof item.manifestUrl === "string" &&
-    isLocalBridgeResource(item.manifestUrl)
+    hasResourceUrl(item.modelUrl) &&
+    hasResourceUrl(item.manifestUrl)
   );
+}
+
+/** 读取上次打开的项目；browser transport 的 blob URL 随后会被重新物化。 */
+function readStoredProject(): Project | null {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem("blendproof:last-project") ?? "null");
+    return isStoredProject(stored) ? stored : null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -75,16 +92,11 @@ export function WorkspacePage() {
   useI18n(); // re-render on language toggle so t()/tf() strings stay in sync
 
   const [file, setFile] = useState<File | null>(null);
-  const [project, setProject] = useState<Project | null>(() => {
-    try {
-      const stored: unknown = JSON.parse(
-        localStorage.getItem("blendproof:last-project") ?? "null",
-      );
-      return isStoredProject(stored) ? stored : null;
-    } catch {
-      return null;
-    }
-  });
+  const [project, setProject] = useState<Project | null>(readStoredProject);
+  // browser transport 的模型字节存在 IndexedDB，恢复前不能渲染视口。
+  const [restoringProject, setRestoringProject] = useState(
+    () => readStoredProject()?.transport === "browser",
+  );
   const [recentProjects, setRecentProjects] = useState<Project[]>(() => {
     try {
       const stored = JSON.parse(
@@ -149,12 +161,18 @@ export function WorkspacePage() {
   const closeUploader = useCallback(() => setUploaderOpen(false), []);
 
   const reviewProject = cloudProject ?? project;
+  // 三条通道：cloud（登录后发布的）、browser（本地上传，只在浏览器里）、local（本机 bridge）。
+  const projectTransport: ProjectTransport = cloudProject
+    ? "cloud"
+    : project?.transport === "browser"
+      ? "browser"
+      : "local";
   // 有项目走真实审稿接口；没有项目（Suzanne 演示）走纯本地演示态。
   // 两者形状一致，下游无需分支。演示态可写，用于本地/远程一致的体验验证。
   const ownerReviews = useReviewComments(
     reviewProject?.id ?? null,
     reviewProject?.ownerCapability ?? null,
-    cloudProject ? "cloud" : "local",
+    projectTransport,
   );
   const demoReviews = useDemoReview();
   const reviews = reviewProject ? ownerReviews : demoReviews;
@@ -165,10 +183,47 @@ export function WorkspacePage() {
   const replyToReviewComment = (commentId: string, body: string) =>
     reviews.reply(commentId, { body, authorName: reviewAuthorName });
 
+  /**
+   * 刷新后用 IndexedDB 里的字节重新物化 browser 项目。
+   *
+   * blob URL 只活在创建它的那次会话，localStorage 里存的那个刷新后必然失效 ——
+   * 不重新物化就会表现为「模型加载失败」。记录不存在（换浏览器 / 清了缓存）
+   * 则清掉这个项目，退回演示态。
+   */
+  useEffect(() => {
+    const stored = project;
+    if (!stored || stored.transport !== "browser") {
+      setRestoringProject(false);
+      return;
+    }
+    let active = true;
+    blendProofClient
+      .restoreBrowserProject(stored.id)
+      .then((restored) => {
+        if (!active) return;
+        if (restored) setProject(restored);
+        else {
+          localStorage.removeItem("blendproof:last-project");
+          setProject(null);
+          setMessage("本地缓存中的模型已不存在，请重新导入 .blend 文件。");
+        }
+      })
+      .catch(() => {
+        if (active) setMessage("读取本地缓存失败，请重新导入 .blend 文件。");
+      })
+      .finally(() => {
+        if (active) setRestoringProject(false);
+      });
+    return () => {
+      active = false;
+    };
+    // 只在换项目时重新物化；拖拽面板等重渲染不该触发。
+  }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     let active = true;
     setManifest(null);
-    if (project) {
+    if (project && !restoringProject) {
       blendProofClient
         .loadJson<Manifest>(project.manifestUrl)
         .then((nextManifest) => {
@@ -184,7 +239,7 @@ export function WorkspacePage() {
     return () => {
       active = false;
     };
-  }, [project]);
+  }, [project, restoringProject]);
 
   useEffect(() => {
     let active = true;
@@ -248,17 +303,30 @@ export function WorkspacePage() {
     }
   }, [project]);
 
+  /**
+   * 导入 .blend。
+   *
+   * 产品约定：**未登录时绝不把文件送出浏览器** —— 只做本机转换并把产物存进
+   * IndexedDB，作为测试预览。登录后才允许回退到本机 bridge / 云端上传。
+   * 所以浏览器转换失败时不能无脑回退，那等于在用户不知情的情况下上传了原件。
+   */
   async function convert() {
     if (!file) return;
     setProcessing(true);
     setHomeOpen(false);
     setUploadStage("converting");
-    setMessage("正在浏览器本地读取并转换 Blender 文件。");
+    setMessage("正在浏览器本地读取并转换 Blender 文件，文件不会离开本机。");
     try {
       let result: Project;
       try {
         result = await blendProofClient.convertInBrowser(file);
-      } catch {
+      } catch (browserReason) {
+        if (!account) {
+          throw new Error(
+            `${browserReason instanceof Error ? browserReason.message : "浏览器转换失败。"}` +
+              "该文件需要登录账号后由本机 Blender 转换；未登录状态下不会上传你的文件。",
+          );
+        }
         setMessage("浏览器转换不适用于此文件，正在切换本机 Blender。");
         result = await blendProofClient.convertLocal(file);
       }
@@ -272,8 +340,8 @@ export function WorkspacePage() {
       setUploadStage("ready");
       closeUploader();
       setMessage(
-        result.id.startsWith("browser-")
-          ? "模型已在 3D 视口中就绪。"
+        result.transport === "browser"
+          ? "模型已在 3D 视口中就绪（仅保存在本机浏览器，登录后可上传云端）。"
           : "模型已在 3D 视口中就绪。",
       );
     } catch (reason) {
@@ -294,7 +362,7 @@ export function WorkspacePage() {
       return;
     }
     try {
-      const transport: ProjectTransport = cloudProject ? "cloud" : "local";
+      const transport = projectTransport;
       const share = await blendProofClient.createShare(
         target.id,
         target.ownerCapability,
@@ -352,7 +420,7 @@ export function WorkspacePage() {
         target.id,
         target.ownerCapability,
         shareId,
-        cloudProject ? "cloud" : "local",
+        projectTransport,
       );
       setShareUrl(null);
       setShareId(null);
@@ -458,12 +526,11 @@ export function WorkspacePage() {
     }
   }
 
-  function switchProject(nextProject: Project) {
+  async function switchProject(nextProject: Project) {
     setHomeOpen(false);
-    setProject(nextProject);
     setManifest(null);
     setFile(null);
-    setUploadStage("idle");
+    setUploadStage("ready");
     setHidden(new Set());
     setSelected(new Set());
     setShareUrl(null);
@@ -471,8 +538,20 @@ export function WorkspacePage() {
     setShareExpiresAt(null);
     setCloudProject(null);
     setPublishTitle(nextProject.name.replace(/\.blend$/i, ""));
-    setUploadStage("ready");
-    setUploaderOpen(true);
+    // 最近项目里存的是上次会话的 blob URL，切回来必须先重新物化。
+    if (nextProject.transport === "browser") {
+      setRestoringProject(true);
+      const restored = await blendProofClient.restoreBrowserProject(nextProject.id);
+      setRestoringProject(false);
+      if (!restored) {
+        setMessage("本地缓存中的模型已不存在，请重新导入 .blend 文件。");
+        return;
+      }
+      setProject(restored);
+      setMessage(tf("已切换到本地项目：%s", restored.name));
+      return;
+    }
+    setProject(nextProject);
     setMessage(tf("已切换到本地项目：%s", nextProject.name));
   }
 
@@ -488,10 +567,14 @@ export function WorkspacePage() {
     )
       return;
     try {
-      await blendProofClient.deleteLocalProject(
-        project.id,
-        project.ownerCapability,
-      );
+      if (project.transport === "browser") {
+        await blendProofClient.deleteBrowserProject(project.id, project.ownerCapability);
+      } else {
+        await blendProofClient.deleteLocalProject(
+          project.id,
+          project.ownerCapability,
+        );
+      }
       const next = recentProjects.filter((item) => item.id !== project.id);
       setRecentProjects(next);
       localStorage.setItem(

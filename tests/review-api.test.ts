@@ -326,11 +326,13 @@ describe("阶段 2 评论 API", () => {
     assert.equal(shareRecord.status, 404);
   });
 
-  test("密码、评论权限、过期和撤销由服务端强制执行", async () => {
+  test("密码、评论权限、有效期和撤销由服务端强制执行", async () => {
+    // 用户上传的模型一律带有效期（永久有效只留给内置猴头演示）。
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
     const created = await request(`/api/local/projects/${projectId}/shares`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
-      body: JSON.stringify({ password: "review-pass", commentsPermission: "comment", expiresAt: "2099-01-01T00:00:00.000Z" }),
+      body: JSON.stringify({ password: "review-pass", commentsPermission: "comment", expiresAt }),
     });
     assert.equal(created.response.status, 201);
     const token = String(created.body.token);
@@ -356,7 +358,7 @@ describe("阶段 2 评论 API", () => {
     assert.equal(opened.response.status, 200);
     assert.equal(opened.body.projectId, undefined);
     assert.equal(opened.body.commentsPermission, "comment");
-    assert.equal(opened.body.expiresAt, "2099-01-01T00:00:00.000Z");
+    assert.equal(opened.body.expiresAt, expiresAt);
     const guest = await request(`/api/local/shares/${token}/comments`, {
       method: "POST",
       headers: { "content-type": "application/json", cookie },
@@ -372,13 +374,22 @@ describe("阶段 2 评论 API", () => {
     const afterRevoke = await request(`/api/local/shares/${token}`, { headers: { cookie } });
     assert.equal(afterRevoke.response.status, 404);
 
-    const expired = await request(`/api/local/projects/${projectId}/shares`, {
+    // 有效期越界一律在创建时拒绝，而不是静默截断 ——
+    // 与云端 worker/shares.ts 同一套规则，避免「本地测好、线上被拒」。
+    const createWith = (expiresAt: unknown) => request(`/api/local/projects/${projectId}/shares`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-blendproof-owner": ownerCapability },
-      body: JSON.stringify({ expiresAt: "2000-01-01T00:00:00.000Z" }),
+      body: JSON.stringify({ expiresAt }),
     });
-    const expiredRead = await request(`/api/local/shares/${String(expired.body.token)}`);
-    assert.equal(expiredRead.response.status, 410);
+    assert.equal((await createWith("2000-01-01T00:00:00.000Z")).response.status, 400);
+    assert.equal((await createWith("2099-01-01T00:00:00.000Z")).response.status, 400);
+    assert.equal((await createWith("not-a-date")).response.status, 400);
+
+    // 未设置时按默认 24 小时，而不是永久有效。
+    const defaulted = await createWith(undefined);
+    assert.equal(defaulted.response.status, 201);
+    const defaultHours = (Date.parse(String(defaulted.body.expiresAt)) - Date.now()) / 3_600_000;
+    assert.ok(defaultHours > 23.9 && defaultHours <= 24, `默认有效期应为 24 小时，实际 ${defaultHours}`);
   });
 
   test("创建者可以回复、删除回复与评论，删除评论会连带清理回复", async () => {

@@ -6,7 +6,8 @@ import type {
   ReviewReplyDraft,
 } from "../features/review";
 import type { BrowserBlendResult } from "../conversion/browserBlend";
-import ConvertWorker from "../conversion/browserBlend.worker?worker";
+import { browserBackendRequest, type BrowserRequest } from "./browserBackend";
+import { readProject, saveProject, materializeProject, removeProject } from "./browserStore";
 
 
 
@@ -22,7 +23,15 @@ export type OwnerProject = {
   status?: "pending" | "uploading" | "ready";
 };
 
-export type ProjectTransport = "local" | "cloud";
+/**
+ * 数据落点。三条通道的契约必须一致，否则同一功能会在不同通道分叉。
+ *
+ * - `local`：本机 bridge（Node + SQLite），需要配对码。
+ * - `cloud`：Cloudflare Worker，需要登录账号。
+ * - `browser`：浏览器 IndexedDB，不发任何请求。未登录用户上传的产物走这条，
+ *   只作本机测试预览（见 browserBackend.ts 与 docs/REVIEW_CONTRACT.md）。
+ */
+export type ProjectTransport = "local" | "cloud" | "browser";
 
 export type CloudOwnerProject = Pick<OwnerProject, "id" | "name" | "ownerCapability"> & {
   transport: "cloud";
@@ -180,30 +189,28 @@ export class BlendProofClient {
     };
   }
 
-  /** Browser-only conversion for the supported static .blend subset. */
+  /**
+   * 浏览器本地转换：产物只落 IndexedDB，不发任何请求。
+   *
+   * 这条路径是「未登录用户上传只作本机预览」的实现。产物必须持久化 ——
+   * blob URL 只活在当前会话，刷新即失效，也无法被分享页读到。
+   */
   async convertInBrowser(file: File): Promise<OwnerProject> {
-    const result = await new Promise<BrowserBlendResult>((resolve, reject) => {
-      // Create Vite worker dynamically
-      const worker = new ConvertWorker();
-      worker.onmessage = (e) => {
-        if (e.data.type === 'success') {
-          resolve(e.data.result);
-        } else {
-          reject(new Error(e.data.error || "Web Worker 解析失败"));
-        }
-        worker.terminate();
-      };
-      worker.onerror = (err) => {
-        reject(new Error("Worker error: " + err.message));
-        worker.terminate();
-      };
-      file.arrayBuffer().then(buf => worker.postMessage(buf));
-    });
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const result = await convertInWorker(bytes);
 
     const id = `browser-${crypto.randomUUID().replaceAll("-", "")}`;
-    const modelUrl = URL.createObjectURL(result.glb);
-    const manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(result.manifest)], { type: "application/json" }));
-    return { id, name: file.name, modelUrl, manifestUrl, ownerCapability: `browser-${crypto.randomUUID()}`, transport: "local", status: "ready" };
+    const ownerCapability = `browser-${crypto.randomUUID()}`;
+    const record = {
+      id,
+      name: file.name,
+      ownerCapability,
+      model: await result.glb.arrayBuffer(),
+      manifest: result.manifest,
+      createdAt: new Date().toISOString(),
+    };
+    await saveProject(record);
+    return { id, name: file.name, ...materializeProject(record), ownerCapability, transport: "browser", status: "ready" };
   }
 
   /**
@@ -336,6 +343,34 @@ export class BlendProofClient {
       method: "DELETE",
       headers: { "x-blendproof-owner": ownerCapability },
     });
+  }
+
+  /** 删除 browser transport 的项目，连同它的分享与批注。 */
+  async deleteBrowserProject(projectId: string, ownerCapability: string): Promise<void> {
+    const record = await readProject(projectId);
+    if (!record || record.ownerCapability !== ownerCapability) {
+      throw new Error("找不到该本地项目。");
+    }
+    await removeProject(projectId);
+  }
+
+  /**
+   * 重新物化一个 browser transport 项目。
+   *
+   * blob URL 只在本会话有效，所以每次从 localStorage 恢复项目时都要重新生成；
+   * 记录不存在（换浏览器、清了缓存）返回 null，由调用方退回演示态。
+   */
+  async restoreBrowserProject(projectId: string): Promise<OwnerProject | null> {
+    const record = await readProject(projectId);
+    if (!record) return null;
+    return {
+      id: record.id,
+      name: record.name,
+      ...materializeProject(record),
+      ownerCapability: record.ownerCapability,
+      transport: "browser",
+      status: "ready",
+    };
   }
 
   publicStats() {
@@ -583,18 +618,21 @@ export class BlendProofClient {
   }
 
   private transportJson<T>(transport: ProjectTransport, path: string, init?: RequestInit) {
+    if (transport === "browser") return browserBackendRequest(toBrowserRequest(path, init)) as Promise<T>;
     return transport === "cloud"
       ? this.workerJson<T>(path, init)
       : this.bridgeJson<T>(localApiPath(path), init);
   }
 
   private transportVoid(transport: ProjectTransport, path: string, init?: RequestInit) {
+    if (transport === "browser") return browserBackendRequest(toBrowserRequest(path, init)).then(() => undefined);
     return transport === "cloud"
       ? this.workerVoid(path, init)
       : this.bridgeVoid(localApiPath(path), init);
   }
 
   private transportUrl(transport: ProjectTransport, path: string) {
+    if (transport === "browser") return path;
     return transport === "cloud" ? this.workerUrl(path) : this.bridgeUrl(path);
   }
 
@@ -602,20 +640,32 @@ export class BlendProofClient {
     return this.fetchImplementation(this.workerUrl(path), { ...init, credentials: init?.credentials ?? "include" });
   }
 
-  private async readDerivedLocalAsset(url: string) {
+  /**
+   * browser transport 的派生资源是 blob: URL，同源且不需要会话头，
+   * 直接读即可 —— 之前一律走 fetchLocal，被 isBridgeUrl 拒掉，
+   * 导致「浏览器转换 → 发布云端」这条路完全不通。
+   */
+  private async readDerivedAsset(url: string): Promise<Response> {
+    if (url.startsWith("blob:")) {
+      const response = await this.fetchImplementation(url);
+      if (!response.ok) throw await responseError(response);
+      return response;
+    }
     const response = await this.fetchLocal(url);
     if (!response.ok) throw await responseError(response);
-    return new Uint8Array(await response.arrayBuffer());
+    return response;
+  }
+
+  private async readDerivedLocalAsset(url: string) {
+    return new Uint8Array(await (await this.readDerivedAsset(url)).arrayBuffer());
   }
 
   private async readDerivedLocalJson(url: string): Promise<unknown> {
-    const response = await this.fetchLocal(url);
-    if (!response.ok) throw await responseError(response);
-    const text = await response.text();
+    const text = await (await this.readDerivedAsset(url)).text();
     try {
       return JSON.parse(text) as unknown;
     } catch {
-      throw new Error("本机 bridge 返回了无效 manifest JSON。");
+      throw new Error("项目 manifest 不是有效的 JSON。");
     }
   }
 
@@ -912,6 +962,55 @@ function withOrigin(origin: string, path: string) {
 
 function localApiPath(path: string) {
   return path.replace(/^\/api(?=\/|$)/, "/api/local");
+}
+
+/**
+ * 在 Web Worker 里跑一次浏览器转换。
+ *
+ * 三条退出路径（success / worker 内部错误 / worker 崩溃或读取失败）都必须
+ * settle，且只 settle 一次 —— 否则 UI 会永久停在「正在转换」且永远不会回退。
+ */
+async function convertInWorker(bytes: Uint8Array): Promise<BrowserBlendResult> {
+  // 惰性导入：`?worker` 是 Vite 专有的模块形式，顶层导入会让这个文件
+  // 在纯 Node 环境下（例如 tests/blendproof-client.test.ts）无法加载。
+  const { default: ConvertWorker } = await import("../conversion/browserBlend.worker?worker");
+  return new Promise<BrowserBlendResult>((resolve, reject) => {
+    const worker = new ConvertWorker();
+    let settled = false;
+    const finish = (run: () => void) => {
+      if (settled) return;
+      settled = true;
+      worker.terminate();
+      run();
+    };
+    worker.onmessage = (event: MessageEvent<{ type: string; result?: BrowserBlendResult; error?: string }>) => {
+      if (event.data.type === "success" && event.data.result) {
+        finish(() => resolve(event.data.result!));
+      } else {
+        finish(() => reject(new Error(event.data.error || "Web Worker 解析失败")));
+      }
+    };
+    worker.onerror = (error) => finish(() => reject(new Error(`Worker error: ${error.message}`)));
+    try {
+      worker.postMessage(bytes.buffer);
+    } catch (reason) {
+      finish(() => reject(reason instanceof Error ? reason : new Error("无法启动浏览器转换。")));
+    }
+  });
+}
+
+/** 把 fetch 风格的调用转成 browser transport 的原语入参。 */
+function toBrowserRequest(path: string, init?: RequestInit): BrowserRequest {
+  const headers: Record<string, string> = {};
+  new Headers(init?.headers).forEach((value, key) => {
+    headers[key.toLowerCase()] = value;
+  });
+  return {
+    method: init?.method ?? "GET",
+    path,
+    headers,
+    body: typeof init?.body === "string" ? init.body : null,
+  };
 }
 
 export const blendProofClient = new BlendProofClient({

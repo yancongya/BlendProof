@@ -177,6 +177,29 @@ describe('BlendProof Worker local runtime', () => {
     expect((await env.ASSETS.list()).objects).toHaveLength(0)
   })
 
+  // 只认 Content-Type 会被 application/octet-stream 绕过，所以文件头也要核。
+  it('rejects a raw blend body sent as application/octet-stream', async () => {
+    const beforeCounts = await databaseCounts()
+    const response = await SELF.fetch('https://blendproof.test/api/projects', {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream', 'cf-connecting-ip': '198.51.100.44' },
+      body: new TextEncoder().encode('BLENDER-secret-marker'),
+    })
+    expect(response.status).toBe(415)
+    expect(await databaseCounts()).toEqual(beforeCounts)
+    expect((await env.ASSETS.list()).objects).toHaveLength(0)
+  })
+
+  // 文件头检查不能误伤正常的 JSON 建项目请求。
+  it('still accepts a plain JSON project initialization', async () => {
+    const response = await SELF.fetch('https://blendproof.test/api/projects', {
+      method: 'POST',
+      headers: { origin: 'http://localhost:5173', 'content-type': 'application/json', 'cf-connecting-ip': '198.51.100.45' },
+      body: JSON.stringify({ name: 'Blend magic guard' }),
+    })
+    expect(response.status).toBe(201)
+  })
+
   it('rejects loopback-only source metadata at the cloud upload HTTP boundary', async () => {
     const project = await pendingProject('Strict cloud manifest')
     const manifest = new TextEncoder().encode(JSON.stringify({
