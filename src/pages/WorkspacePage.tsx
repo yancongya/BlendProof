@@ -322,9 +322,9 @@ export function WorkspacePage() {
         result = await blendProofClient.convertInBrowser(file);
       } catch (browserReason) {
         if (!account) {
+          const detail = browserReason instanceof Error ? browserReason.message : "浏览器转换失败。";
           throw new Error(
-            `${browserReason instanceof Error ? browserReason.message : "浏览器转换失败。"}` +
-              "该文件需要登录账号后由本机 Blender 转换；未登录状态下不会上传你的文件。",
+            `${detail.replace(/[。.\s]+$/, "")}。该文件需要登录账号后由本机 Blender 转换；未登录状态下不会上传你的文件。`,
           );
         }
         setMessage("浏览器转换不适用于此文件，正在切换本机 Blender。");
