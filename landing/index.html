@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BlendProof · 3D 审稿链接</title>
+<link rel="icon" type="image/svg+xml" href="/blendproof-logo.svg">
 <meta name="description" content="浏览器优先在本地把 .blend 转成 GLB，复杂文件才回退本机 Blender；云端只收派生模型与清单。审稿者打开一条链接即可查看并批注。5 GiB 公益存储池，到期自动清理。">
 <link rel="canonical" href="https://blendproof.itycon.cn/landing/">
 <meta property="og:type" content="website">
@@ -2246,14 +2247,33 @@ grid-template-columns: minmax(0, 1fr);
     width:  clamp(170px, 21vw, 260px);
     height: clamp(255px, 31.5vw, 390px);
     border-radius: 13px;
+    transition: filter .28s ease;
   }
+
+  .tarot-unit[data-role="creator"] { --card-glow: 251, 146, 28; }
+  .tarot-unit[data-role="reviewer"] { --card-glow: 56, 189, 248; }
+  .tc-card-glow {
+    position: absolute; inset: 0; z-index: 0;
+    pointer-events: none; opacity: 0;
+    transition: opacity .28s ease;
+  }
+  .tc-card-glow img {
+    display: block; width: 100%; height: 100%; object-fit: cover;
+    filter:
+      drop-shadow(0 0 7px rgba(var(--card-glow), .42))
+      drop-shadow(0 0 20px rgba(var(--card-glow), .24));
+  }
+  .tarot-atropos .atropos-inner { position: relative; z-index: 1; }
+  .tarot-unit.is-hovering .tc-card-glow { opacity: .72; }
 
   /* atropos-inner needs border-radius too (clips the layer stack) */
   .tarot-atropos .atropos-inner { border-radius: 13px; }
 
   /* Shadow colours per role */
-  .tarot-unit[data-role="creator"]  .atropos-shadow { background: rgba(232,125,13,.55); filter: blur(30px); }
-  .tarot-unit[data-role="reviewer"] .atropos-shadow { background: rgba(56,189,248,.5);  filter: blur(30px); }
+  /* The generated card has an irregular silhouette; Atropos' rectangular
+     blurred shadow exposes its container outside that silhouette. */
+  .tarot-unit[data-role="creator"]  .atropos-shadow { display: none; }
+  .tarot-unit[data-role="reviewer"] .atropos-shadow { display: none; }
 
   /* ── Layers inside atropos-inner ─────────────────────────────────────── */
 
@@ -2273,6 +2293,233 @@ grid-template-columns: minmax(0, 1fr);
     display: block; object-fit: cover;
     border-radius: 13px;
   }
+
+  /* Creator card: image-authored 2.5D layers. The card box itself never scales. */
+  .tarot-unit[data-role="creator"] .tc-creator-layer {
+    position: absolute; inset: 0;
+    border-radius: 13px;
+    pointer-events: none;
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-viewport {
+    position: absolute; inset: 0; z-index: 0;
+    overflow: hidden; border-radius: 13px;
+    /* Fixed artwork aperture inside the generated mechanical frame. */
+    clip-path: polygon(
+      9% 6%, 91% 6%, 94% 9%, 94% 76%,
+      91% 79%, 9% 79%, 6% 76%, 6% 9%
+    );
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-layer img {
+    width: 100%; height: 100%;
+    display: block; object-fit: cover;
+  }
+  .tarot-unit[data-role="creator"] .tc-local-rotate {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transition: transform 180ms ease-out;
+    will-change: transform;
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-drone .tc-local-rotate {
+    transform-origin: 76% 23%;
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-cube .tc-local-rotate {
+    transform-origin: 78% 40%;
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-suzanne .tc-local-rotate {
+    transform-origin: 68% 62%;
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-bg { z-index: 0; }
+  .tarot-unit[data-role="creator"] .tc-creator-bg img {
+    transform: scale(1.08);
+    transform-origin: center;
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-drone { z-index: 1; }
+  .tarot-unit[data-role="creator"] .tc-creator-character { z-index: 2; }
+  .tarot-unit[data-role="creator"] .tc-creator-foreground { z-index: 3; }
+  /* Held cube stays above the character, but behind the foreground console. */
+  .tarot-unit[data-role="creator"] .tc-creator-cube { z-index: 2; }
+  .tarot-unit[data-role="creator"] .tc-creator-suzanne { z-index: 5; }
+  .tarot-unit[data-role="creator"] .tc-creator-cube img {
+    transform: scale(.88);
+    transform-origin: 78% 40%;
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-suzanne img {
+    transform: scale(.9);
+    transform-origin: 68% 62%;
+  }
+  .tarot-unit[data-role="creator"] .tc-holo { z-index: 6; border-radius: 0; }
+  .creator-sketch {
+    position: absolute; inset: 0; z-index: 6;
+    width: 100%; height: 100%; overflow: visible;
+    pointer-events: none; opacity: 0;
+    mix-blend-mode: normal;
+    transition: opacity .2s ease;
+  }
+  .tarot-unit[data-role="creator"].is-hovering .creator-sketch { opacity: .72; }
+  .creator-sketch path {
+    fill: none; stroke: rgba(255,247,214,.96);
+    stroke-linecap: round; stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+    filter:
+      drop-shadow(0 1px 0 rgba(35,20,8,.9))
+      drop-shadow(0 0 3px rgba(255,240,174,.48));
+  }
+  .creator-sketch__trail { stroke-width: 1.8; opacity: .96; }
+  .creator-sketch__guide {
+    stroke: rgba(253,224,138,.82);
+    stroke-width: 1.15; opacity: .52;
+    stroke-dasharray: 180; stroke-dashoffset: 180;
+  }
+  .tarot-unit[data-role="creator"].is-hovering .creator-sketch__guide {
+    animation: creatorGuideDraw 1.4s cubic-bezier(.22,.8,.25,1) forwards;
+  }
+  .creator-sketch__guide--b { animation-delay: .16s !important; }
+  .creator-sketch__guide--c { animation-delay: .3s !important; }
+  @keyframes creatorGuideDraw {
+    0% { stroke-dashoffset: 180; opacity: 0; }
+    35% { opacity: .52; }
+    72% { stroke-dashoffset: 0; opacity: .4; }
+    100% { stroke-dashoffset: -50; opacity: 0; }
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-frame { z-index: 3; overflow: hidden; }
+  .tarot-unit[data-role="creator"] .tc-creator-brush { z-index: 4; }
+  .tarot-unit[data-role="creator"] .tc-creator-brush img {
+    transform: scale(.96);
+    transform-origin: 18% 66%;
+  }
+  .tarot-unit[data-role="creator"] .tc-creator-name {
+    position: absolute;
+    z-index: 5;
+    left: 12%;
+    right: 12%;
+    bottom: 11%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 6.4%;
+    color: #35281f;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(9px, 1.05vw, 13px);
+    font-weight: 800;
+    letter-spacing: .08em;
+    line-height: 1;
+    text-align: center;
+    text-shadow: 0 1px rgba(255,255,255,.7);
+    pointer-events: none;
+  }
+  .tarot-unit[data-role="creator"] .atropos-highlight { display: none; }
+
+  /* Reviewer card: same registered 2.5D system and aperture as Creator. */
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-layer {
+    position: absolute; inset: 0;
+    border-radius: 13px;
+    pointer-events: none;
+  }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-viewport {
+    position: absolute; inset: 0; z-index: 0;
+    overflow: hidden; border-radius: 13px;
+    clip-path: polygon(
+      9% 6%, 91% 6%, 94% 9%, 94% 76%,
+      91% 79%, 9% 79%, 6% 76%, 6% 9%
+    );
+  }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-layer img {
+    width: 100%; height: 100%;
+    display: block; object-fit: cover;
+  }
+  .tarot-unit[data-role="reviewer"] .tc-local-rotate {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transition: transform 180ms ease-out;
+    will-change: transform;
+  }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-bg { z-index: 0; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-bg img {
+    transform: scale(1.08);
+    transform-origin: center;
+  }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-stage { z-index: 1; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-ring { z-index: 2; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-ring .tc-local-rotate {
+    transform-origin: 50% 43%;
+  }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-rig { z-index: 3; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-viewfinder { z-index: 4; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-suzanne { z-index: 5; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-suzanne .tc-local-rotate {
+    transform-origin: 52% 48%;
+  }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-lower { z-index: 6; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-upper { z-index: 7; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-upper .tc-local-rotate {
+    transform-origin: 40% 18%;
+  }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-lower .tc-local-rotate {
+    transform-origin: 72% 68%;
+  }
+  .reviewer-scan {
+    position: absolute; inset: 0; z-index: 8;
+    pointer-events: none; opacity: 0;
+    transition: opacity .2s ease;
+  }
+  .tarot-unit[data-role="reviewer"].is-hovering .reviewer-scan { opacity: 1; }
+  .reviewer-scan::before {
+    content: ""; position: absolute;
+    left: 8%; right: 8%; top: var(--scan-y, 50%); height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(125,231,255,.9), transparent);
+    box-shadow: 0 0 8px rgba(56,189,248,.6);
+    transform: translateY(-50%);
+  }
+  .reviewer-scan__focus {
+    position: absolute;
+    left: var(--scan-x, 50%); top: var(--scan-y, 50%);
+    width: 24%; aspect-ratio: 1;
+    transform: translate(-50%, -50%) scale(1.08);
+    opacity: .5;
+    background:
+      linear-gradient(#8cecff,#8cecff) left top/22% 1px no-repeat,
+      linear-gradient(#8cecff,#8cecff) left top/1px 22% no-repeat,
+      linear-gradient(#8cecff,#8cecff) right top/22% 1px no-repeat,
+      linear-gradient(#8cecff,#8cecff) right top/1px 22% no-repeat,
+      linear-gradient(#8cecff,#8cecff) left bottom/22% 1px no-repeat,
+      linear-gradient(#8cecff,#8cecff) left bottom/1px 22% no-repeat,
+      linear-gradient(#8cecff,#8cecff) right bottom/22% 1px no-repeat,
+      linear-gradient(#8cecff,#8cecff) right bottom/1px 22% no-repeat;
+    filter: drop-shadow(0 0 5px rgba(56,189,248,.65));
+    transition: transform .26s ease, opacity .26s ease;
+  }
+  .tarot-unit[data-role="reviewer"].is-scan-locked .reviewer-scan__focus {
+    transform: translate(-50%, -50%) scale(.72);
+    opacity: .92;
+  }
+  .tarot-unit[data-role="reviewer"].is-scan-locked .reviewer-scan::before {
+    box-shadow: 0 0 14px rgba(125,231,255,.85);
+  }
+  .tarot-unit[data-role="reviewer"] .tc-holo { z-index: 9; border-radius: 0; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-frame { z-index: 10; overflow: hidden; }
+  .tarot-unit[data-role="reviewer"] .tc-reviewer-name {
+    position: absolute;
+    z-index: 11;
+    left: 12%;
+    right: 12%;
+    bottom: 11%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 6.4%;
+    color: #163742;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(9px, 1.05vw, 13px);
+    font-weight: 800;
+    letter-spacing: .08em;
+    line-height: 1;
+    text-align: center;
+    text-shadow: 0 1px rgba(255,255,255,.72);
+    pointer-events: none;
+  }
+  .tarot-unit[data-role="reviewer"] .atropos-highlight { display: none; }
 
   /* Layer 2: decorative border frame (offset +4 → foreground) */
   .tc-frame {
@@ -2313,8 +2560,14 @@ grid-template-columns: minmax(0, 1fr);
   .tarot-unit.is-selected .atropos-inner {
     outline: 2px solid rgba(251,191,36,.9); outline-offset: -2px;
   }
+  /* The creator artwork already supplies its own irregular mechanical frame.
+     A rectangular selection outline would expose the Atropos container shape
+     instead of the authored card silhouette. */
+  .tarot-unit[data-role="creator"].is-selected .atropos-inner {
+    outline: none;
+  }
   .tarot-unit[data-role="reviewer"].is-selected .atropos-inner {
-    outline-color: rgba(56,189,248,.9);
+    outline: none;
   }
 
   /* Info area below card */
@@ -2328,8 +2581,21 @@ grid-template-columns: minmax(0, 1fr);
     letter-spacing: .05em; color: #fbbf24; margin-bottom: 5px;
   }
   .tarot-unit[data-role="reviewer"] .tarot-role-name { color: #38bdf8; }
-  .tarot-role-name span { font-size: 10px; color: #64748b; font-weight: 400; margin-left: 4px; }
-  .tarot-role-desc { font-size: 11px; color: #94a3b8; line-height: 1.5; margin-bottom: 12px; }
+  .tarot-role-desc {
+    display: inline-block; position: relative;
+    max-width: 100%; overflow: hidden; white-space: nowrap;
+    font-size: 11px; color: #94a3b8; line-height: 1.5; margin-bottom: 12px;
+  }
+  .tarot-unit.is-copy-revealed .tarot-role-desc {
+    animation: roleCopyReveal .68s steps(18,end) both;
+  }
+  .tarot-unit.is-copy-revealed .tarot-role-desc::after {
+    content: ""; display: inline-block; width: 1px; height: 1em;
+    margin-left: 3px; vertical-align: -.14em; background: currentColor;
+    animation: roleCaret .58s steps(1,end) 2 forwards;
+  }
+  @keyframes roleCopyReveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+  @keyframes roleCaret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
   .tarot-cta {
     display: inline-flex; align-items: center; gap: 5px;
     font: 600 11px/1 ui-monospace, monospace; letter-spacing: .04em;
@@ -2357,9 +2623,6 @@ grid-template-columns: minmax(0, 1fr);
     background: rgba(251,191,36,.18) !important;
     border-color: #fbbf24 !important;
   }
-
-  /* ── English mode tweaks ────────────────────────────────────────────── */
-  html[lang="en"] .tarot-role-name span { display: none; }
 
   /* ── Light theme adaptation ─────────────────────────────────────────── */
   html[data-theme="light"] .tarot-portal {
@@ -2524,7 +2787,12 @@ grid-template-columns: minmax(0, 1fr);
   @media (prefers-reduced-motion: reduce) {
     .tarot-atropos .atropos-rotate,
     .tarot-atropos .atropos-scale { transition: none !important; }
+    .tarot-atropos { transition: none !important; }
     .tc-holo { display: none !important; }
+    .creator-sketch,
+    .reviewer-scan { display: none !important; }
+    .tarot-unit.is-copy-revealed .tarot-role-desc { animation: none !important; }
+    .tarot-unit.is-copy-revealed .tarot-role-desc::after { display: none !important; }
     .tarot-unit.is-rushing { animation: none !important; }
   }
 
@@ -2550,9 +2818,9 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
   <button class="tarot-skip" id="tarot-skip" type="button">跳过 ✕</button>
 
   <div class="tarot-head">
-    <span class="tarot-eyebrow">CHOOSE YOUR PATH · 身份抉择</span>
+    <span class="tarot-eyebrow">选择你的身份</span>
     <h1>你是造物者，还是审视者？</h1>
-    <p>选择角色进入专属工作台 · 移动鼠标感受全息 3D 视差</p>
+    <p>先告诉我们，你在这次审稿中负责什么？</p>
   </div>
 
   <div class="tarot-deck">
@@ -2564,25 +2832,62 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
         <div class="atropos-scale">
           <div class="atropos-rotate">
             <div class="atropos-inner">
-              <div class="tc-bg"    data-atropos-offset="-3"></div>
-              <div class="tc-art"   data-atropos-offset="0">
-                <img src="./assets/tarot-artificer.jpg"
-                     alt="大阿卡那·造物者 The Artificer"
-                     loading="eager" decoding="async"
-                     width="520" height="780">
+              <div class="tc-creator-viewport">
+                <div class="tc-creator-layer tc-creator-bg" data-atropos-offset="-5" aria-hidden="true">
+                  <img src="./assets/cards/artificer-v3-background.webp" alt="" width="1024" height="1536">
+                </div>
+                <div class="tc-creator-layer tc-creator-drone" data-atropos-offset="-2" aria-hidden="true">
+                  <div class="tc-local-rotate" data-local-rotate data-rx="-2.4" data-ry="-3.2" data-rz="-6" data-rzy="-2">
+                    <img src="./assets/cards/artificer-v3-drone.webp" alt="" width="1024" height="1536">
+                  </div>
+                </div>
+                <div class="tc-creator-layer tc-creator-character" data-atropos-offset="0">
+                  <img src="./assets/cards/artificer-v3-character.webp"
+                       alt="造物者操纵低多边形 Suzanne 模型"
+                       loading="eager" decoding="async"
+                       width="1024" height="1536">
+                </div>
+                <div class="tc-creator-layer tc-creator-foreground" data-atropos-offset="2" aria-hidden="true">
+                  <img src="./assets/cards/artificer-v3-foreground-decor.webp" alt="" width="1024" height="1536">
+                </div>
+                <div class="tc-creator-layer tc-creator-cube" data-atropos-offset="-0.75" aria-hidden="true">
+                  <div class="tc-local-rotate" data-local-rotate data-rx="3" data-ry="4.5" data-rz="6" data-rzy="2">
+                    <img src="./assets/cards/artificer-v7-cube-hand.webp" alt="" width="1024" height="1536">
+                  </div>
+                </div>
+                <div class="tc-creator-layer tc-creator-suzanne" data-atropos-offset="3.5" aria-hidden="true">
+                  <div class="tc-local-rotate" data-local-rotate data-rx="5.5" data-ry="7.5" data-rz="10" data-rzy="4">
+                    <img src="./assets/cards/artificer-v3-suzanne.webp" alt="" width="1024" height="1536">
+                  </div>
+                </div>
+                <svg class="creator-sketch" viewBox="0 0 1024 1536" preserveAspectRatio="none" aria-hidden="true">
+                  <path class="creator-sketch__trail" data-creator-trail></path>
+                  <path class="creator-sketch__guide creator-sketch__guide--a" d="M164 1034 C286 938 340 1002 454 886"></path>
+                  <path class="creator-sketch__guide creator-sketch__guide--b" d="M604 330 L686 286 L766 344 L684 398 Z"></path>
+                  <path class="creator-sketch__guide creator-sketch__guide--c" d="M706 680 C790 626 844 660 890 584"></path>
+                </svg>
+                <div class="tc-holo" data-atropos-offset="7" aria-hidden="true"></div>
               </div>
-              <div class="tc-frame" data-atropos-offset="4"  aria-hidden="true"></div>
-              <div class="tc-holo"  data-atropos-offset="7"  aria-hidden="true"></div>
+              <div class="tc-creator-layer tc-creator-frame" data-atropos-offset="0" aria-hidden="true">
+                <img src="./assets/cards/artificer-frame.webp" alt="" width="1024" height="1536">
+              </div>
+              <div class="tc-creator-layer tc-creator-brush" data-atropos-offset="7" aria-hidden="true">
+                <img src="./assets/cards/artificer-v7-brush-hand.webp" alt="" width="1024" height="1536">
+              </div>
+              <div class="tc-creator-name" data-atropos-offset="0" data-i18n-key="I · 造物者">I · 造物者</div>
               <div class="atropos-highlight"                 aria-hidden="true"></div>
+            </div>
+            <div class="tc-card-glow" aria-hidden="true">
+              <img src="./assets/cards/artificer-frame.webp" alt="" width="1024" height="1536">
             </div>
           </div>
         </div>
         <div class="atropos-shadow" aria-hidden="true"></div>
       </div>
       <div class="tarot-info">
-        <div class="tarot-role-name">I · 造物者 <span>The Artificer</span></div>
-        <div class="tarot-role-desc">3D 创作者 · 工程不离机 · 零摩擦分享</div>
-        <button type="button" class="tarot-cta">进入创作者视角 ↵</button>
+        <div class="tarot-role-name">模型创作者</div>
+        <div class="tarot-role-desc">我制作模型，也负责发起审稿</div>
+        <button type="button" class="tarot-cta">进入创作者工作台 ↵</button>
       </div>
     </div>
 
@@ -2593,25 +2898,64 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
         <div class="atropos-scale">
           <div class="atropos-rotate">
             <div class="atropos-inner">
-              <div class="tc-bg"    data-atropos-offset="-3"></div>
-              <div class="tc-art"   data-atropos-offset="0">
-                <img src="./assets/tarot-seer.jpg"
-                     alt="大阿卡那·审视者 The Seer"
-                     loading="eager" decoding="async"
-                     width="520" height="780">
+              <div class="tc-reviewer-viewport">
+                <div class="tc-reviewer-layer tc-reviewer-bg" data-atropos-offset="-5" aria-hidden="true">
+                  <img src="./assets/cards/observer-v3-background.webp" alt="" width="1024" height="1536">
+                </div>
+                <div class="tc-reviewer-layer tc-reviewer-stage" data-atropos-offset="-2.5" aria-hidden="true">
+                  <img src="./assets/cards/observer-v3-stage.webp" alt="" width="1024" height="1536">
+                </div>
+                <div class="tc-reviewer-layer tc-reviewer-ring" data-atropos-offset="-1" aria-hidden="true">
+                  <div class="tc-local-rotate" data-local-rotate data-rx="1.6" data-ry="2.4" data-rz="28" data-rzy="12">
+                    <img src="./assets/cards/observer-v4-ring.webp" alt="" width="1024" height="1536">
+                  </div>
+                </div>
+                <div class="tc-reviewer-layer tc-reviewer-suzanne" data-atropos-offset="2.5">
+                  <div class="tc-local-rotate" data-local-rotate data-rx="8" data-ry="10" data-rz="15" data-rzy="4">
+                    <img src="./assets/cards/observer-v4-suzanne.webp"
+                         alt="审视者通过木偶控制线检查低多边形 Suzanne 模型"
+                         loading="eager" decoding="async"
+                         width="1024" height="1536">
+                  </div>
+                </div>
+                <div class="tc-reviewer-layer tc-reviewer-viewfinder" data-atropos-offset="1.25" aria-hidden="true">
+                  <img src="./assets/cards/observer-v4-viewfinder.webp" alt="" width="1024" height="1536">
+                </div>
+                <div class="tc-reviewer-layer tc-reviewer-rig" data-atropos-offset="0.5" aria-hidden="true">
+                  <img src="./assets/cards/observer-v4-rig.webp" alt="" width="1024" height="1536">
+                </div>
+                <div class="tc-reviewer-layer tc-reviewer-upper" data-atropos-offset="7" aria-hidden="true">
+                  <div class="tc-local-rotate" data-local-rotate data-rx="1.1" data-ry="1.7" data-rz="0.3">
+                    <img src="./assets/cards/observer-v4-upper-hand.webp" alt="" width="1024" height="1536">
+                  </div>
+                </div>
+                <div class="tc-reviewer-layer tc-reviewer-lower" data-atropos-offset="5" aria-hidden="true">
+                  <div class="tc-local-rotate" data-local-rotate data-rx="1.8" data-ry="2.5" data-rz="0.4">
+                    <img src="./assets/cards/observer-v4-lower-hand.webp" alt="" width="1024" height="1536">
+                  </div>
+                </div>
+                <div class="reviewer-scan" aria-hidden="true">
+                  <span class="reviewer-scan__focus"></span>
+                </div>
+                <div class="tc-holo" data-atropos-offset="0" aria-hidden="true"></div>
               </div>
-              <div class="tc-frame" data-atropos-offset="4"  aria-hidden="true"></div>
-              <div class="tc-holo"  data-atropos-offset="7"  aria-hidden="true"></div>
+              <div class="tc-reviewer-layer tc-reviewer-frame" data-atropos-offset="0" aria-hidden="true">
+                <img src="./assets/cards/observer-frame-v1.webp" alt="" width="1024" height="1536">
+              </div>
+              <div class="tc-reviewer-name" data-atropos-offset="0" data-i18n-key="II · 审视者">II · 审视者</div>
               <div class="atropos-highlight"                 aria-hidden="true"></div>
+            </div>
+            <div class="tc-card-glow" aria-hidden="true">
+              <img src="./assets/cards/observer-frame-v1.webp" alt="" width="1024" height="1536">
             </div>
           </div>
         </div>
         <div class="atropos-shadow" aria-hidden="true"></div>
       </div>
       <div class="tarot-info">
-        <div class="tarot-role-name">II · 审视者 <span>The Seer</span></div>
-        <div class="tarot-role-desc">审稿客户/总监 · 浏览器秒开 · 空间标注</div>
-        <button type="button" class="tarot-cta">进入审稿者视角 ↵</button>
+        <div class="tarot-role-name">客户、负责人或团队审稿人</div>
+        <div class="tarot-role-desc">我负责查看模型并提出修改意见</div>
+        <button type="button" class="tarot-cta">进入审稿视角 ↵</button>
       </div>
     </div>
 

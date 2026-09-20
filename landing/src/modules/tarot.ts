@@ -6,8 +6,8 @@
  *   JS just flips the attribute.
  *
  * Parallax: Atropos JS (inlined in <head>) handles tilt.
- *   We additionally track mouse to drive --holo-x/--holo-y CSS vars
- *   for the holographic shine layer (tc-holo).
+ *   The lightweight tc-holo layer tracks the pointer through CSS variables;
+ *   Atropos handles card tilt and the creator's image-authored parallax.
  *
  * Entrance: Clicking a card initiates an immersive rush center-zoom
  *   animation before transitioning cleanly into the landing page.
@@ -55,8 +55,8 @@ function initTarotPortal(): void {
             el,
             shadow: true,
             highlight: true,
-            rotateXMax: 16,
-            rotateYMax: 16,
+            rotateXMax: id === 'atropos-creator' ? 12 : 16,
+            rotateYMax: id === 'atropos-creator' ? 12 : 16,
             rotateTouch: 'scroll-y',
           })
         }
@@ -68,19 +68,62 @@ function initTarotPortal(): void {
   units.forEach((unit) => {
     const atroposEl = unit.querySelector<HTMLElement>('.tarot-atropos')
     if (!atroposEl) return
+    const localRotateLayers = Array.from(
+      unit.querySelectorAll<HTMLElement>('[data-local-rotate]'),
+    )
+    const creatorTrail = unit.querySelector<SVGPathElement>('[data-creator-trail]')
+    const trailPoints: Array<{ x: number; y: number }> = []
+    let scanLockTimer: number | undefined
+
+    const updateLocalRotation = (pointerX: number, pointerY: number): void => {
+      localRotateLayers.forEach((layer) => {
+        const rotateX = pointerY * Number(layer.dataset.rx ?? 0)
+        const rotateY = pointerX * Number(layer.dataset.ry ?? 0)
+        const rotateZ = (pointerX * Number(layer.dataset.rz ?? 0))
+          + (pointerY * Number(layer.dataset.rzy ?? 0))
+        layer.style.transform = `translateZ(0) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) rotateZ(${rotateZ.toFixed(2)}deg)`
+      })
+    }
 
     unit.addEventListener('pointerenter', () => {
-      if (!isLaunching) unit.classList.add('is-hovering')
+      if (isLaunching) return
+      unit.classList.add('is-hovering', 'is-copy-revealed')
+      if (!noMotion && unit.dataset.role === 'reviewer') {
+        window.clearTimeout(scanLockTimer)
+        scanLockTimer = window.setTimeout(() => unit.classList.add('is-scan-locked'), 380)
+      }
     })
     unit.addEventListener('pointermove', (ev) => {
       if (isLaunching) return
       const e = ev as PointerEvent
       const r = atroposEl.getBoundingClientRect()
-      unit.style.setProperty('--holo-x', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`)
-      unit.style.setProperty('--holo-y', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`)
+      const pointerX = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1))
+      const pointerY = Math.max(-1, Math.min(1, ((e.clientY - r.top) / r.height) * 2 - 1))
+      unit.style.setProperty('--holo-x', `${((pointerX + 1) * 50).toFixed(1)}%`)
+      unit.style.setProperty('--holo-y', `${((pointerY + 1) * 50).toFixed(1)}%`)
+      unit.style.setProperty('--scan-x', `${((pointerX + 1) * 50).toFixed(1)}%`)
+      unit.style.setProperty('--scan-y', `${((pointerY + 1) * 50).toFixed(1)}%`)
+      updateLocalRotation(pointerX, pointerY)
+
+      if (!noMotion && creatorTrail) {
+        trailPoints.push({
+          x: ((e.clientX - r.left) / r.width) * 1024,
+          y: ((e.clientY - r.top) / r.height) * 1536,
+        })
+        if (trailPoints.length > 11) trailPoints.shift()
+        creatorTrail.setAttribute('d', trailPoints
+          .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+          .join(' '))
+      }
     })
     unit.addEventListener('pointerleave', () => {
-      if (!isLaunching) unit.classList.remove('is-hovering')
+      if (!isLaunching) {
+        window.clearTimeout(scanLockTimer)
+        unit.classList.remove('is-hovering', 'is-scan-locked')
+        updateLocalRotation(0, 0)
+        trailPoints.length = 0
+        creatorTrail?.removeAttribute('d')
+      }
     })
   })
 
