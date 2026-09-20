@@ -84,7 +84,10 @@ export function BlenderViewControls({
     }
     controls.current?.update();
     if (controls.current) onTargetChangeRef.current(controls.current.target.toArray() as Vec3);
-  }, [camera, preset, scene, set, size.width, size.height]);
+    // A saved review camera also updates the R3F store. If `camera` is a
+    // dependency, this preset effect immediately runs again and overwrites
+    // the review camera, making comment navigation appear to do nothing.
+  }, [preset, scene, set, size.width, size.height]);
 
   useEffect(() => {
     if (!reviewCameraRequest) return;

@@ -5,7 +5,7 @@
  * 「解决/重开」与「删除」。重活（编辑、回复）由外层容器承担。
  */
 
-import { CornerDownRight, Trash2 } from "lucide-react";
+import { Check, CornerDownRight, RotateCcw, Trash2 } from "lucide-react";
 import { t, tf } from "../../../i18n";
 import { formatRelativeTime } from "../../../utils";
 import type { ReviewComment } from "../types";
@@ -69,9 +69,10 @@ export function ReviewItem({
           className="review-status"
           disabled={busy}
           onClick={onToggleStatus}
+          aria-label={resolved ? t("重新打开这条批注") : t("标记为已解决")}
           title={resolved ? t("重新打开这条批注") : t("标记为已解决")}
         >
-          {resolved ? t("重开") : t("解决")}
+          {resolved ? <RotateCcw size={11} /> : <Check size={11} />}
         </button>
       )}
       {canDelete && (

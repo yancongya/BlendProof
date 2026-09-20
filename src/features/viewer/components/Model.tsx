@@ -166,16 +166,18 @@ export function Model({
         onHoverAnnotation(surfaceHitFromEvent(event, camera, resolveSelectableNode));
       }}
       onPointerOut={() => onHoverAnnotation(null)}
-      onPointerDown={(event: any) => {
-        if (
-          annotationMode &&
-          (event.button === 2 || event.nativeEvent?.button === 2)
-        )
-          placeAnnotation(event);
+      // `contextmenu` is the stable cross-browser signal for a secondary
+      // click. Checking pointerdown.button === 2 misses some trackpads and
+      // browser/OS combinations used by public-share reviewers.
+      onContextMenu={(event: any) => {
+        if (annotationMode) placeAnnotation(event);
       }}
       onClick={(event: any) => {
+        if (annotationMode) {
+          placeAnnotation(event);
+          return;
+        }
         event.stopPropagation();
-        if (annotationMode) return;
         const node = resolveSelectableNode(event.object);
         onObjectClick(node ? objectIdentity(node) : null);
       }}

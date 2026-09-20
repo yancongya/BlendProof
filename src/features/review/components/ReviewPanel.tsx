@@ -138,25 +138,6 @@ export function ReviewPanel({
         </div>
       )}
       {message && <p className="review-message">{message}</p>}
-      {selectedComment && !pending && !readOnly && (
-        <div className="review-compose review-edit">
-          <span>{tf("编辑第 %s 条批注", comments.indexOf(selectedComment) + 1)}</span>
-          <textarea
-            aria-label={t("编辑批注内容")}
-            value={editBody}
-            onChange={(event) => setEditBody(event.target.value)}
-          />
-          <div>
-            <button
-              className="primary"
-              disabled={busy || !editBody.trim() || editBody.trim() === selectedComment.body}
-              onClick={() => onEdit(selectedComment, editBody)}
-            >
-              {t("保存修改")}
-            </button>
-          </div>
-        </div>
-      )}
       <div className="review-list" ref={listRef}>
         {comments.map((comment, index) => (
           <ReviewItem
@@ -179,14 +160,38 @@ export function ReviewPanel({
         )}
       </div>
       {selectedComment && (
-        <ReviewReplyThread
-          comment={selectedComment}
-          canReply={canComment}
-          canDeleteReply={(replyId) => !readOnly && canDelete(replyId)}
-          busy={busy}
-          onReply={(text) => onReply(selectedComment.id, text)}
-          onDeleteReply={(replyId) => onDeleteReply(selectedComment.id, replyId)}
-        />
+        <section className="review-detail" aria-label={t("选中批注详情")}>
+          <div className="review-detail-heading">
+            <span>{tf("第 %s 条批注", comments.indexOf(selectedComment) + 1)}</span>
+            <small>{selectedComment.objectName ?? t("模型表面")}</small>
+          </div>
+          {!pending && !readOnly && (
+            <div className="review-compose review-edit">
+              <textarea
+                aria-label={t("编辑批注内容")}
+                value={editBody}
+                onChange={(event) => setEditBody(event.target.value)}
+              />
+              <div>
+                <button
+                  className="primary"
+                  disabled={busy || !editBody.trim() || editBody.trim() === selectedComment.body}
+                  onClick={() => onEdit(selectedComment, editBody)}
+                >
+                  {t("保存修改")}
+                </button>
+              </div>
+            </div>
+          )}
+          <ReviewReplyThread
+            comment={selectedComment}
+            canReply={canComment}
+            canDeleteReply={(replyId) => !readOnly && canDelete(replyId)}
+            busy={busy}
+            onReply={(text) => onReply(selectedComment.id, text)}
+            onDeleteReply={(replyId) => onDeleteReply(selectedComment.id, replyId)}
+          />
+        </section>
       )}
     </div>
   );

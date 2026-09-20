@@ -8,15 +8,15 @@
  * 凭据与本地令牌，不属于视图层判断。
  */
 
-import { MessageSquarePlus } from "lucide-react";
+import { CircleCheckBig, CircleDot, ListFilter, MessageSquarePlus } from "lucide-react";
 import { t, tf } from "../../../i18n";
 import { ReviewPanel } from "./ReviewPanel";
 import type { ReviewComment } from "../types";
 
 const FILTERS = [
-  ["all", "⬡", "全部"],
-  ["open", "●", "待处理"],
-  ["resolved", "✓", "已解决"],
+  ["all", ListFilter, "全部"],
+  ["open", CircleDot, "待处理"],
+  ["resolved", CircleCheckBig, "已解决"],
 ] as const;
 
 export function ReviewPanelHost({
@@ -90,7 +90,7 @@ export function ReviewPanelHost({
           </b>
         </button>
         <div className="review-filters" aria-label={t("批注状态筛选")}>
-          {FILTERS.map(([value, icon, label]) => (
+          {FILTERS.map(([value, Icon, label]) => (
             <button
               key={value}
               type="button"
@@ -98,7 +98,7 @@ export function ReviewPanelHost({
               className={filter === value ? "active" : ""}
               onClick={() => onFilterChange(value)}
             >
-              {icon}
+              <Icon size={11} />
             </button>
           ))}
         </div>

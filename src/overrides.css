@@ -568,22 +568,36 @@
   border: 1px solid #e87d0d;
   background: rgb(232 125 13 / 15%);
 }
-.annotation-tool {
-  display: flex;
+.annotation-actions {
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 8px;
-  border: 1px solid #414141;
-  border-radius: 3px;
-  background: #252525;
-  color: #bbb;
-  font-size: 10px;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #3b3b3b;
+  border-radius: 4px;
+  background: #222;
 }
-.annotation-tool.active {
-  border-color: #e87d0d;
-  color: #fff;
+.annotation-actions .overlay-toggle {
+  width: 24px;
+  height: 20px;
+  justify-content: center;
+  padding: 0;
+  border-color: transparent;
+}
+.annotation-actions .annotation-add.active {
+  border-color: #a85b10;
   background: #a85109;
+  color: #fff;
+}
+.view-controls > .overlay-toggle {
+  width: 24px;
+  height: 22px;
+  justify-content: center;
+  padding: 0;
+}
+.icon-group button:disabled {
+  cursor: default;
+  opacity: .35;
 }
 .guided-tour { position: fixed; inset: 0; z-index: 300; }
 .guided-tour-backdrop { position: absolute; inset: 0; border: 0; background: #0009; cursor: default; pointer-events: none; }

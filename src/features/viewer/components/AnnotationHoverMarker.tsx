@@ -5,6 +5,7 @@
  */
 
 import { useMemo } from "react";
+import { Billboard } from "@react-three/drei";
 import { DoubleSide, Vector3 } from "three";
 import type { SurfaceHit } from "../../../shared/types/picking";
 
@@ -14,23 +15,66 @@ export function AnnotationHoverMarker({ hit }: { hit: SurfaceHit }) {
     () => new Vector3(...hit.normal).normalize(),
     [hit.normal],
   );
+  const markerPosition = useMemo(
+    () => position.clone().add(normal.clone().multiplyScalar(0.035)),
+    [normal, position],
+  );
   return (
-    <group position={position} userData={{ annotationHover: true }} raycast={() => null}>
-      <mesh position={normal.clone().multiplyScalar(0.025)} renderOrder={20}>
-        <sphereGeometry args={[0.075, 16, 16]} />
-        <meshBasicMaterial color="#f59e0b" depthTest={false} depthWrite={false} />
-      </mesh>
-      <mesh position={normal.clone().multiplyScalar(0.02)} renderOrder={19}>
-        <ringGeometry args={[0.1, 0.125, 24]} />
+    <Billboard
+      position={markerPosition}
+      follow
+      userData={{ annotationHover: true }}
+      raycast={() => null}
+    >
+      <mesh renderOrder={18}>
+        <ringGeometry args={[0.083, 0.098, 32]} />
         <meshBasicMaterial
-          color="#f59e0b"
+          color="#151515"
           transparent
-          opacity={0.9}
+          opacity={0.72}
           depthTest={false}
           depthWrite={false}
           side={DoubleSide}
         />
       </mesh>
-    </group>
+      <mesh renderOrder={20}>
+        <ringGeometry args={[0.068, 0.078, 32]} />
+        <meshBasicMaterial
+          color="#f0a34a"
+          transparent
+          opacity={0.95}
+          depthTest={false}
+          depthWrite={false}
+          side={DoubleSide}
+        />
+      </mesh>
+      <mesh renderOrder={21}>
+        <circleGeometry args={[0.015, 20]} />
+        <meshBasicMaterial color="#fff4dd" depthTest={false} depthWrite={false} />
+      </mesh>
+      {[
+        { position: [0, 0.105, 0] as const, rotation: 0 },
+        { position: [0, -0.105, 0] as const, rotation: 0 },
+        { position: [0.105, 0, 0] as const, rotation: Math.PI / 2 },
+        { position: [-0.105, 0, 0] as const, rotation: Math.PI / 2 },
+      ].map((tick, index) => (
+        <mesh
+          key={index}
+          position={tick.position}
+          rotation={[0, 0, tick.rotation]}
+          renderOrder={20}
+        >
+          <planeGeometry args={[0.034, 0.007]} />
+          <meshBasicMaterial
+            color="#f0a34a"
+            transparent
+            opacity={0.9}
+            depthTest={false}
+            depthWrite={false}
+            side={DoubleSide}
+          />
+        </mesh>
+      ))}
+    </Billboard>
   );
 }

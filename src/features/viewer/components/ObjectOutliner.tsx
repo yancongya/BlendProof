@@ -1,4 +1,4 @@
-import { Box, Camera, Eye, Focus, Layers, Lightbulb, Search, X } from "lucide-react";
+import { Box, Camera, Eye, Focus, Layers, Lightbulb, PanelRightClose, Search, X } from "lucide-react";
 import { t, tf } from "../../../i18n";
 import type { Manifest } from "../../../types";
 
@@ -17,7 +17,7 @@ export function ObjectOutliner({
   onSelect,
   onToggle,
   onIsolate,
-  onFocus,
+  onHideSidebar,
 }: {
   collapsed: boolean;
   height: number;
@@ -33,7 +33,7 @@ export function ObjectOutliner({
   onSelect: (name: string) => void;
   onToggle: (name: string) => void;
   onIsolate: (name: string) => void;
-  onFocus: () => void;
+  onHideSidebar: () => void;
 }) {
   const isIsolated = (name: string) =>
     isolated && selected.size === 1 && selected.has(name);
@@ -59,12 +59,11 @@ export function ObjectOutliner({
         <button
           type="button"
           className="outliner-focus"
-          disabled={selected.size === 0}
-          title={t("聚焦选中对象（小键盘 .）")}
-          aria-label={t("聚焦选中对象")}
-          onClick={onFocus}
+          title={t("收起侧边栏")}
+          aria-label={t("收起侧边栏")}
+          onClick={onHideSidebar}
         >
-          <Focus size={12} />
+          <PanelRightClose size={12} />
         </button>
       </div>
       <div className="panel-body">

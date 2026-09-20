@@ -1,7 +1,9 @@
 import { Billboard, Text, Html } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
+import { MessageCircle, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
+import { formatRelativeTime } from "../../../utils";
 import type { ReviewComment } from "../types";
 export type ReviewAnnotationsProps = {
   comments: ReviewComment[];
@@ -130,29 +132,42 @@ function ReviewPin({ comment, index, selected, onSelect }: ReviewPinProps) {
       </Billboard>
       {selected && (
         <Html
-          position={[0, 0.45, 0]}
-          center
-          zIndexRange={[100, 0]}
-          style={{ pointerEvents: 'auto', width: 'max-content' }}
+          fullscreen
+          zIndexRange={[100000, 10000]}
+          wrapperClass="annotation-card-layer"
+          style={{ pointerEvents: "none" }}
         >
-          <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-xl rounded-xl border border-slate-200 dark:border-slate-700 p-4 min-w-[280px] max-w-[320px] pointer-events-auto text-left transform transition-all animate-in zoom-in-95 duration-200">
-            <header className="flex justify-between items-center mb-2 gap-4">
-              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
-                {comment.authorName}
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${comment.status === 'resolved' ? 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'}`}>
-                {comment.status === 'resolved' ? '已解决' : '待处理'}
-              </span>
-            </header>
-            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-              {comment.body}
-            </p>
-            {comment.replies && comment.replies.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                包含 {comment.replies.length} 条回复
+          <div className="annotation-card-center">
+          <article className={`annotation-card ${resolved ? "is-resolved" : ""}`}>
+            <header className="annotation-card-header">
+              <span className="annotation-card-index">{index}</span>
+              <div>
+                <strong>{comment.authorName}</strong>
+                <small>{formatRelativeTime(comment.createdAt)}</small>
               </div>
-            )}
+              <span className="annotation-card-status">
+                {resolved ? "已解决" : "待处理"}
+              </span>
+              <button
+                type="button"
+                aria-label="关闭批注"
+                title="关闭批注"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelect(comment.id);
+                }}
+              >
+                <X size={13} />
+              </button>
+            </header>
+            <p>{comment.body}</p>
+            <footer>
+              <span>{comment.objectName ?? "模型表面"}</span>
+              {comment.replies.length > 0 && (
+                <span><MessageCircle size={11} /> {comment.replies.length}</span>
+              )}
+            </footer>
+          </article>
           </div>
         </Html>
       )}

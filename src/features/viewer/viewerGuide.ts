@@ -36,8 +36,8 @@ export const VIEWER_GUIDE_STEPS: GuidedTourStep[] = [
     id: "annotation",
     title: "添加批注",
     description:
-      "进入标注模式，悬停模型表面查看吸附点，右键在当前视角位置创建批注。",
-    target: '[data-guide="annotation-tool"]',
+      "顶部「添加」进入标注模式，「批注」控制已有 Pin 显隐。进入模式后，在模型表面左键或右键落点。",
+    target: '[data-guide="annotation-tools"]',
     placement: "bottom",
     group: "审稿",
   },
@@ -65,8 +65,8 @@ export const CLIENT_GUIDE_STEPS: GuidedTourStep[] = [
   {
     id: "annotation",
     title: "添加批注",
-    description: "点击「添加批注」，在模型上右键即可添加。",
-    target: '[data-guide="annotation-tool"]',
+    description: "点击顶部「添加」进入标注模式；旁边的「批注」用于显示或隐藏已有 Pin。",
+    target: '[data-guide="annotation-tools"]',
     placement: "bottom",
     group: "审稿",
   },

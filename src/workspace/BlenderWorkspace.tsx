@@ -8,6 +8,7 @@
  */
 
 import {
+  Fragment,
   Suspense,
   useCallback,
   useEffect,
@@ -15,9 +16,9 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelRightOpen } from "lucide-react";
 
 import { Environment } from "@react-three/drei";
 import {
@@ -32,9 +33,11 @@ import {
   Layers,
   Lightbulb,
   MessageSquarePlus,
+  MessageSquare,
   Palette,
   Search,
   Settings2,
+  Sparkles,
   SlidersHorizontal,
   Trash2,
   X,
@@ -124,6 +127,7 @@ export function BlenderWorkspace({
   canDeleteComment,
   onReplyComment,
   guideSteps,
+  autoOpenGuide = true,
   initialCamera = null,
   onViewStateChange,
   uploaderOpen = false,
@@ -179,6 +183,8 @@ export function BlenderWorkspace({
   /** 正文由页面补上作者名；返回值只用于等待完成，不消费结果。 */
   onReplyComment?: (commentId: string, body: string) => Promise<unknown> | void;
   guideSteps?: GuidedTourStep[];
+  /** 首次进入可操作 Viewer 时，自动打开与顶部问号相同的操作指南。 */
+  autoOpenGuide?: boolean;
   initialCamera?: CameraState | null;
   onViewStateChange?: (camera: CameraState) => void;
   uploaderOpen?: boolean;
@@ -216,6 +222,31 @@ export function BlenderWorkspace({
   const [reviewBusy, setReviewBusy] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const effectiveGuideSteps = useMemo(
+    () =>
+      (guideSteps ?? VIEWER_GUIDE_STEPS).filter(
+        (step) => step.id !== "annotation" || canComment,
+      ),
+    [canComment, guideSteps],
+  );
+
+  useEffect(() => {
+    if (
+      !autoOpenGuide ||
+      !modelUrl ||
+      window.localStorage.getItem("blendproof:has-seen-tour")
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setGuideOpen(true), 1500);
+    return () => window.clearTimeout(timer);
+  }, [autoOpenGuide, modelUrl]);
+
+  const closeGuide = useCallback(() => {
+    window.localStorage.setItem("blendproof:has-seen-tour", "true");
+    setGuideOpen(false);
+  }, []);
   const [navigationTarget, setNavigationTarget] = useState<Vec3>([0, 0, 0]);
   const visibleComments = useMemo(
     () =>
@@ -246,9 +277,9 @@ export function BlenderWorkspace({
     window.addEventListener("pointerup", onPointerUp);
   }, [rightPanelWidth]);
 
-  const [outlinerHeight, setOutlinerHeight] = useState(280);
+  const outlinerHeight = 280;
   const [outlinerCollapsed, setOutlinerCollapsed] = useState(false);
-  const [propertyHeight, setPropertyHeight] = useState(132);
+  const propertyHeight = 132;
   const [propertyCollapsed, setPropertyCollapsed] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [reviewCollapsed, setReviewCollapsed] = useState(false);
@@ -258,7 +289,69 @@ export function BlenderWorkspace({
     const timer = window.setTimeout(() => setReviewMessage(null), 4000);
     return () => window.clearTimeout(timer);
   }, [reviewMessage]);
-  const [summaryHeight, setSummaryHeight] = useState(180);
+  const summaryHeight = 180;
+  type RightPanelId = "outliner" | "properties" | "summary" | "review";
+  const [rightPanelOrder, setRightPanelOrder] = useState<RightPanelId[]>([
+    "outliner",
+    "properties",
+    "summary",
+    "review",
+  ]);
+  const [rightPanelSizes, setRightPanelSizes] = useState<Record<RightPanelId, number>>({
+    outliner: 280,
+    properties: 160,
+    summary: 180,
+    review: 260,
+  });
+  const draggedPanel = useRef<RightPanelId | null>(null);
+
+  const isRightPanelCollapsed = useCallback(
+    (id: RightPanelId) =>
+      id === "outliner"
+        ? outlinerCollapsed
+        : id === "properties"
+          ? propertyCollapsed
+          : id === "summary"
+            ? summaryCollapsed
+            : reviewCollapsed,
+    [outlinerCollapsed, propertyCollapsed, reviewCollapsed, summaryCollapsed],
+  );
+
+  const resizeAdjacentPanels = useCallback(
+    (dividerIndex: number, delta: number) => {
+      const before = [...rightPanelOrder.slice(0, dividerIndex + 1)]
+        .reverse()
+        .find((id) => !isRightPanelCollapsed(id));
+      const after = rightPanelOrder
+        .slice(dividerIndex + 1)
+        .find((id) => !isRightPanelCollapsed(id));
+      if (!before || !after) return;
+
+      setRightPanelSizes((sizes) => {
+        const nextBefore = Math.max(72, sizes[before] + delta);
+        const applied = nextBefore - sizes[before];
+        const nextAfter = Math.max(72, sizes[after] - applied);
+        const actual = sizes[after] - nextAfter;
+        return {
+          ...sizes,
+          [before]: sizes[before] + actual,
+          [after]: nextAfter,
+        };
+      });
+    },
+    [isRightPanelCollapsed, rightPanelOrder],
+  );
+
+  const moveRightPanel = useCallback((target: RightPanelId) => {
+    const source = draggedPanel.current;
+    if (!source || source === target) return;
+    setRightPanelOrder((order) => {
+      const next = order.filter((id) => id !== source);
+      next.splice(next.indexOf(target), 0, source);
+      return next;
+    });
+    draggedPanel.current = null;
+  }, []);
   const [overlaysVisible, setOverlaysVisible] = useState(true);
   const [shadingMode, setShadingMode] = useState<ShadingMode>("smooth");
   const [outlinerQuery, setOutlinerQuery] = useState("");
@@ -554,6 +647,10 @@ export function BlenderWorkspace({
   }
 
   function selectReviewComment(commentId: string) {
+    if (selectedCommentId === commentId) {
+      setSelectedCommentId(null);
+      return;
+    }
     setSelectedCommentId(commentId);
     const comment = comments.find((item) => item.id === commentId);
     if (comment)
@@ -586,10 +683,8 @@ export function BlenderWorkspace({
       </ViewerMenubar>
       {guideOpen && (
         <GuidedTour
-          steps={VIEWER_GUIDE_STEPS.filter(
-            (step) => step.id !== "annotation" || canComment,
-          )}
-          onClose={() => setGuideOpen(false)}
+          steps={effectiveGuideSteps}
+          onClose={closeGuide}
           onStepChange={(step) => {
             if (step.id === "annotation") {
               setAnnotationsVisible(true);
@@ -614,26 +709,6 @@ export function BlenderWorkspace({
                   {t("仅查看，需要批注请联系分享者")}
                 </span>
               )}
-              {canComment && modelUrl && (
-                <button
-                  className={`annotation-tool ${annotationMode ? "active" : ""}`}
-                  data-testid="annotation-toggle"
-                  data-guide="annotation-tool"
-                  title={t("在模型上点击添加批注")}
-                  aria-pressed={annotationMode}
-                  onClick={() => {
-                    setAnnotationMode((current) => !current);
-                    setAnnotationHover(null);
-                    setAnnotationPopover(null);
-                    setPendingReview(null);
-                    setReviewFilter("all");
-                    setAnnotationsVisible(true);
-                  }}
-                >
-                  <MessageSquarePlus size={13} />
-                  {annotationMode ? t("退出标注模式") : t("添加批注")}
-                </button>
-              )}
               <div className="view-controls" aria-label="视图控制">
                 <div className="icon-group" aria-label="显示模式">
                   <button
@@ -656,14 +731,6 @@ export function BlenderWorkspace({
                     onClick={() => onDisplayMode("material")}
                   >
                     <Palette />
-                  </button>
-                </div>
-                <div className="icon-group" aria-label="面板控制">
-                  <button
-                    title="显示/隐藏侧边栏"
-                    onClick={() => setRightPanelVisible(v => !v)}
-                  >
-                    {rightPanelVisible ? <PanelRightClose /> : <PanelRightOpen />}
                   </button>
                 </div>
                 <div className="icon-group camera-group" aria-label="镜头预设">
@@ -695,6 +762,14 @@ export function BlenderWorkspace({
                   >
                     0
                   </button>
+                  <button
+                    title={t("聚焦选中对象（小键盘 .）")}
+                    aria-label={t("聚焦选中对象")}
+                    disabled={selected.size === 0}
+                    onClick={() => setFocusRequest({ names: [...selected], nonce: Date.now() })}
+                  >
+                    <Focus />
+                  </button>
                 </div>
                 {fileCameras.map((camera) => (
                   <button
@@ -717,21 +792,48 @@ export function BlenderWorkspace({
                   title="显示或隐藏网格与坐标轴"
                   onClick={() => setOverlaysVisible((visible) => !visible)}
                 >
-                  <Grid2X2 size={12} /> 叠加层
+                  <Grid2X2 size={12} />
                 </button>
-                <button
-                  type="button"
-                  className={`editor-mode overlay-toggle ${
-                    annotationsVisible ? "active" : ""
-                  }`}
-                  aria-pressed={annotationsVisible}
-                  title="显示或隐藏全部批注 Pin"
-                  onClick={() =>
-                    setAnnotationsVisible((visible) => !visible)
-                  }
+                <div
+                  className="annotation-actions"
+                  data-guide="annotation-tools"
+                  aria-label="批注工具"
                 >
-                  <MessageSquarePlus size={12} /> 批注
-                </button>
+                  {canComment && modelUrl && (
+                    <button
+                      type="button"
+                      className={`editor-mode overlay-toggle annotation-add ${
+                        annotationMode ? "active" : ""
+                      }`}
+                      data-testid="annotation-toggle"
+                      title={t("在模型上点击添加批注")}
+                      aria-pressed={annotationMode}
+                      onClick={() => {
+                        setAnnotationMode((current) => !current);
+                        setAnnotationHover(null);
+                        setAnnotationPopover(null);
+                        setPendingReview(null);
+                        setReviewFilter("all");
+                        setAnnotationsVisible(true);
+                      }}
+                    >
+                      <MessageSquarePlus size={12} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={`editor-mode overlay-toggle ${
+                      annotationsVisible ? "active" : ""
+                    }`}
+                    aria-pressed={annotationsVisible}
+                    title="显示或隐藏全部批注 Pin"
+                    onClick={() =>
+                      setAnnotationsVisible((visible) => !visible)
+                    }
+                  >
+                    <MessageSquare size={12} />
+                  </button>
+                </div>
                 <button
                   type="button"
                   className={`editor-mode overlay-toggle shading-toggle ${
@@ -749,8 +851,19 @@ export function BlenderWorkspace({
                     )
                   }
                 >
-                  {shadingMode === "smooth" ? "平滑" : "平直"}
+                  <Sparkles size={12} />
                 </button>
+                {!rightPanelVisible && (
+                  <button
+                    type="button"
+                    className="editor-mode overlay-toggle"
+                    title={t("展开侧边栏")}
+                    aria-label={t("展开侧边栏")}
+                    onClick={() => setRightPanelVisible(true)}
+                  >
+                    <PanelRightOpen size={12} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -948,7 +1061,7 @@ export function BlenderWorkspace({
           <div className="viewport-hints">
             {annotationMode ? (
               <>
-                悬停模型显示吸附点 <span>·</span> 右键创建批注 <span>·</span>{" "}
+                悬停模型显示吸附点 <span>·</span> 左键或右键创建批注 <span>·</span>{" "}
                 Esc 退出
               </>
             ) : (
@@ -981,88 +1094,116 @@ export function BlenderWorkspace({
               zIndex: 10
             }}
           />
-          <ObjectOutliner
-            collapsed={outlinerCollapsed}
-            height={outlinerHeight}
-            query={outlinerQuery}
-            manifest={manifest}
-            objects={filteredObjects}
-            selected={selected}
-            hidden={hidden}
-            readOnly={!canView}
-            isolated={isolated}
-            onToggleCollapse={() => setOutlinerCollapsed((c) => !c)}
-            onQueryChange={setOutlinerQuery}
-            onSelect={(name) => onSelect(name)}
-            onToggle={onToggle}
-            onIsolate={isolateOutlinerObject}
-            onFocus={() => setFocusRequest({ names: [...selected], nonce: Date.now() })}
-          />
-          <PanelResizeHandle
-            label="调整场景集合面板高度"
-            onDelta={(delta) =>
-              setOutlinerHeight((height) =>
-                Math.min(560, Math.max(90, height + delta)),
-              )
-            }
-          />
-          <PropertyInspector
-            collapsed={propertyCollapsed}
-            height={propertyHeight}
-            active={active}
-            onToggleCollapse={() => setPropertyCollapsed((c) => !c)}
-          />
-          <PanelResizeHandle
-            label="调整属性面板高度"
-            onDelta={(delta) =>
-              setPropertyHeight((height) =>
-                Math.min(360, Math.max(76, height + delta)),
-              )
-            }
-          />
-          <ConversionPanel
-            collapsed={summaryCollapsed}
-            height={summaryHeight}
-            manifest={manifest}
-            onToggleCollapse={() => setSummaryCollapsed((c) => !c)}
-          />
-          <PanelResizeHandle
-            label="调整转换信息面板高度"
-            onDelta={(delta) =>
-              setSummaryHeight((height) =>
-                Math.min(360, Math.max(82, height + delta)),
-              )
-            }
-          />
-          <ReviewPanelHost
-            collapsed={reviewCollapsed}
-            comments={visibleComments}
-            newCount={reviewNewCount}
-            filter={reviewFilter}
-            selectedId={selectedCommentId}
-            commentBody={commentBody}
-            readOnly={!canView}
-            canComment={canComment}
-            // 错误优先于成功文案：否则保存成功一次后，后续错误永远看不见。
-            message={reviewError ?? reviewMessage}
-            busy={reviewBusy}
-            canDelete={canDeleteComment ?? (() => !readOnly)}
-            onToggleCollapse={() => setReviewCollapsed((c) => !c)}
-            onFilterChange={setReviewFilter}
-            onAcknowledgeNew={acknowledgeAndLocateReview}
-            onBody={setCommentBody}
-            onSelect={selectReviewComment}
-            onSave={() => void savePendingReview()}
-            onCancelDraft={() => {
-              setPendingReview(null);
-              setCommentBody("");
-            }}
-            onToggleStatus={(comment) => void toggleReviewStatus(comment)}
-            onEdit={(comment, body) => void editReviewComment(comment, body)}
-            onDeleteComment={(comment) => void deleteReviewComment(comment)}
-            onReply={(commentId, text) => void replyReviewComment(commentId, text)}
-            onDeleteReply={(commentId, replyId) => void deleteReviewReply(commentId, replyId)}
-          />
+          {rightPanelOrder.map((panelId, index) => {
+            const collapsed = isRightPanelCollapsed(panelId);
+            return (
+              <Fragment key={panelId}>
+                <div
+                  className={`panel-stack-item ${collapsed ? "is-collapsed" : ""}`}
+                  draggable
+                  style={collapsed ? undefined : { "--panel-size": rightPanelSizes[panelId] } as CSSProperties}
+                  onDragStart={(event) => {
+                    const target = event.target as HTMLElement;
+                    if (!target.closest(".panel-header") || target.closest(".outliner-focus, .review-filters")) {
+                      event.preventDefault();
+                      return;
+                    }
+                    draggedPanel.current = panelId;
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", panelId);
+                  }}
+                  onDragEnd={() => {
+                    draggedPanel.current = null;
+                    document.querySelectorAll(".panel-stack-item.is-drop-target").forEach((node) =>
+                      node.classList.remove("is-drop-target"),
+                    );
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.currentTarget.classList.add("is-drop-target");
+                  }}
+                  onDragLeave={(event) => event.currentTarget.classList.remove("is-drop-target")}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    event.currentTarget.classList.remove("is-drop-target");
+                    moveRightPanel(panelId);
+                  }}
+                >
+                  {panelId === "outliner" && (
+                    <ObjectOutliner
+                      collapsed={outlinerCollapsed}
+                      height={outlinerHeight}
+                      query={outlinerQuery}
+                      manifest={manifest}
+                      objects={filteredObjects}
+                      selected={selected}
+                      hidden={hidden}
+                      readOnly={!canView}
+                      isolated={isolated}
+                      onToggleCollapse={() => setOutlinerCollapsed((c) => !c)}
+                      onQueryChange={setOutlinerQuery}
+                      onSelect={(name) => onSelect(name)}
+                      onToggle={onToggle}
+                      onIsolate={isolateOutlinerObject}
+                      onHideSidebar={() => setRightPanelVisible(false)}
+                    />
+                  )}
+                  {panelId === "properties" && (
+                    <PropertyInspector
+                      collapsed={propertyCollapsed}
+                      height={propertyHeight}
+                      active={active}
+                      onToggleCollapse={() => setPropertyCollapsed((c) => !c)}
+                    />
+                  )}
+                  {panelId === "summary" && (
+                    <ConversionPanel
+                      collapsed={summaryCollapsed}
+                      height={summaryHeight}
+                      manifest={manifest}
+                      onToggleCollapse={() => setSummaryCollapsed((c) => !c)}
+                    />
+                  )}
+                  {panelId === "review" && (
+                    <ReviewPanelHost
+                      collapsed={reviewCollapsed}
+                      comments={visibleComments}
+                      newCount={reviewNewCount}
+                      filter={reviewFilter}
+                      selectedId={selectedCommentId}
+                      commentBody={commentBody}
+                      readOnly={!canView}
+                      canComment={canComment}
+                      message={reviewError ?? reviewMessage}
+                      busy={reviewBusy}
+                      canDelete={canDeleteComment ?? (() => !readOnly)}
+                      onToggleCollapse={() => setReviewCollapsed((c) => !c)}
+                      onFilterChange={setReviewFilter}
+                      onAcknowledgeNew={acknowledgeAndLocateReview}
+                      onBody={setCommentBody}
+                      onSelect={selectReviewComment}
+                      onSave={() => void savePendingReview()}
+                      onCancelDraft={() => {
+                        setPendingReview(null);
+                        setCommentBody("");
+                      }}
+                      onToggleStatus={(comment) => void toggleReviewStatus(comment)}
+                      onEdit={(comment, body) => void editReviewComment(comment, body)}
+                      onDeleteComment={(comment) => void deleteReviewComment(comment)}
+                      onReply={(commentId, text) => void replyReviewComment(commentId, text)}
+                      onDeleteReply={(commentId, replyId) => void deleteReviewReply(commentId, replyId)}
+                    />
+                  )}
+                </div>
+                {index < rightPanelOrder.length - 1 && (
+                  <PanelResizeHandle
+                    label="调整相邻面板高度"
+                    onDelta={(delta) => resizeAdjacentPanels(index, delta)}
+                  />
+                )}
+              </Fragment>
+            );
+          })}
         </aside>
         )}
       </div>

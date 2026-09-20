@@ -20,8 +20,7 @@ import {
 } from "../components/NoticeViews";
 import { blendProofClient, type ProjectTransport } from "../api/blendProofClient";
 import { CLIENT_GUIDE_STEPS } from "../features/viewer";
-import { readSharedView, VIEWPORT_TOUR_STEPS } from "../utils";
-import { GuidedTour } from "../components/GuidedTour";
+import { readSharedView } from "../utils";
 import type { Manifest, DisplayMode, CameraPreset } from "../types";
 import {
   DEMO_COMMENTS,
@@ -194,19 +193,6 @@ export function SharePage() {
   // 必须留在下方所有提前 return 之前：解锁会让 passwordRequired 翻转，
   // 若这些 hook 在 return 之后，首次渲染与解锁后渲染的 hook 数量不同，
   // React 会抛 "Rendered more hooks than during the previous render" 并整页白屏。
-  const [showTour, setShowTour] = useState(false);
-  useEffect(() => {
-    const hasSeen = localStorage.getItem("blendproof:has-seen-tour");
-    if (!hasSeen && share) {
-      const timer = window.setTimeout(() => setShowTour(true), 1500);
-      return () => window.clearTimeout(timer);
-    }
-  }, [share]);
-  const handleCloseTour = useCallback(() => {
-    localStorage.setItem("blendproof:has-seen-tour", "true");
-    setShowTour(false);
-  }, []);
-
   if (passwordRequired)
     return (
       <PasswordNotice
@@ -289,9 +275,6 @@ export function SharePage() {
         sourceLabel={isDemoShare ? "平台内置资产" : undefined}
       />
     </BlenderWorkspace>
-      {showTour && (
-        <GuidedTour steps={VIEWPORT_TOUR_STEPS} onClose={handleCloseTour} />
-      )}
     </>
   );
 }

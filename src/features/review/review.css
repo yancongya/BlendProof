@@ -22,8 +22,9 @@
 .review-filters button:hover { color: #ddd; background: #2a2a2a; }
 .review-filters button.active { border-color: #74410f; background: #33200e; color: #f1a04a; }
 .review-panel {
-  border-top: 1px solid #171717;
+  height: 100%;
   overflow: auto;
+  background: #202020;
   color: #bbb;
   font-size: 10px;
 }
@@ -54,6 +55,11 @@
   display: grid;
   gap: 7px;
   padding: 0 12px 10px;
+}
+.review-edit {
+  padding: 9px 10px 10px;
+  border-bottom: 1px solid #181818;
+  background: #242424;
 }
 .review-compose textarea {
   min-height: 62px;
@@ -92,15 +98,17 @@
 }
 .review-list {
   display: grid;
-  gap: 1px;
+  gap: 0;
+  background: #1b1b1b;
 }
 .review-item {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   width: 100%;
-  padding: 7px 9px;
+  padding: 8px 7px 8px 9px;
+  border-bottom: 1px solid #1a1a1a;
   background: #252525;
   color: #ccc;
   text-align: left;
@@ -140,6 +148,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.review-status {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  place-items: center;
+  padding: 0;
+}
 .review-item small {
   color: #777;
 }
@@ -149,8 +165,28 @@
   display: grid;
   gap: 8px;
   padding: 9px 12px 12px;
-  border-top: 1px solid #303030;
-  background: #1f1f1f;
+  border-top: 0;
+  background: #202020;
+}
+.review-detail {
+  margin-top: 5px;
+  border-top: 1px solid #3a3a3a;
+  background: #202020;
+}
+.review-detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  padding: 0 10px;
+  border-bottom: 1px solid #181818;
+  background: #2a2a2a;
+  color: #d0d0d0;
+  font-weight: 600;
+}
+.review-detail-heading small {
+  color: #777;
+  font-weight: 400;
 }
 .review-reply-list {
   display: grid;
@@ -271,4 +307,114 @@
 .review-item.resolved i {
   background: #4a5568;
   color: #e2e8f0;
+}
+
+/* 3D 视口中的空间批注卡：保持 Blender 深色材质感，不依赖工具类。 */
+.annotation-card-layer {
+  z-index: 80 !important;
+  pointer-events: none !important;
+}
+.annotation-card-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 42px;
+  pointer-events: none;
+}
+.annotation-card {
+  position: relative;
+  width: 268px;
+  overflow: visible;
+  border: 1px solid rgb(245 158 11 / 45%);
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 5%), transparent 42%),
+    rgb(30 30 30 / 94%);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 55%), inset 0 1px rgb(255 255 255 / 6%);
+  color: #ddd;
+  text-align: left;
+  backdrop-filter: blur(12px) saturate(115%);
+  animation: annotation-card-in 140ms ease-out;
+  pointer-events: auto;
+}
+.annotation-card.is-resolved { border-color: rgb(100 116 139 / 55%); }
+.annotation-card-header {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto 22px;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 9px 8px;
+  border-bottom: 1px solid rgb(255 255 255 / 7%);
+}
+.annotation-card-index {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: #171717;
+  font-size: 10px;
+  font-weight: 750;
+}
+.annotation-card.is-resolved .annotation-card-index { background: #64748b; color: #eef2f7; }
+.annotation-card-header > div { display: grid; min-width: 0; gap: 1px; }
+.annotation-card-header strong {
+  overflow: hidden;
+  color: #f2f2f2;
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.annotation-card-header small { color: #858585; font-size: 9px; }
+.annotation-card-status {
+  padding: 2px 5px;
+  border-radius: 2px;
+  background: rgb(245 158 11 / 14%);
+  color: #f6ad3c;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.annotation-card.is-resolved .annotation-card-status { background: rgb(100 116 139 / 18%); color: #aab6c8; }
+.annotation-card-header button {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #8c8c8c;
+  cursor: pointer;
+}
+.annotation-card-header button:hover { background: rgb(255 255 255 / 8%); color: #eee; }
+.annotation-card > p {
+  margin: 0;
+  padding: 11px 12px;
+  color: #dedede;
+  font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.annotation-card > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+  padding: 0 12px;
+  border-top: 1px solid rgb(255 255 255 / 6%);
+  color: #7f7f7f;
+  font-size: 9px;
+}
+.annotation-card > footer span { display: inline-flex; align-items: center; gap: 4px; }
+@keyframes annotation-card-in {
+  from { opacity: 0; transform: translateY(5px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .annotation-card { animation: none; }
 }
