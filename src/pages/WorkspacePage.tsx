@@ -138,11 +138,12 @@ export function WorkspacePage() {
   const [startTabHint, setStartTabHint] = useState<"start" | "recent" | "status" | "account" | null>(null);
 
   const openUploader = useCallback(() => {
-    // Opening the file panel is always a fresh selection flow; the active Viewer project stays intact.
+    // Keep the active project's publish state visible when reopening the panel.
+    // A brand-new workspace still starts with an empty file selection flow.
     setFile(null);
-    setUploadStage("idle");
+    setUploadStage(cloudProject ? "published" : project ? "ready" : "idle");
     setUploaderOpen(true);
-  }, []);
+  }, [cloudProject, project]);
   const closeUploader = useCallback(() => setUploaderOpen(false), []);
 
   const reviewProject = cloudProject ?? project;
