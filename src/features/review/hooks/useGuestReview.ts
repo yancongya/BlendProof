@@ -22,12 +22,15 @@ export function useGuestReview({
   transport,
   demoMode,
   authorName,
+  enabled = true,
 }: {
   token: string | null;
   transport: ProjectTransport;
   /** 演示分享在无后端时允许本地降级。 */
   demoMode: boolean;
   authorName: string;
+  /** 分享解锁并完成访客身份确认后才开始轮询。 */
+  enabled?: boolean;
 }) {
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -55,7 +58,7 @@ export function useGuestReview({
       /* 保持现有列表，等下一轮 */
     }
   }, [token, transport]);
-  usePolling(refresh, REVIEW_POLL_MS, Boolean(token), busy);
+  usePolling(refresh, REVIEW_POLL_MS, Boolean(token) && enabled, busy);
 
   const mutations = useGuestMutations({
     token,

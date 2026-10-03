@@ -130,6 +130,7 @@ export function WorkspacePage() {
   const [shareError, setShareError] = useState<string | null>(null);
   const [homeOpen, setHomeOpen] = useState(true);
   const [publicStats, setPublicStats] = useState<PublicStats | null>(null);
+  const [publicStatsState, setPublicStatsState] = useState<"loading" | "ready" | "unavailable">("loading");
   const [account, setAccount] = useState<AccountUser | null>(null);
   const [accountStats, setAccountStats] = useState<AccountStats | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("material");
@@ -233,10 +234,16 @@ export function WorkspacePage() {
       blendProofClient
         .publicStats()
         .then((next) => {
-          if (active) setPublicStats(next);
+          if (active) {
+            setPublicStats(next);
+            setPublicStatsState("ready");
+          }
         })
         .catch(() => {
-          if (active) setPublicStats(null);
+          if (active) {
+            setPublicStats(null);
+            setPublicStatsState("unavailable");
+          }
         });
     void refreshPublicStats();
     const interval = homeOpen
@@ -602,12 +609,14 @@ export function WorkspacePage() {
     : !project
     ? { expiresAt: null, permission: "read_only" }
     : null;
+  const workspaceTitle = project?.name ?? (!project ? file?.name : null) ?? "Suzanne 演示";
+  const hasOwnedProject = Boolean(project);
 
   if (homeOpen) {
     return (
       <>
         <BlenderWorkspace
-          title={project?.name ?? file?.name ?? "Suzanne 演示"}
+          title={workspaceTitle}
           manifest={workspaceManifest}
           hidden={hidden}
           selected={selected}
@@ -619,6 +628,8 @@ export function WorkspacePage() {
           modelUrl={workspaceModelUrl}
           autoOpenGuide={false}
           readOnly={false}
+          canAnnotate={hasOwnedProject}
+          canComment={hasOwnedProject}
           displayMode={displayMode}
           onDisplayMode={setDisplayMode}
           cameraPreset={cameraPreset}
@@ -627,12 +638,12 @@ export function WorkspacePage() {
           reviewError={reviews.error}
           reviewNewCount={reviews.newCount}
           onAcknowledgeReview={reviews.acknowledgeNew}
-          onCreateComment={reviews.create}
+          onCreateComment={hasOwnedProject ? reviews.create : undefined}
           commentAuthorName={reviewAuthorName}
-          onUpdateComment={reviews.update}
-          onDeleteComment={reviews.remove}
-          onReplyComment={replyToReviewComment}
-          onDeleteReply={reviews.removeReply}
+          onUpdateComment={hasOwnedProject ? reviews.update : undefined}
+          onDeleteComment={hasOwnedProject ? reviews.remove : undefined}
+          onReplyComment={hasOwnedProject ? replyToReviewComment : undefined}
+          onDeleteReply={hasOwnedProject ? reviews.removeReply : undefined}
           onViewStateChange={setCurrentCamera}
           onOpenUploader={openUploader}
           onHome={() => setHomeOpen(true)}
@@ -642,6 +653,7 @@ export function WorkspacePage() {
         <StartPage
           recentProjects={recentProjects}
           stats={publicStats}
+          statsState={publicStatsState}
           account={account}
           accountStats={accountStats}
           onOpenFile={() => {
@@ -680,7 +692,7 @@ export function WorkspacePage() {
   return (
     <>
       <BlenderWorkspace
-      title={project?.name ?? file?.name ?? "Suzanne 演示"}
+      title={workspaceTitle}
       shareStatus={shareStatusProp}
       manifest={workspaceManifest}
       hidden={hidden}
@@ -692,6 +704,8 @@ export function WorkspacePage() {
       modelUrl={workspaceModelUrl}
       autoOpenGuide={!homeOpen}
       readOnly={false}
+      canAnnotate={hasOwnedProject}
+      canComment={hasOwnedProject}
       displayMode={displayMode}
       onDisplayMode={setDisplayMode}
       cameraPreset={cameraPreset}
@@ -700,12 +714,12 @@ export function WorkspacePage() {
       reviewError={reviews.error}
       reviewNewCount={reviews.newCount}
       onAcknowledgeReview={reviews.acknowledgeNew}
-      onCreateComment={reviews.create}
+      onCreateComment={hasOwnedProject ? reviews.create : undefined}
       commentAuthorName={reviewAuthorName}
-      onUpdateComment={reviews.update}
-      onDeleteComment={reviews.remove}
-      onReplyComment={replyToReviewComment}
-      onDeleteReply={reviews.removeReply}
+      onUpdateComment={hasOwnedProject ? reviews.update : undefined}
+      onDeleteComment={hasOwnedProject ? reviews.remove : undefined}
+      onReplyComment={hasOwnedProject ? replyToReviewComment : undefined}
+      onDeleteReply={hasOwnedProject ? reviews.removeReply : undefined}
       onViewStateChange={setCurrentCamera}
       uploaderOpen={uploaderOpen}
       onOpenUploader={openUploader}

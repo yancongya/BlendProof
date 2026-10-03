@@ -37,6 +37,7 @@ import { formatBytes, formatDuration } from "../utils";
 export function StartPage({
   recentProjects,
   stats,
+  statsState,
   account,
   accountStats,
   onOpenFile,
@@ -50,6 +51,7 @@ export function StartPage({
 }: {
   recentProjects: Project[];
   stats: PublicStats | null;
+  statsState: "loading" | "ready" | "unavailable";
   account: AccountUser | null;
   accountStats: AccountStats | null;
   onOpenFile: () => void;
@@ -151,9 +153,11 @@ export function StartPage({
 
   function openShare() {
     const value = shareInput.trim();
-    const candidate = value.match(/^[a-f0-9]{32}$/)
-      ? `/s/${value}`
-      : value;
+    const candidate = value === "suzanne"
+      ? "/s/suzanne"
+      : value.match(/^[a-f0-9]{32}$/)
+        ? `/s/${value}`
+        : value;
     try {
       const target = new URL(candidate, window.location.origin);
       if (
@@ -165,7 +169,7 @@ export function StartPage({
         `${target.pathname}${target.search}${target.hash}`,
       );
     } catch {
-      setShareError("请输入本站的完整分享链接，或 32 位分享码。");
+      setShareError("请输入本站分享链接、32 位分享码，或公开演示码 suzanne。");
     }
   }
 
@@ -367,6 +371,11 @@ export function StartPage({
                 <span>最近打开的项目</span>
                 <button onClick={onOpenFile}>打开其他文件</button>
               </div>
+              {statsState === "unavailable" && (
+                <p className="start-service-warning" role="status">
+                  暂时无法连接云端服务。你仍可在本机打开和查看文件，发布与分享请稍后重试。
+                </p>
+              )}
               {recentProjects.length ? (
                 <div className="start-recent-list">
                   {recentProjects.slice(0, 8).map((item) => (
@@ -488,7 +497,12 @@ export function StartPage({
               </p>
               <div className="start-site-notice">
                 <p>
-                  {responseTime} ms · Gzip 启用。用户提交内容仅代表其作者，不代表
+                  {statsState === "ready"
+                    ? `${responseTime} ms · 云端服务可用。`
+                    : statsState === "loading"
+                      ? "正在检查云端服务。"
+                      : "云端状态暂不可用。"}{" "}
+                  用户提交内容仅代表其作者，不代表
                   BlendProof 立场。联系：
                   <a href="mailto:admin@itycon.cn">admin@itycon.cn</a>
                 </p>

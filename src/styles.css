@@ -691,10 +691,28 @@ button {
 }
 @media (max-width: 850px) {
   .blender-main {
-    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) !important;
   }
   .right-editors {
-    display: none;
+    position: fixed !important;
+    z-index: 160;
+    top: 64px;
+    right: 0;
+    bottom: 36px;
+    display: flex;
+    width: min(88vw, 340px);
+    border-left: 1px solid #4a4a4a;
+    box-shadow: -16px 0 36px rgb(0 0 0 / 55%);
+  }
+  .mobile-panel-backdrop {
+    position: fixed;
+    z-index: 159;
+    top: 64px;
+    right: min(88vw, 340px);
+    bottom: 36px;
+    left: 0;
+    border: 0;
+    background: rgb(0 0 0 / 42%);
   }
   .workspace-tabs span:not(.active) {
     display: none;

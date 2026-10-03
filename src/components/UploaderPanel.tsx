@@ -107,7 +107,7 @@ export function UploaderPanel({
         <span className="uploader-panel-badge">本机</span>
       </header>
       <p className="uploader-panel-intro">
-        在本机转换 Blender 文件，生成可审阅的 Web 预览。
+        先在浏览器内尝试转换；复杂工程会调用本机 Blender bridge。完成预览后，再由你决定是否只上传 GLB 与清单到云端。
       </p>
 
       {recentProjects.length > 0 && onProjectSelect && (

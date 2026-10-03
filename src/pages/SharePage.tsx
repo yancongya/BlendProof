@@ -102,6 +102,11 @@ export function SharePage() {
     transport,
     demoMode: isDemoShare,
     authorName: guestName,
+    enabled: Boolean(
+      share &&
+      !passwordRequired &&
+      (share.commentsPermission !== "comment" || guestName.trim()),
+    ),
   });
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(sharedView?.selected ?? []),

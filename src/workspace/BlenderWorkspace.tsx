@@ -258,6 +258,15 @@ export function BlenderWorkspace({
   const [rightPanelWidth, setRightPanelWidth] = useState(282);
   const [rightPanelVisible, setRightPanelVisible] = useState(true);
 
+  useEffect(() => {
+    const mobile = window.matchMedia("(max-width: 850px)");
+    const syncPanel = (event?: MediaQueryListEvent) =>
+      setRightPanelVisible(!(event?.matches ?? mobile.matches));
+    syncPanel();
+    mobile.addEventListener("change", syncPanel);
+    return () => mobile.removeEventListener("change", syncPanel);
+  }, []);
+
   const startResizing = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -1080,6 +1089,14 @@ export function BlenderWorkspace({
           </div>
         </section>
         {rightPanelVisible && (
+        <button
+          type="button"
+          className="mobile-panel-backdrop"
+          aria-label={t("关闭侧边栏")}
+          onClick={() => setRightPanelVisible(false)}
+        />
+        )}
+        {rightPanelVisible && (
         <aside className="right-editors" style={{ position: 'relative', overflow: 'hidden' }}>
           <div 
             className="panel-resizer" 
@@ -1138,7 +1155,7 @@ export function BlenderWorkspace({
                       objects={filteredObjects}
                       selected={selected}
                       hidden={hidden}
-                      readOnly={!canView}
+                      readOnly={!canAnnotate}
                       isolated={isolated}
                       onToggleCollapse={() => setOutlinerCollapsed((c) => !c)}
                       onQueryChange={setOutlinerQuery}
