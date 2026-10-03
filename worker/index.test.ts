@@ -3,6 +3,8 @@ import type { D1Migration } from 'cloudflare:test'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { scryptAsync } from '@noble/hashes/scrypt.js'
 import { R2ProjectStorage, r2AssetKey } from './r2-storage.js'
+import { bindOrCreateUser, handleUniversalAuthRequest } from './universal-auth.js'
+import { currentUser, handleAuthRequest, issueSession } from './auth.js'
 
 const testEnv = env as typeof env & { TEST_MIGRATIONS: D1Migration[] }
 
@@ -16,6 +18,21 @@ describe('BlendProof Worker local runtime', () => {
     const tables = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all<{ name: string }>()
     expect(tables.results.map((row) => row.name)).toContain('projects')
     expect(tables.results.map((row) => row.name)).toContain('rate_limit_windows')
+    expect(tables.results.map((row) => row.name)).toContain('identity_bindings')
+    expect(tables.results.map((row) => row.name)).toContain('oidc_login_transactions')
+    const sessionColumns = await env.DB.prepare("PRAGMA table_info('sessions')").all<{ name: string }>()
+    expect(sessionColumns.results.map((column) => column.name)).toEqual(expect.arrayContaining([
+      'auth_source', 'universal_refresh_token', 'universal_checked_at',
+    ]))
+  })
+
+  it('keeps Universal identity disabled unless the deployment explicitly opts in', async () => {
+    const config = await SELF.fetch('https://blendproof.test/api/auth/config')
+    expect(config.status).toBe(200)
+    expect(await config.json()).toMatchObject({ mode: 'off', universalAvailable: false })
+    const start = await SELF.fetch('https://blendproof.test/api/auth/universal/start')
+    expect(start.status).toBe(503)
+    expect(start.headers.get('cache-control')).toBe('private, no-store')
   })
 
   it('bootstraps exactly one deployment-configured administrator and then closes the endpoint', async () => {
@@ -36,6 +53,130 @@ describe('BlendProof Worker local runtime', () => {
       body: JSON.stringify({ password: 'another admin password' }),
     })
     expect(repeated.status).toBe(409)
+  })
+
+  it('captures an existing local session for explicit Universal binding without matching by email', async () => {
+    const now = new Date().toISOString()
+    const localId = randomHex(16)
+    const localToken = randomHex(32)
+    await env.DB.prepare(`INSERT INTO users
+      (id,email,password_hash,display_name,role,invite_id,disabled_at,created_at,updated_at)
+      VALUES (?,?,'test-only','Legacy owner','user',NULL,NULL,?,?)`)
+      .bind(localId, `legacy-${localId}@example.test`, now, now).run()
+    await env.DB.prepare(`INSERT INTO sessions
+      (id,token_hash,user_id,expires_at,revoked_at,created_at,updated_at,auth_source)
+      VALUES (?,?,?,?,NULL,?,?,'local')`)
+      .bind(randomHex(16), await sha256Text(localToken), localId, new Date(Date.now() + 60_000).toISOString(), now, now).run()
+    const optionalEnv = { ...env, UNIVERSAL_AUTH_MODE: 'optional', UNIVERSAL_OIDC_ISSUER: 'https://accounts.example.test',
+      UNIVERSAL_OIDC_CLIENT_ID: 'blendproof-web-v1' }
+    const request = new Request('https://blendproof.test/api/auth/universal/start?returnTo=%2Flegacy', { headers: { cookie: `bp_session=${localToken}` } })
+    const response = await handleUniversalAuthRequest(request, optionalEnv, new URL(request.url))
+    expect(response?.status).toBe(302)
+    const state = new URL(response!.headers.get('location')!).searchParams.get('state')!
+    const transaction = await env.DB.prepare('SELECT local_user_id,return_to FROM oidc_login_transactions WHERE state_hash=?')
+      .bind(await sha256Text(state)).first<{ local_user_id: string; return_to: string }>()
+    expect(transaction).toEqual({ local_user_id: localId, return_to: '/legacy' })
+    const subject = `uas_${randomHex(16)}`
+    const universalEmail = `universal-${localId}@example.test`
+    const bound = await bindOrCreateUser(optionalEnv, 'https://accounts.example.test', subject, localId, false,
+      { email: universalEmail, displayName: 'Universal Owner' })
+    expect(bound).toMatchObject({ id: localId, email: universalEmail, displayName: 'Universal Owner', role: 'user' })
+    const binding = await env.DB.prepare('SELECT external_subject,local_user_id,created_by FROM identity_bindings WHERE local_user_id=?')
+      .bind(localId).first<{ external_subject: string; local_user_id: string; created_by: string }>()
+    expect(binding).toEqual({ external_subject: subject, local_user_id: localId, created_by: 'user_binding' })
+    const updatedLocal = await env.DB.prepare('SELECT email,display_name FROM users WHERE id=?').bind(localId)
+      .first<{ email: string; display_name: string }>()
+    expect(updatedLocal).toEqual({ email: universalEmail, display_name: 'Universal Owner' })
+  })
+
+  it('creates first-login business users from Universal profile without changing the immutable subject mapping', async () => {
+    const issuer = 'https://accounts.example.test'
+    const subject = `uas_${randomHex(16)}`
+    const email = `new-${randomHex(8)}@example.test`
+    const created = await bindOrCreateUser(env, issuer, subject, null, false, { email, displayName: 'New Universal User' })
+    expect(created).toMatchObject({ email, displayName: 'New Universal User', role: 'user' })
+    const localId = (created as { id: string }).id
+    const stored = await env.DB.prepare(`SELECT u.email,u.display_name,b.external_subject,b.created_by
+      FROM users u JOIN identity_bindings b ON b.local_user_id=u.id WHERE u.id=?`).bind(localId)
+      .first<{ email: string; display_name: string; external_subject: string; created_by: string }>()
+    expect(stored).toEqual({ email, display_name: 'New Universal User', external_subject: subject, created_by: 'first_login' })
+  })
+
+  it('refreshes Universal profile and permission cache while preserving the local business identity', async () => {
+    const now = new Date().toISOString()
+    const localId = randomHex(16)
+    const subject = `uas_${randomHex(16)}`
+    const oldEmail = `old-${randomHex(8)}@example.test`
+    const newEmail = `new-${randomHex(8)}@example.test`
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO users
+        (id,email,password_hash,display_name,role,invite_id,disabled_at,created_at,updated_at)
+        VALUES (?,?,'external-identity-only','Old Name','user',NULL,NULL,?,?)`).bind(localId, oldEmail, now, now),
+      env.DB.prepare(`INSERT INTO identity_bindings
+        (id,provider,issuer,external_subject,local_user_id,product_admin,linked_at,last_verified_at,created_by)
+        VALUES (?,'universal','https://accounts.example.test',?,?,0,?,?, 'first_login')`)
+        .bind(randomHex(16), subject, localId, now, now),
+    ])
+    const service = { fetch: async (request: Request) => new URL(request.url).pathname === '/oauth2/token'
+      ? Response.json({ access_token: 'new-access-token', refresh_token: 'new-refresh-token' })
+      : Response.json({ sub: subject, productId: 'blendproof', permissions: { login: true, product_admin: true },
+        email: newEmail, name: 'Updated Universal Name' }) }
+    const refreshEnv = { ...env, UNIVERSAL_AUTH_MODE: 'required', UNIVERSAL_OIDC_ISSUER: 'https://accounts.example.test',
+      UNIVERSAL_OIDC_CLIENT_ID: 'blendproof-web-v1', UNIVERSAL_SESSION_SECRET: 'blendproof-test-universal-session-secret-0001',
+      UNIVERSAL_OIDC_SERVICE: service as unknown as Fetcher }
+    const issued = await issueSession(refreshEnv, { id: localId, email: oldEmail, displayName: 'Old Name', role: 'user', createdAt: now }, 200,
+      { source: 'universal', universalRefreshToken: 'old-refresh-token' })
+    const cookie = issued.headers.get('set-cookie')!.split(';', 1)[0]
+    await env.DB.prepare("UPDATE sessions SET universal_checked_at='2000-01-01T00:00:00.000Z' WHERE user_id=?").bind(localId).run()
+    const refreshed = await currentUser(new Request('https://blendproof.test/api/me', { headers: { cookie } }), refreshEnv)
+    expect(refreshed).toMatchObject({ id: localId, email: newEmail, displayName: 'Updated Universal Name', role: 'admin' })
+    const binding = await env.DB.prepare('SELECT external_subject,product_admin FROM identity_bindings WHERE local_user_id=?')
+      .bind(localId).first<{ external_subject: string; product_admin: number }>()
+    expect(binding).toEqual({ external_subject: subject, product_admin: 1 })
+  })
+
+  it('uses a user-only grace window for transient Universal outages and revokes explicit denial', async () => {
+    const now = new Date().toISOString()
+    const localId = randomHex(16)
+    const subject = `uas_${randomHex(16)}`
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO users
+        (id,email,password_hash,display_name,role,invite_id,disabled_at,created_at,updated_at)
+        VALUES (?,'grace@example.test','external-identity-only','Grace User','user',NULL,NULL,?,?)`).bind(localId, now, now),
+      env.DB.prepare(`INSERT INTO identity_bindings
+        (id,provider,issuer,external_subject,local_user_id,product_admin,linked_at,last_verified_at,created_by)
+        VALUES (?,'universal','https://accounts.example.test',?,?,1,?,?, 'first_login')`)
+        .bind(randomHex(16), subject, localId, now, now),
+    ])
+    const transientService = { fetch: async () => new Response('temporarily unavailable', { status: 503 }) }
+    const baseRefreshEnv = { ...env, UNIVERSAL_AUTH_MODE: 'required', UNIVERSAL_AUTH_GRACE_SECONDS: '1800',
+      UNIVERSAL_OIDC_ISSUER: 'https://accounts.example.test', UNIVERSAL_OIDC_CLIENT_ID: 'blendproof-web-v1',
+      UNIVERSAL_SESSION_SECRET: 'blendproof-test-universal-session-secret-0001' }
+    const issued = await issueSession({ ...baseRefreshEnv, UNIVERSAL_OIDC_SERVICE: transientService as unknown as Fetcher },
+      { id: localId, email: 'grace@example.test', displayName: 'Grace User', role: 'user', createdAt: now }, 200,
+      { source: 'universal', universalRefreshToken: 'refresh-token' })
+    const cookie = issued.headers.get('set-cookie')!.split(';', 1)[0]
+
+    await env.DB.prepare('UPDATE sessions SET universal_checked_at=? WHERE user_id=?')
+      .bind(new Date(Date.now() - 10 * 60_000).toISOString(), localId).run()
+    const graceUser = await currentUser(new Request('https://blendproof.test/api/me', { headers: { cookie } }),
+      { ...baseRefreshEnv, UNIVERSAL_OIDC_SERVICE: transientService as unknown as Fetcher })
+    expect(graceUser).toMatchObject({ id: localId, role: 'user' })
+
+    await env.DB.prepare('UPDATE sessions SET universal_checked_at=? WHERE user_id=?')
+      .bind(new Date(Date.now() - 31 * 60_000).toISOString(), localId).run()
+    expect(await currentUser(new Request('https://blendproof.test/api/me', { headers: { cookie } }),
+      { ...baseRefreshEnv, UNIVERSAL_OIDC_SERVICE: transientService as unknown as Fetcher })).toBeNull()
+    expect((await env.DB.prepare('SELECT revoked_at FROM sessions WHERE user_id=?').bind(localId)
+      .first<{ revoked_at: string | null }>())?.revoked_at).toBeNull()
+
+    const deniedService = { fetch: async () => Response.json({ error: 'invalid_grant' }, { status: 401 }) }
+    await env.DB.prepare('UPDATE sessions SET universal_checked_at=? WHERE user_id=?')
+      .bind(new Date(Date.now() - 10 * 60_000).toISOString(), localId).run()
+    expect(await currentUser(new Request('https://blendproof.test/api/me', { headers: { cookie } }),
+      { ...baseRefreshEnv, UNIVERSAL_OIDC_SERVICE: deniedService as unknown as Fetcher })).toBeNull()
+    expect((await env.DB.prepare('SELECT revoked_at FROM sessions WHERE user_id=?').bind(localId)
+      .first<{ revoked_at: string | null }>())?.revoked_at).not.toBeNull()
   })
 
   it('publishes privacy-safe public pool statistics', async () => {
@@ -918,6 +1059,28 @@ describe('BlendProof Worker local runtime', () => {
     const me = await SELF.fetch('https://blendproof.test/api/me', { headers: { cookie: guestCookie } })
     expect(me.status).toBe(200)
     expect(await me.json()).toMatchObject({ user: { email: 'guest@blendproof.itycon.cn' } })
+  })
+
+  it('keeps the public guest login available when Universal identity is required', async () => {
+    const origin = 'http://localhost:5173'
+    const requiredEnv = { ...env, UNIVERSAL_AUTH_MODE: 'required' }
+    const loginRequest = new Request('https://blendproof.test/api/auth/login', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'guest@blendproof.itycon.cn', password: 'tycon' }),
+    })
+    const login = await handleAuthRequest(loginRequest, requiredEnv, new URL(loginRequest.url))
+    expect(login?.status).toBe(200)
+    const guestCookie = (login?.headers.get('set-cookie') ?? '').split(';', 1)[0]
+    const meRequest = new Request('https://blendproof.test/api/me', { headers: { cookie: guestCookie } })
+    const me = await handleAuthRequest(meRequest, requiredEnv, new URL(meRequest.url))
+    expect(await me?.json()).toMatchObject({ user: { email: 'guest@blendproof.itycon.cn', role: 'user' } })
+
+    const legacyRequest = new Request('https://blendproof.test/api/auth/login', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'owner@example.com', password: 'correct-horse-battery-staple' }),
+    })
+    const legacy = await handleAuthRequest(legacyRequest, requiredEnv, new URL(legacyRequest.url))
+    expect(legacy?.status).toBe(410)
   })
 
   it('serves the permanent Suzanne demo share and persists guest review comments', async () => {

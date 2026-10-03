@@ -1,10 +1,7 @@
 /**
  * BlenderViewControls — OrbitControls wrapper that implements Blender-style
  * middle-drag orbit, Shift+middle-drag pan, and camera preset / review-camera
- * playback.
- *
- * Also exports captureCameraState (pure function, also in utils.ts but
- * re-exported here for co-location convenience).
+ * playback. CameraState remains re-exported here for co-location convenience.
  */
 
 import { useEffect, useRef } from "react";

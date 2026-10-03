@@ -44,7 +44,7 @@ export function ObjectOutliner({
       data-guide="outliner"
       style={{ height: collapsed ? 28 : height }}
     >
-      <div className="panel-header">
+      <div className="panel-header" draggable>
         <button
           type="button"
           className="panel-toggle"

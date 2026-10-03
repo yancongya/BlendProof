@@ -26,7 +26,7 @@ export function ConversionPanel({
       className={`panel summary-panel ${collapsed ? "collapsed" : ""}`}
       style={{ height: collapsed ? 28 : height }}
     >
-      <div className="panel-header">
+      <div className="panel-header" draggable>
         <button
           type="button"
           className="panel-toggle"

@@ -79,6 +79,14 @@ export function StartPage({
   const [inviteCode, setInviteCode] = useState("");
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
+  const [identityConfig, setIdentityConfig] = useState<{
+    mode: "off" | "optional" | "required";
+    universalAvailable: boolean;
+    registerUrl: string | null;
+    resetPasswordUrl: string | null;
+    accountUrl: string | null;
+    adminUrl: string | null;
+  }>({ mode: "off", universalAvailable: false, registerUrl: null, resetPasswordUrl: null, accountUrl: null, adminUrl: null });
   const [startTab, setStartTab] = useState<
     "start" | "recent" | "status" | "account"
   >(initialTab);
@@ -90,6 +98,13 @@ export function StartPage({
   useEffect(() => {
     const interval = window.setInterval(() => setClock(Date.now()), 1_000);
     return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/auth/config", { credentials: "same-origin" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((value) => { if (value) setIdentityConfig(value); })
+      .catch(() => undefined);
   }, []);
 
   const responseTime = useMemo(() => {
@@ -167,6 +182,19 @@ export function StartPage({
       setAccountError(
         reason instanceof Error ? reason.message : "账号操作失败。",
       );
+    } finally {
+      setAccountBusy(false);
+    }
+  }
+
+  async function loginAsGuest() {
+    setAccountBusy(true);
+    setAccountError(null);
+    try {
+      await onLogin("guest@blendproof.itycon.cn", "tycon");
+      setAuthOpen(false);
+    } catch (reason) {
+      setAccountError(reason instanceof Error ? reason.message : "体验账号登录失败。");
     } finally {
       setAccountBusy(false);
     }
@@ -426,7 +454,7 @@ export function StartPage({
                 </span>
                 <span>
                   <strong>{stats?.userCount ?? "—"}</strong>
-                  <small>注册用户</small>
+                  <small>BlendProof 用户</small>
                 </span>
               </div>
               <div className="start-lifetime-stats" aria-label="累计处理统计">
@@ -531,7 +559,15 @@ export function StartPage({
                       <dd>{accountStats?.activeShareCount ?? "—"}</dd>
                     </div>
                   </dl>
-                  {account.role === "admin" && (
+                  {identityConfig.mode !== "off" && (
+                    <div className="account-buttons">
+                      <button onClick={() => window.location.assign(identityConfig.accountUrl ?? "/api/auth/universal/account")}>统一账号中心</button>
+                      {account.role === "admin" && (
+                        <button onClick={() => window.location.assign(identityConfig.adminUrl ?? "/api/auth/universal/admin")}>账号管理后台</button>
+                      )}
+                    </div>
+                  )}
+                  {account.role === "admin" && identityConfig.mode === "off" && (
                     <AdminConsole
                       accountId={account.id}
                       onCreateInvite={onCreateInvite}
@@ -540,27 +576,45 @@ export function StartPage({
                 </>
               ) : (
                 <>
-                  <p>
-                    登录后可以查看自己的项目、分享数量和空间占用。为了控制公益资源，注册需要管理员发放的邀请码。
-                  </p>
+                  <p>{identityConfig.mode === "off"
+                    ? "登录后可以查看自己的项目、分享数量和空间占用。为了控制公益资源，注册需要管理员发放的邀请码。"
+                    : "使用 Universal 统一账号登录。注册、密码重置和账号管理均在账号中心完成。"}</p>
                   <div className="account-buttons">
-                    <button
+                    {identityConfig.mode !== "off" && identityConfig.universalAvailable && <button
+                      onClick={() => window.location.assign("/api/auth/universal/start")}
+                    >
+                      <LogIn size={13} /> 使用 Universal 登录
+                    </button>}
+                    {identityConfig.mode === "off" && <button
                       onClick={() => {
                         setAuthMode("login");
                         setAuthOpen(true);
                       }}
                     >
                       <LogIn size={13} /> 登录
-                    </button>
-                    <button
+                    </button>}
+                    {identityConfig.mode === "off" && <button
                       onClick={() => {
                         setAuthMode("register");
                         setAuthOpen(true);
                       }}
                     >
                       <KeyRound size={13} /> 使用邀请码注册
-                    </button>
+                    </button>}
+                    {identityConfig.mode !== "off" && <button
+                      onClick={() => window.location.assign(identityConfig.registerUrl ?? "/api/auth/universal/register")}
+                    >
+                      <KeyRound size={13} /> 注册统一账号
+                    </button>}
+                    {identityConfig.mode !== "off" && <button
+                      onClick={() => window.location.assign(identityConfig.resetPasswordUrl ?? "/api/auth/universal/reset-password")}
+                    >重置密码</button>}
                   </div>
+                  {identityConfig.mode === "optional" && <button
+                    type="button"
+                    className="account-legacy-login"
+                    onClick={() => { setAuthMode("login"); setAuthOpen(true); }}
+                  >旧 BlendProof 账号登录与绑定</button>}
                   <div className="demo-account-box" style={{ marginTop: '16px', padding: '12px', background: '#1c1c1c', border: '1px solid #333', borderRadius: '4px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#e87d0d', fontSize: '11px', fontWeight: 600, marginBottom: '6px' }}>
                       <ShieldCheck size={14} /> 公开体验账号
@@ -577,17 +631,14 @@ export function StartPage({
                     <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
                       <button
                         type="button"
+                        disabled={accountBusy}
                         style={{ padding: '4px 10px', background: '#2c2c2c', border: '1px solid #444', color: '#e0e0e0', borderRadius: '2px', fontSize: '10px', cursor: 'pointer' }}
-                        onClick={() => {
-                          setEmail("guest@blendproof.itycon.cn");
-                          setPassword("tycon");
-                          setAuthMode("login");
-                          setAuthOpen(true);
-                        }}
+                        onClick={loginAsGuest}
                       >
-                        一键填入并登录
+                        {accountBusy ? "正在登录…" : "一键进入体验账号"}
                       </button>
                     </div>
+                    {accountError && <p role="alert" style={{ margin: '8px 0 0', color: '#e26b5b', fontSize: '10px' }}>{accountError}</p>}
                   </div>
                 </>
               )}
@@ -598,14 +649,14 @@ export function StartPage({
           <span>BlendProof 公益 3D 审稿</span>
           <span>
             {stats
-              ? `${stats.projectCount} 项目 · ${stats.activeShareCount} 分享 · ${stats.userCount} 用户`
+              ? `${stats.projectCount} 项目 · ${stats.activeShareCount} 分享 · ${stats.userCount} 位产品用户`
               : "—"}{" "}
             · 容量 {stats ? formatBytes(stats.capacityBytes) : "—"} ·
             最长分享 {stats?.retentionHours ?? 48} 小时
           </span>
         </footer>
       </section>
-      {authOpen && (
+      {authOpen && identityConfig.mode !== "required" && (
         <div
           className="uploader-modal-backdrop account-modal-backdrop"
           onMouseDown={(event) => {
@@ -632,7 +683,7 @@ export function StartPage({
                 ×
               </button>
             </div>
-            <div className="account-tabs">
+            {identityConfig.mode === "off" && <div className="account-tabs">
               <button
                 type="button"
                 className={authMode === "login" ? "active" : ""}
@@ -653,8 +704,8 @@ export function StartPage({
               >
                 注册
               </button>
-            </div>
-            {authMode === "register" && (
+            </div>}
+            {authMode === "register" && identityConfig.mode === "off" && (
               <>
                 <label>
                   显示名称
@@ -701,7 +752,7 @@ export function StartPage({
                 ? "登录"
                 : "创建账号"}
             </button>
-            <small>注册只接受管理员发放的邀请码。</small>
+            <small>{identityConfig.mode === "off" ? "注册只接受管理员发放的邀请码。" : "旧登录仅用于迁移；登录后请绑定 Universal 统一账号。"}</small>
           </form>
         </div>
       )}

@@ -215,6 +215,8 @@ npm run test:worker
 
 Run `npm run build` before shipping web changes and `npm run worker:dry-run` when touching the Worker. Confirm the dry-run bundle contains no `.blend`, `.dev.vars`, local database, or `storage/` content.
 
+For official hosting, forks, identity secrets, callback isolation, and provider-outage behavior, see [`docs/SELF_HOSTED_IDENTITY.md`](docs/SELF_HOSTED_IDENTITY.md).
+
 **Working conventions** are recorded in [`AGENTS.md`](AGENTS.md): stable product boundaries, the requirement that the Worker enforces authorization rather than the UI, and the rule that real Cloudflare resources, DNS, secrets, and remote migrations require explicit approval. Long-term state lives in [`.planning/STATE.md`](.planning/STATE.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

@@ -1,10 +1,17 @@
 import { enforceRateLimit, rateLimitRules } from './rate-limit.js'
 import type { UploadEnv } from './uploads.js'
+import { universalProfile } from './universal-profile.js'
 
 export type AuthEnv = UploadEnv & {
   BOOTSTRAP_ADMIN_EMAIL?: string
   BOOTSTRAP_ADMIN_NAME?: string
   BOOTSTRAP_ADMIN_TOKEN?: string
+  UNIVERSAL_AUTH_MODE?: string
+  UNIVERSAL_OIDC_ISSUER?: string
+  UNIVERSAL_OIDC_CLIENT_ID?: string
+  UNIVERSAL_SESSION_SECRET?: string
+  UNIVERSAL_OIDC_SERVICE?: Fetcher
+  UNIVERSAL_AUTH_GRACE_SECONDS?: string
 }
 
 export type AuthUser = {
@@ -22,16 +29,20 @@ type UserRow = {
   display_name: string
   role: 'user' | 'admin'
   created_at: string
+  auth_source?: 'local' | 'universal'
 }
 
 const SESSION_COOKIE = 'bp_session'
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+const UNIVERSAL_RECHECK_MS = 5 * 60_000
+const DEFAULT_UNIVERSAL_GRACE_SECONDS = 30 * 60
 
 /** Handles only account endpoints; null lets the Worker continue routing. */
 export async function handleAuthRequest(request: Request, env: AuthEnv, url: URL): Promise<Response | null> {
-  if (request.method === 'POST' && url.pathname === '/api/auth/bootstrap-admin') return bootstrapAdmin(request, env)
-  if (request.method === 'POST' && url.pathname === '/api/auth/register') return register(request, env)
-  if (request.method === 'POST' && url.pathname === '/api/auth/login') return login(request, env)
+  const mode = identityMode(env)
+  if (request.method === 'POST' && url.pathname === '/api/auth/bootstrap-admin') return mode === 'off' ? bootstrapAdmin(request, env) : retiredAccountEndpoint()
+  if (request.method === 'POST' && url.pathname === '/api/auth/register') return mode === 'off' ? register(request, env) : retiredAccountEndpoint()
+  if (request.method === 'POST' && url.pathname === '/api/auth/login') return login(request, env, mode === 'required')
   if (request.method === 'POST' && url.pathname === '/api/auth/logout') return logout(request, env)
   if (request.method === 'GET' && url.pathname === '/api/me') {
     const user = await currentUser(request, env)
@@ -39,13 +50,13 @@ export async function handleAuthRequest(request: Request, env: AuthEnv, url: URL
     return Response.json({ user }, { headers: privateHeaders() })
   }
   if (request.method === 'GET' && url.pathname === '/api/me/stats') return ownStats(request, env)
-  if (request.method === 'POST' && url.pathname === '/api/admin/invites') return createInvite(request, env)
-  if (request.method === 'GET' && url.pathname === '/api/admin/invites') return listInvites(request, env)
+  if (request.method === 'POST' && url.pathname === '/api/admin/invites') return mode === 'off' ? createInvite(request, env) : retiredAccountEndpoint()
+  if (request.method === 'GET' && url.pathname === '/api/admin/invites') return mode === 'off' ? listInvites(request, env) : retiredAccountEndpoint()
   const inviteRevoke = url.pathname.match(/^\/api\/admin\/invites\/([a-f0-9]{32})$/)
-  if (request.method === 'DELETE' && inviteRevoke) return revokeInvite(request, env, inviteRevoke[1])
-  if (request.method === 'GET' && url.pathname === '/api/admin/users') return listUsers(request, env)
+  if (request.method === 'DELETE' && inviteRevoke) return mode === 'off' ? revokeInvite(request, env, inviteRevoke[1]) : retiredAccountEndpoint()
+  if (request.method === 'GET' && url.pathname === '/api/admin/users') return mode === 'off' ? listUsers(request, env) : retiredAccountEndpoint()
   const userDisable = url.pathname.match(/^\/api\/admin\/users\/([a-f0-9]{32})\/disable$/)
-  if (request.method === 'POST' && userDisable) return disableUser(request, env, userDisable[1])
+  if (request.method === 'POST' && userDisable) return mode === 'off' ? disableUser(request, env, userDisable[1]) : retiredAccountEndpoint()
   if (request.method === 'GET' && url.pathname === '/api/admin/settings') return adminSettings(request, env)
   if (request.method === 'PATCH' && url.pathname === '/api/admin/settings') return updateAdminSettings(request, env)
   if (request.method === 'GET' && url.pathname === '/api/admin/stats') return adminStats(request, env)
@@ -86,11 +97,29 @@ export async function currentUser(request: Request, env: AuthEnv): Promise<AuthU
   const token = cookie(request, SESSION_COOKIE)
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null
   const now = new Date().toISOString()
-  const row = await env.DB.prepare(`SELECT u.id, u.email, u.password_hash, u.display_name, u.role, u.created_at
+  const row = await env.DB.prepare(`SELECT u.id, u.email, u.password_hash, u.display_name,
+    CASE WHEN s.auth_source = 'universal' AND COALESCE(b.product_admin, 0) = 1 THEN 'admin' ELSE u.role END AS role,
+    u.created_at, s.auth_source, s.id AS session_id, s.universal_refresh_token, s.universal_checked_at
     FROM sessions s JOIN users u ON u.id = s.user_id
+    LEFT JOIN identity_bindings b ON b.local_user_id = u.id AND b.provider = 'universal'
     WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND u.disabled_at IS NULL`)
-    .bind(await sha256Text(token), now).first<UserRow>()
-  return row ? publicUser(row) : null
+    .bind(await sha256Text(token), now).first<UserRow & { session_id: string; universal_refresh_token: string | null; universal_checked_at: string | null }>()
+  if (!row || (identityMode(env) === 'required' && row.auth_source !== 'universal' && row.id !== GUEST_DEMO_USER_ID)) return null
+  if (row.auth_source === 'universal' && (!row.universal_checked_at || Date.now() - Date.parse(row.universal_checked_at) >= UNIVERSAL_RECHECK_MS)) {
+    const refreshed = await refreshUniversalSession(env, row.session_id, row.id, row.universal_refresh_token)
+    if (!refreshed) return null
+    if (refreshed.kind === 'transient') {
+      const lastVerifiedAt = Date.parse(row.universal_checked_at ?? '')
+      if (!Number.isFinite(lastVerifiedAt) || Date.now() - lastVerifiedAt > universalGraceMs(env)) return null
+      // A cached identity may keep using ordinary product features during a
+      // short provider outage, but elevated product-admin authority never does.
+      return { ...publicUser(row), role: 'user' }
+    }
+    const updated = await userById(env, row.id)
+    if (!updated) return null
+    return { ...updated, role: refreshed.productAdmin ? 'admin' : 'user' }
+  }
+  return publicUser(row)
 }
 
 async function register(request: Request, env: AuthEnv): Promise<Response> {
@@ -142,7 +171,7 @@ async function ensureGuestUser(env: AuthEnv): Promise<UserRow | null> {
   return row
 }
 
-async function login(request: Request, env: AuthEnv): Promise<Response> {
+async function login(request: Request, env: AuthEnv, guestOnly = false): Promise<Response> {
   const originError = mutationOriginError(request, env)
   if (originError) return originError
   const limitError = await enforceRateLimit(request, env, rateLimitRules.authLogin)
@@ -160,6 +189,8 @@ async function login(request: Request, env: AuthEnv): Promise<Response> {
     }
   }
 
+  if (guestOnly) return retiredAccountEndpoint()
+
   const row = await env.DB.prepare(`SELECT id, email, password_hash, display_name, role, created_at
     FROM users WHERE email = ? AND disabled_at IS NULL`).bind(email).first<UserRow>()
   if (!row || !validPassword(password) || !await verifyPassword(password, row.password_hash)) return error('邮箱或密码不正确。', 401)
@@ -172,8 +203,19 @@ async function logout(request: Request, env: AuthEnv): Promise<Response> {
   const token = cookie(request, SESSION_COOKIE)
   if (token && /^[a-f0-9]{64}$/.test(token)) {
     const now = new Date().toISOString()
+    const tokenHash = await sha256Text(token)
+    const universal = await env.DB.prepare(`SELECT id,universal_refresh_token FROM sessions
+      WHERE token_hash=? AND auth_source='universal' AND revoked_at IS NULL`).bind(tokenHash)
+      .first<{ id: string; universal_refresh_token: string | null }>()
+    if (universal?.universal_refresh_token && env.UNIVERSAL_OIDC_ISSUER) {
+      try {
+        const refreshToken = await decryptSessionSecret(env, universal.id, universal.universal_refresh_token)
+        await universalFetch(env, '/oauth2/revoke', { method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token: refreshToken }) })
+      } catch { /* local logout remains authoritative for the BlendProof browser */ }
+    }
     await env.DB.prepare('UPDATE sessions SET revoked_at = ?, updated_at = ? WHERE token_hash = ? AND revoked_at IS NULL')
-      .bind(now, now, await sha256Text(token)).run()
+      .bind(now, now, tokenHash).run()
   }
   return new Response(null, { status: 204, headers: { ...privateHeaders(), 'Set-Cookie': clearSessionCookie() } })
 }
@@ -333,14 +375,22 @@ export async function publicStats(env: AuthEnv) {
     cleanedFileCount: lifetime?.cleaned_asset_count ?? 0, cleanedBytes: lifetime?.cleaned_bytes ?? 0 }
 }
 
-async function sessionResponse(env: AuthEnv, user: AuthUser, status: number) {
+export async function issueSession(env: AuthEnv, user: AuthUser, status: number,
+  options: { source?: 'local' | 'universal'; ttlSeconds?: number; location?: string; universalRefreshToken?: string } = {}) {
   const token = randomHex(32)
+  const sessionId = randomHex(16)
   const now = new Date().toISOString()
-  const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString()
-  await env.DB.prepare(`INSERT INTO sessions (id, token_hash, user_id, expires_at, revoked_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, NULL, ?, ?)`).bind(randomHex(16), await sha256Text(token), user.id, expiresAt, now, now).run()
-  return Response.json({ user }, { status, headers: { ...privateHeaders(), 'Set-Cookie': sessionCookie(token) } })
+  const ttlSeconds = options.ttlSeconds ?? SESSION_TTL_SECONDS
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString()
+  const encryptedRefreshToken = options.universalRefreshToken ? await encryptSessionSecret(env, sessionId, options.universalRefreshToken) : null
+  await env.DB.prepare(`INSERT INTO sessions (id, token_hash, user_id, expires_at, revoked_at, created_at, updated_at, auth_source, universal_refresh_token, universal_checked_at)
+    VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`).bind(sessionId, await sha256Text(token), user.id, expiresAt, now, now,
+      options.source ?? 'local', encryptedRefreshToken, options.source === 'universal' ? now : null).run()
+  const headers = { ...privateHeaders(), 'Set-Cookie': sessionCookie(token, ttlSeconds), ...(options.location ? { Location: options.location } : {}) }
+  return options.location ? new Response(null, { status, headers }) : Response.json({ user }, { status, headers })
 }
+
+const sessionResponse = issueSession
 
 async function userById(env: AuthEnv, id: string): Promise<AuthUser | null> {
   const row = await env.DB.prepare('SELECT id, email, password_hash, display_name, role, created_at FROM users WHERE id = ? AND disabled_at IS NULL')
@@ -354,18 +404,88 @@ function normalizeDisplayName(value: unknown) { const name = typeof value === 's
 function validPassword(value: string) { return value.length >= 8 && value.length <= 200 }
 function validInviteCode(value: string) { return /^BP-[A-F0-9]{24}$/.test(value) }
 function cookie(request: Request, name: string) { const prefix = `${name}=`; return request.headers.get('cookie')?.split(';').map((item) => item.trim()).find((item) => item.startsWith(prefix))?.slice(prefix.length) ?? '' }
-function sessionCookie(token: string) { return `${SESSION_COOKIE}=${token}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}` }
+function sessionCookie(token: string, ttlSeconds = SESSION_TTL_SECONDS) { return `${SESSION_COOKIE}=${token}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=${ttlSeconds}` }
 function clearSessionCookie() { return `${SESSION_COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0` }
 function mutationOriginError(request: Request, env: AuthEnv) { return request.headers.get('origin') === env.APP_ORIGIN ? null : error('请求来源无效。', 403) }
 function privateHeaders() { return { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' } }
 function unauthorized() { return Response.json({ error: '请先登录。' }, { status: 401, headers: privateHeaders() }) }
 function forbidden() { return Response.json({ error: '需要管理员权限。' }, { status: 403, headers: privateHeaders() }) }
+function retiredAccountEndpoint() { return Response.json({ error: '账号功能已迁移到 Universal 统一账号中心。' }, { status: 410, headers: privateHeaders() }) }
+function identityMode(env: AuthEnv) { return env.UNIVERSAL_AUTH_MODE === 'required' || env.UNIVERSAL_AUTH_MODE === 'optional' ? env.UNIVERSAL_AUTH_MODE : 'off' }
 function error(message: string, status: number) { return Response.json({ error: message }, { status, headers: privateHeaders() }) }
 function readJson<T>(request: Request) { return /^application\/json(?:;charset=utf-8)?$/.test((request.headers.get('content-type') ?? '').toLowerCase().replace(/\s+/g, '')) ? request.json<T>().catch(() => null) : Promise.resolve(null) }
 function randomHex(bytes: number) { const value = new Uint8Array(bytes); crypto.getRandomValues(value); return hex(value) }
 function hex(value: Uint8Array) { return [...value].map((item) => item.toString(16).padStart(2, '0')).join('') }
 async function sha256Text(value: string) { const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return hex(new Uint8Array(digest)) }
 async function sha256Bytes(value: string) { return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))) }
+async function sessionEncryptionKey(env: AuthEnv) {
+  const secret = env.UNIVERSAL_SESSION_SECRET ?? ''
+  if (secret.length < 32) throw new Error('UNIVERSAL_SESSION_SECRET is not configured')
+  return crypto.subtle.importKey('raw', await sha256Bytes(secret), 'AES-GCM', false, ['encrypt', 'decrypt'])
+}
+async function encryptSessionSecret(env: AuthEnv, sessionId: string, value: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(sessionId) },
+    await sessionEncryptionKey(env), new TextEncoder().encode(value)))
+  return `${base64Url(iv)}.${base64Url(ciphertext)}`
+}
+async function decryptSessionSecret(env: AuthEnv, sessionId: string, value: string) {
+  const [iv, ciphertext] = value.split('.')
+  if (!iv || !ciphertext) throw new Error('invalid ciphertext')
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromBase64Url(iv), additionalData: new TextEncoder().encode(sessionId) },
+    await sessionEncryptionKey(env), fromBase64Url(ciphertext))
+  return new TextDecoder().decode(plain)
+}
+type UniversalRefreshResult = { kind: 'refreshed'; productAdmin: boolean } | { kind: 'transient' }
+
+async function refreshUniversalSession(env: AuthEnv, sessionId: string, userId: string, encryptedToken: string | null): Promise<UniversalRefreshResult | null> {
+  if (!encryptedToken || !env.UNIVERSAL_OIDC_ISSUER || !env.UNIVERSAL_OIDC_CLIENT_ID) return revokeSession(env, sessionId)
+  try {
+    const refreshToken = await decryptSessionSecret(env, sessionId, encryptedToken)
+    const response = await universalFetch(env, '/oauth2/token', { method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', client_id: env.UNIVERSAL_OIDC_CLIENT_ID, refresh_token: refreshToken }) })
+    const tokens = await response.json().catch(() => ({})) as { access_token?: unknown; refresh_token?: unknown }
+    if (!response.ok) return transientProviderStatus(response.status) ? { kind: 'transient' } : revokeSession(env, sessionId)
+    if (typeof tokens.access_token !== 'string' || typeof tokens.refresh_token !== 'string') return { kind: 'transient' }
+    const meResponse = await universalFetch(env, '/v1/me', { headers: { authorization: `Bearer ${tokens.access_token}`, accept: 'application/json' } })
+    const me = await meResponse.json().catch(() => ({})) as { sub?: unknown; productId?: unknown; permissions?: unknown; email?: unknown; name?: unknown; preferred_username?: unknown }
+    if (!meResponse.ok) return transientProviderStatus(meResponse.status) ? { kind: 'transient' } : revokeSession(env, sessionId)
+    if (typeof me.sub !== 'string' || me.productId !== 'blendproof' || !me.permissions || typeof me.permissions !== 'object' || (me.permissions as Record<string, unknown>).login !== true) return revokeSession(env, sessionId)
+    const binding = await env.DB.prepare("SELECT external_subject FROM identity_bindings WHERE provider='universal' AND local_user_id=?")
+      .bind(userId).first<{ external_subject: string }>()
+    if (!binding || binding.external_subject !== me.sub) return revokeSession(env, sessionId)
+    const productAdmin = (me.permissions as Record<string, unknown>).product_admin === true
+    const profile = universalProfile(me)
+    const now = new Date().toISOString()
+    await env.DB.batch([
+      env.DB.prepare('UPDATE sessions SET universal_refresh_token=?, universal_checked_at=?, updated_at=? WHERE id=? AND revoked_at IS NULL')
+        .bind(await encryptSessionSecret(env, sessionId, tokens.refresh_token), now, now, sessionId),
+      env.DB.prepare("UPDATE identity_bindings SET product_admin=?, last_verified_at=? WHERE provider='universal' AND local_user_id=?")
+        .bind(productAdmin ? 1 : 0, now, userId),
+      env.DB.prepare('UPDATE users SET email=COALESCE(?,email), display_name=COALESCE(?,display_name), updated_at=? WHERE id=? AND disabled_at IS NULL')
+        .bind(profile.email, profile.displayName, now, userId),
+    ])
+    return { kind: 'refreshed', productAdmin }
+  } catch { return { kind: 'transient' } }
+}
+async function revokeSession(env: AuthEnv, sessionId: string): Promise<null> {
+  const now = new Date().toISOString()
+  await env.DB.prepare('UPDATE sessions SET revoked_at=?, updated_at=? WHERE id=? AND revoked_at IS NULL').bind(now, now, sessionId).run()
+  return null
+}
+function universalFetch(env: AuthEnv, path: string, init?: RequestInit) {
+  const target = new URL(path, env.UNIVERSAL_OIDC_ISSUER)
+  return env.UNIVERSAL_OIDC_SERVICE ? env.UNIVERSAL_OIDC_SERVICE.fetch(new Request(target, init)) : fetch(target, init)
+}
+function transientProviderStatus(status: number) { return status === 429 || status >= 500 }
+function universalGraceMs(env: AuthEnv) {
+  const configured = Number(env.UNIVERSAL_AUTH_GRACE_SECONDS)
+  const seconds = Number.isFinite(configured) ? Math.min(3600, Math.max(300, Math.trunc(configured))) : DEFAULT_UNIVERSAL_GRACE_SECONDS
+  return seconds * 1000
+}
+function base64Url(value: Uint8Array) { let binary = ''; value.forEach((byte) => { binary += String.fromCharCode(byte) }); return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '') }
+function fromBase64Url(value: string) { const base64 = value.replace(/-/g, '+').replace(/_/g, '/'); const binary = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')); return Uint8Array.from(binary, (character) => character.charCodeAt(0)) }
 async function hashPassword(password: string) { const salt = new Uint8Array(16); crypto.getRandomValues(salt); const derived = await pbkdf2(password, salt, 100_000); return `pbkdf2-sha256$100000$${hex(salt)}$${hex(derived)}` }
 async function verifyPassword(password: string, encoded: string) { const parts = encoded.split('$'); if (parts.length !== 4 || parts[0] !== 'pbkdf2-sha256' || parts[1] !== '100000' || !/^[a-f0-9]{32}$/.test(parts[2]) || !/^[a-f0-9]{64}$/.test(parts[3])) return false; return constantTimeEqual(await pbkdf2(password, fromHex(parts[2]), 100_000), fromHex(parts[3])) }
 async function pbkdf2(password: string, salt: Uint8Array, iterations: number) { const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']); return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: Uint8Array.from(salt), iterations }, key, 256)) }

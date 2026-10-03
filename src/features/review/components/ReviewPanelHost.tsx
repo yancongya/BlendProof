@@ -73,7 +73,7 @@ export function ReviewPanelHost({
       className={`panel review-panel-section ${collapsed ? "collapsed" : ""}`}
       style={{ flex: 1, minHeight: collapsed ? 28 : 80 }}
     >
-      <div className="panel-header">
+      <div className="panel-header" draggable>
         <button
           type="button"
           className="panel-toggle"

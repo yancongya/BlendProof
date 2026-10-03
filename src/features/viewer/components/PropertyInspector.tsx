@@ -27,7 +27,7 @@ export function PropertyInspector({
       // 把它算进来会让拖转换内容的把手连带撑高本面板。
       style={{ height: collapsed ? 28 : height + 28 }}
     >
-      <div className="panel-header">
+      <div className="panel-header" draggable>
         <button
           type="button"
           className="panel-toggle"

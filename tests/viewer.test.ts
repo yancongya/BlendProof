@@ -7,6 +7,7 @@
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { readFileSync } from "node:fs";
 import { BoxGeometry, Group, Mesh, Object3D, PerspectiveCamera, Vector3 } from "three";
 import {
   collectIsolationHierarchy,
@@ -178,4 +179,11 @@ describe("viewer/cameraPresets", () => {
     assert.equal(position[1], 0);
     assert.notEqual(position[2], 0);
   });
+});
+
+test("欢迎页显示期间不自动打开操作指南", () => {
+  const source = readFileSync(new URL("../src/pages/WorkspacePage.tsx", import.meta.url), "utf8");
+  const welcomeBranch = source.match(/if \(homeOpen\) \{([\s\S]*?)\n  \}\n\n  return \(/)?.[1] ?? "";
+  assert.match(welcomeBranch, /<BlenderWorkspace[\s\S]*?autoOpenGuide=\{false\}/);
+  assert.match(source, /autoOpenGuide=\{!homeOpen\}/);
 });

@@ -616,6 +616,7 @@ export function WorkspacePage() {
           onToggle={toggle}
           message={message}
           modelUrl={workspaceModelUrl}
+          autoOpenGuide={false}
           readOnly={false}
           displayMode={displayMode}
           onDisplayMode={setDisplayMode}

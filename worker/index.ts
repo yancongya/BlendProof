@@ -3,6 +3,7 @@ import type { UploadEnv } from './uploads.js'
 import { scheduledCleanup } from './cleanup.js'
 import { handleShareRequest } from './shares.js'
 import { currentUser, handleAuthRequest, publicStats } from './auth.js'
+import { handleUniversalAuthRequest } from './universal-auth.js'
 
 export default {
   async fetch(request: Request, env: UploadEnv): Promise<Response> {
@@ -14,6 +15,8 @@ export default {
       return Response.json(await publicStats(env), { headers: { 'Cache-Control': 'public, max-age=30' } })
     }
 
+    const universalAuthResponse = await handleUniversalAuthRequest(request, env, url)
+    if (universalAuthResponse) return universalAuthResponse
     const authResponse = await handleAuthRequest(request, env, url)
     if (authResponse) return authResponse
 
