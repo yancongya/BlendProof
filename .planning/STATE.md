@@ -3,7 +3,7 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: Production deployed; end-to-end upload acceptance pending
-Last activity: 2026-09-12 - Cloudflare D1/R2/Worker 与 `blendproof.itycon.cn` 已上线，首位管理员已安全初始化
+Last activity: 2026-10-05 - 官方 Orbit 身份与社区自托管账号已拆分，待授权部署
 
 Progress: ████▉ 99%
 
@@ -39,7 +39,8 @@ Progress: ████▉ 99%
 - `0009_platform_lifetime_metrics.sql` 已上线；根页刷新默认打开欢迎封面，状态 Tab 每秒更新运行时长、每 30 秒同步容量与累计处理/清理文件和字节统计。
 - 完成 `src/App.tsx` 模块化重构：将 2685 行单文件拆分为 `src/pages/`、`src/workspace/`、`src/start/`、`src/review/`、`src/components/` 及 `src/types.ts` / `src/utils.ts`，`App.tsx` 瘦身为轻量路由与 re-export 入口。
 - 增加未登录用户操作拦截与引导：未登录时尝试发布云端或创建分享，提示友好警告并自动切换至欢迎页“账号”Tab。
-- 增加通用访客体验账号（`guest@blendproof.itycon.cn` / `tycon`）及一键登录能力；Worker `auth.ts` 自动确保访客账号在 D1 中的正常会话，无需邀请码。
+- 官方托管使用 Orbit 品牌与独立账号页域名；`UNIVERSAL_*` 作为协议兼容名保留。社区自托管默认 `off` 模式，使用 BlendProof 内置账号和邀请码，不依赖 Orbit。
+- 官方访客体验账号（`guest@blendproof.itycon.cn` / `tycon`）改为 `ENABLE_DEMO_ACCOUNT` 显式开关；自托管默认隐藏且 Worker 拒绝该凭据。
 - 完善线上 Suzanne 猴头模型公开演示（`/s/suzanne`）的真实持久化审稿：Worker `shares.ts` 支持 `suzanne` 路由与 D1 项目/分享自动关联，访客添加的批注持久化存入 D1 数据库且永久豁免 48 小时清理；前端 `SharePage.tsx` 接入云端接口并提供离线兜底，启动页增加一键跳转公开演示。
 
 - 落地页全息 3D 视差塔罗牌门面已上线：支持【I · 造物者】与【II · 审视者】双身份卡牌交互与 Atropos 多层视差；
@@ -52,4 +53,3 @@ Progress: ████▉ 99%
 Last session: 2026-09-17
 Stopped at: Completed landing page tarot portal, i18n & dual theme adaptation, card-rush transition, and loop-illo overlap bugfix
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
-

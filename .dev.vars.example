@@ -3,6 +3,12 @@
 UPLOAD_SIGNING_SECRET="replace-with-at-least-32-random-characters"
 SHARE_ACCESS_SECRET="replace-with-an-independent-32-character-secret"
 
+# Self-hosted identity defaults. Keep the bundled local account system unless
+# this deployment has its own compatible external identity provider.
+UNIVERSAL_AUTH_MODE="off"
+IDENTITY_PROVIDER_NAME="Local account"
+ENABLE_DEMO_ACCOUNT="false"
+
 # Object storage defaults to the Wrangler ASSETS R2 binding.
 # To use an AWS SigV4 compatible private bucket, uncomment the provider and
 # endpoint values, then keep access credentials in .dev.vars / Worker Secrets.

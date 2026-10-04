@@ -22,6 +22,8 @@ export default defineConfig({
           BOOTSTRAP_ADMIN_TOKEN: 'blendproof-test-bootstrap-admin-token-0001',
           UNIVERSAL_SESSION_SECRET: 'blendproof-test-universal-session-secret-0001',
           UNIVERSAL_AUTH_MODE: 'off',
+          IDENTITY_PROVIDER_NAME: 'Local account',
+          ENABLE_DEMO_ACCOUNT: 'false',
         },
       },
     }),

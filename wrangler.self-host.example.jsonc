@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "blendproof-self-hosted",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-09-09",
+  "assets": {
+    "directory": "./dist",
+    "binding": "STATIC_ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/", "/dev", "/dev/", "/s/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "replace-with-your-d1-database",
+      "database_id": "replace-with-your-d1-database-id",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ASSETS",
+      "bucket_name": "replace-with-your-private-r2-bucket"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "APP_ORIGIN": "https://blendproof.example.com",
+    "STORAGE_PROVIDER": "r2",
+    "UNIVERSAL_AUTH_MODE": "off",
+    "IDENTITY_PROVIDER_NAME": "Local account",
+    "ENABLE_DEMO_ACCOUNT": "false"
+  }
+}

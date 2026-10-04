@@ -33,10 +33,27 @@ describe('BlendProof Worker local runtime', () => {
   it('keeps Universal identity disabled unless the deployment explicitly opts in', async () => {
     const config = await SELF.fetch('https://blendproof.test/api/auth/config')
     expect(config.status).toBe(200)
-    expect(await config.json()).toMatchObject({ mode: 'off', universalAvailable: false })
+    expect(await config.json()).toMatchObject({
+      mode: 'off', universalAvailable: false, providerName: 'Local account', demoAccountEnabled: false,
+    })
     const start = await SELF.fetch('https://blendproof.test/api/auth/universal/start')
     expect(start.status).toBe(503)
     expect(start.headers.get('cache-control')).toBe('private, no-store')
+  })
+
+  it('uses the public identity brand and account origin without changing the OIDC issuer', async () => {
+    const officialEnv = { ...env, UNIVERSAL_AUTH_MODE: 'required',
+      UNIVERSAL_OIDC_ISSUER: 'https://issuer.example.test', UNIVERSAL_OIDC_CLIENT_ID: 'blendproof-web-v1',
+      IDENTITY_PROVIDER_NAME: 'Orbit', IDENTITY_ACCOUNT_ORIGIN: 'https://orbit.example.test', ENABLE_DEMO_ACCOUNT: 'true' }
+    const configRequest = new Request('https://blendproof.test/api/auth/config')
+    const config = await handleUniversalAuthRequest(configRequest, officialEnv, new URL(configRequest.url))
+    expect(await config?.json()).toMatchObject({
+      mode: 'required', universalAvailable: true, providerName: 'Orbit', demoAccountEnabled: true,
+    })
+    const accountRequest = new Request('https://blendproof.test/api/auth/universal/account')
+    const account = await handleUniversalAuthRequest(accountRequest, officialEnv, new URL(accountRequest.url))
+    expect(account?.status).toBe(302)
+    expect(account?.headers.get('location')).toBe('https://orbit.example.test/profile')
   })
 
   it('bootstraps exactly one deployment-configured administrator and then closes the endpoint', async () => {
@@ -1043,31 +1060,43 @@ describe('BlendProof Worker local runtime', () => {
     expect(tooLong.status).toBe(400)
   })
 
-  it('supports universal guest demo login without invite code', async () => {
+  it('keeps the official demo account disabled unless the deployment opts in', async () => {
     const origin = 'http://localhost:5173'
     const login = await SELF.fetch('https://blendproof.test/api/auth/login', {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'guest@blendproof.itycon.cn', password: 'tycon' }),
+    })
+    expect(login.status).toBe(401)
+  })
+
+  it('supports the explicitly enabled official guest demo account without invite code', async () => {
+    const origin = 'http://localhost:5173'
+    const request = new Request('https://blendproof.test/api/auth/login', {
       method: 'POST',
       headers: { origin, 'content-type': 'application/json' },
       body: JSON.stringify({ email: 'guest@blendproof.itycon.cn', password: 'tycon' }),
     })
-    expect(login.status).toBe(200)
-    const guestCookie = (login.headers.get('set-cookie') ?? '').split(';', 1)[0]
+    const officialEnv = { ...env, ENABLE_DEMO_ACCOUNT: 'true' }
+    const login = await handleAuthRequest(request, officialEnv, new URL(request.url))
+    expect(login?.status).toBe(200)
+    const guestCookie = (login?.headers.get('set-cookie') ?? '').split(';', 1)[0]
     expect(guestCookie).toContain('bp_session=')
-    const body = await login.json<{ user: { email: string; role: string; displayName: string } }>()
+    const body = await login!.json<{ user: { email: string; role: string; displayName: string } }>()
     expect(body.user).toMatchObject({
       email: 'guest@blendproof.itycon.cn',
       displayName: '访客体验',
       role: 'user',
     })
 
-    const me = await SELF.fetch('https://blendproof.test/api/me', { headers: { cookie: guestCookie } })
-    expect(me.status).toBe(200)
-    expect(await me.json()).toMatchObject({ user: { email: 'guest@blendproof.itycon.cn' } })
+    const meRequest = new Request('https://blendproof.test/api/me', { headers: { cookie: guestCookie } })
+    const me = await handleAuthRequest(meRequest, officialEnv, new URL(meRequest.url))
+    expect(me?.status).toBe(200)
+    expect(await me?.json()).toMatchObject({ user: { email: 'guest@blendproof.itycon.cn' } })
   })
 
   it('keeps the public guest login available when Universal identity is required', async () => {
     const origin = 'http://localhost:5173'
-    const requiredEnv = { ...env, UNIVERSAL_AUTH_MODE: 'required' }
+    const requiredEnv = { ...env, UNIVERSAL_AUTH_MODE: 'required', ENABLE_DEMO_ACCOUNT: 'true' }
     const loginRequest = new Request('https://blendproof.test/api/auth/login', {
       method: 'POST', headers: { origin, 'content-type': 'application/json' },
       body: JSON.stringify({ email: 'guest@blendproof.itycon.cn', password: 'tycon' }),

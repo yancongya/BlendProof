@@ -12,6 +12,9 @@ export type AuthEnv = UploadEnv & {
   UNIVERSAL_SESSION_SECRET?: string
   UNIVERSAL_OIDC_SERVICE?: Fetcher
   UNIVERSAL_AUTH_GRACE_SECONDS?: string
+  IDENTITY_PROVIDER_NAME?: string
+  IDENTITY_ACCOUNT_ORIGIN?: string
+  ENABLE_DEMO_ACCOUNT?: string
 }
 
 export type AuthUser = {
@@ -104,7 +107,8 @@ export async function currentUser(request: Request, env: AuthEnv): Promise<AuthU
     LEFT JOIN identity_bindings b ON b.local_user_id = u.id AND b.provider = 'universal'
     WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND u.disabled_at IS NULL`)
     .bind(await sha256Text(token), now).first<UserRow & { session_id: string; universal_refresh_token: string | null; universal_checked_at: string | null }>()
-  if (!row || (identityMode(env) === 'required' && row.auth_source !== 'universal' && row.id !== GUEST_DEMO_USER_ID)) return null
+  if (!row || (identityMode(env) === 'required' && row.auth_source !== 'universal' &&
+    (row.id !== GUEST_DEMO_USER_ID || !demoAccountEnabled(env)))) return null
   if (row.auth_source === 'universal' && (!row.universal_checked_at || Date.now() - Date.parse(row.universal_checked_at) >= UNIVERSAL_RECHECK_MS)) {
     const refreshed = await refreshUniversalSession(env, row.session_id, row.id, row.universal_refresh_token)
     if (!refreshed) return null
@@ -182,7 +186,7 @@ async function login(request: Request, env: AuthEnv, guestOnly = false): Promise
   const password = typeof body.password === 'string' ? body.password : ''
   if (!email) return error('邮箱或密码不正确。', 401)
 
-  if (email === GUEST_DEMO_EMAIL && password === GUEST_DEMO_PASSWORD) {
+  if (demoAccountEnabled(env) && email === GUEST_DEMO_EMAIL && password === GUEST_DEMO_PASSWORD) {
     const guestRow = await ensureGuestUser(env)
     if (guestRow) {
       return sessionResponse(env, publicUser(guestRow), 200)
@@ -410,8 +414,9 @@ function mutationOriginError(request: Request, env: AuthEnv) { return request.he
 function privateHeaders() { return { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' } }
 function unauthorized() { return Response.json({ error: '请先登录。' }, { status: 401, headers: privateHeaders() }) }
 function forbidden() { return Response.json({ error: '需要管理员权限。' }, { status: 403, headers: privateHeaders() }) }
-function retiredAccountEndpoint() { return Response.json({ error: '账号功能已迁移到 Universal 统一账号中心。' }, { status: 410, headers: privateHeaders() }) }
+function retiredAccountEndpoint() { return Response.json({ error: '账号功能已迁移到外部统一账号中心。' }, { status: 410, headers: privateHeaders() }) }
 function identityMode(env: AuthEnv) { return env.UNIVERSAL_AUTH_MODE === 'required' || env.UNIVERSAL_AUTH_MODE === 'optional' ? env.UNIVERSAL_AUTH_MODE : 'off' }
+export function demoAccountEnabled(env: AuthEnv) { return env.ENABLE_DEMO_ACCOUNT === 'true' }
 function error(message: string, status: number) { return Response.json({ error: message }, { status, headers: privateHeaders() }) }
 function readJson<T>(request: Request) { return /^application\/json(?:;charset=utf-8)?$/.test((request.headers.get('content-type') ?? '').toLowerCase().replace(/\s+/g, '')) ? request.json<T>().catch(() => null) : Promise.resolve(null) }
 function randomHex(bytes: number) { const value = new Uint8Array(bytes); crypto.getRandomValues(value); return hex(value) }

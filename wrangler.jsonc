@@ -55,7 +55,10 @@
     "UNIVERSAL_AUTH_MODE": "required",
     "UNIVERSAL_AUTH_GRACE_SECONDS": "1800",
     "UNIVERSAL_OIDC_ISSUER": "https://adobesync.itycon.cn",
-    "UNIVERSAL_OIDC_CLIENT_ID": "blendproof-web-v1"
+    "UNIVERSAL_OIDC_CLIENT_ID": "blendproof-web-v1",
+    "IDENTITY_PROVIDER_NAME": "Orbit",
+    "IDENTITY_ACCOUNT_ORIGIN": "https://orbit.itycon.cn",
+    "ENABLE_DEMO_ACCOUNT": "true"
     // BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_NAME 不写入仓库，改由 Cloudflare
     // 控制台的 Worker 变量配置。它们是空库一次性 bootstrap 的输入，接口在
     // 首位管理员创建成功后即永久关闭，因此仓库无需保留其值。

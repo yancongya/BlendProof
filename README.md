@@ -73,7 +73,7 @@ The in-flight experience overhaul and the front-end decoupling plan (target modu
 - **Review notifications** — the project owner polls for new comments every 15 seconds and sees an in-app unread notice without adding a second realtime service.
 - **Platform status** — persisted uptime, cumulative files/bytes processed, and cleanup counters, refreshed on the home page.
 - **Guest review access** — clients can enter a share with a password and display name, add comments without registering, and remain isolated to that share.
-- **Universal demo guest account** — visitors can log in using `guest@blendproof.itycon.cn` (passphrase `tycon`) via a 1-click button on the welcome screen to test the cloud environment without requiring an invite code.
+- **Official Orbit demo account** — the hosted service can expose `guest@blendproof.itycon.cn` (passphrase `tycon`) for one-click cloud testing. It is disabled by default in self-hosted deployments.
 - **Splash media** — the welcome card can use `public/intro.mp4` as a video background, with the existing splash image retained as a poster/fallback for reduced-motion and unsupported-video browsers.
 - **Permanent demo** — `/s/suzanne` serves a public example model with the demo passphrase `tycon`; visitors can add surface comments as “Guest”. It counts against no quota and is exempt from cleanup.
 
@@ -217,6 +217,8 @@ Run `npm run build` before shipping web changes and `npm run worker:dry-run` whe
 
 For official hosting, forks, identity secrets, callback isolation, and provider-outage behavior, see [`docs/SELF_HOSTED_IDENTITY.md`](docs/SELF_HOSTED_IDENTITY.md).
 
+Official hosting uses the closed Orbit account platform. Community deployments remain fully usable with BlendProof's bundled local accounts and invite codes: copy [`wrangler.self-host.example.jsonc`](wrangler.self-host.example.jsonc), keep `UNIVERSAL_AUTH_MODE=off`, and replace only your own D1, R2, and origin placeholders.
+
 **Working conventions** are recorded in [`AGENTS.md`](AGENTS.md): stable product boundaries, the requirement that the Worker enforces authorization rather than the UI, and the rule that real Cloudflare resources, DNS, secrets, and remote migrations require explicit approval. Long-term state lives in [`.planning/STATE.md`](.planning/STATE.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -240,6 +242,7 @@ The Worker serves `/api/*` ahead of static assets; everything else falls back to
 | `POST` | `/api/auth/register` | Invite-code registration |
 | `POST` | `/api/auth/login` | Password login |
 | `POST` | `/api/auth/logout` | Session teardown |
+| `GET` | `/api/auth/config` | Public identity mode, provider label, account links, and demo-account availability |
 
 **Projects and uploads**
 
@@ -282,7 +285,7 @@ The review data contract is specified in [`docs/REVIEW_CONTRACT.md`](docs/REVIEW
 
 ## Deployment
 
-The production Worker, D1 database, private R2 bucket, hourly cron, and custom domain `blendproof.itycon.cn` are live. `wrangler.jsonc` holds the real resource IDs, so it is no longer a placeholder config.
+The production Worker, D1 database, private R2 bucket, hourly cron, and custom domain `blendproof.itycon.cn` are live. `wrangler.jsonc` is the official-hosting configuration and includes Orbit integration. Self-hosters should start from `wrangler.self-host.example.jsonc` rather than copying official account bindings.
 
 R2 is the default adapter. Self-hosted deployments can select an AWS SigV4-compatible private bucket with `STORAGE_PROVIDER=s3`; configuration, permissions, health response, and adapter requirements are documented in [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md).
 

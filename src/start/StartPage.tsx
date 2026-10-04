@@ -84,11 +84,13 @@ export function StartPage({
   const [identityConfig, setIdentityConfig] = useState<{
     mode: "off" | "optional" | "required";
     universalAvailable: boolean;
+    providerName: string;
+    demoAccountEnabled: boolean;
     registerUrl: string | null;
     resetPasswordUrl: string | null;
     accountUrl: string | null;
     adminUrl: string | null;
-  }>({ mode: "off", universalAvailable: false, registerUrl: null, resetPasswordUrl: null, accountUrl: null, adminUrl: null });
+  }>({ mode: "off", universalAvailable: false, providerName: "统一账号", demoAccountEnabled: false, registerUrl: null, resetPasswordUrl: null, accountUrl: null, adminUrl: null });
   const [startTab, setStartTab] = useState<
     "start" | "recent" | "status" | "account"
   >(initialTab);
@@ -580,7 +582,7 @@ export function StartPage({
                   </dl>
                   {identityConfig.mode !== "off" && (
                     <div className="account-buttons">
-                      <button onClick={() => window.location.assign(identityConfig.accountUrl ?? "/api/auth/universal/account")}>统一账号中心</button>
+                      <button onClick={() => window.location.assign(identityConfig.accountUrl ?? "/api/auth/universal/account")}>{identityConfig.providerName} 账号中心</button>
                       {account.role === "admin" && (
                         <button onClick={() => window.location.assign(identityConfig.adminUrl ?? "/api/auth/universal/admin")}>账号管理后台</button>
                       )}
@@ -597,12 +599,12 @@ export function StartPage({
                 <>
                   <p>{identityConfig.mode === "off"
                     ? "登录后可以查看自己的项目、分享数量和空间占用。为了控制公益资源，注册需要管理员发放的邀请码。"
-                    : "使用 Universal 统一账号登录。注册、密码重置和账号管理均在账号中心完成。"}</p>
+                    : `使用 ${identityConfig.providerName} 登录。注册、密码重置和账号管理均在账号中心完成。`}</p>
                   <div className="account-buttons">
                     {identityConfig.mode !== "off" && identityConfig.universalAvailable && <button
                       onClick={() => window.location.assign("/api/auth/universal/start")}
                     >
-                      <LogIn size={13} /> 使用 Universal 登录
+                      <LogIn size={13} /> 使用 {identityConfig.providerName} 登录
                     </button>}
                     {identityConfig.mode === "off" && <button
                       onClick={() => {
@@ -623,7 +625,7 @@ export function StartPage({
                     {identityConfig.mode !== "off" && <button
                       onClick={() => window.location.assign(identityConfig.registerUrl ?? "/api/auth/universal/register")}
                     >
-                      <KeyRound size={13} /> 注册统一账号
+                      <KeyRound size={13} /> 注册 {identityConfig.providerName} 账号
                     </button>}
                     {identityConfig.mode !== "off" && <button
                       onClick={() => window.location.assign(identityConfig.resetPasswordUrl ?? "/api/auth/universal/reset-password")}
@@ -634,7 +636,7 @@ export function StartPage({
                     className="account-legacy-login"
                     onClick={() => { setAuthMode("login"); setAuthOpen(true); }}
                   >旧 BlendProof 账号登录与绑定</button>}
-                  <div className="demo-account-box" style={{ marginTop: '16px', padding: '12px', background: '#1c1c1c', border: '1px solid #333', borderRadius: '4px' }}>
+                  {identityConfig.demoAccountEnabled && <div className="demo-account-box" style={{ marginTop: '16px', padding: '12px', background: '#1c1c1c', border: '1px solid #333', borderRadius: '4px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#e87d0d', fontSize: '11px', fontWeight: 600, marginBottom: '6px' }}>
                       <ShieldCheck size={14} /> 公开体验账号
                     </div>
@@ -658,7 +660,7 @@ export function StartPage({
                       </button>
                     </div>
                     {accountError && <p role="alert" style={{ margin: '8px 0 0', color: '#e26b5b', fontSize: '10px' }}>{accountError}</p>}
-                  </div>
+                  </div>}
                 </>
               )}
             </section>
@@ -771,7 +773,7 @@ export function StartPage({
                 ? "登录"
                 : "创建账号"}
             </button>
-            <small>{identityConfig.mode === "off" ? "注册只接受管理员发放的邀请码。" : "旧登录仅用于迁移；登录后请绑定 Universal 统一账号。"}</small>
+            <small>{identityConfig.mode === "off" ? "注册只接受管理员发放的邀请码。" : `旧登录仅用于迁移；登录后请绑定 ${identityConfig.providerName} 账号。`}</small>
           </form>
         </div>
       )}

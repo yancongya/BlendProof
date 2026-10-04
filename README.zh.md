@@ -73,7 +73,7 @@ BlendProof 是一个专注于协作审稿的 Blender 风格 Web 3D 工作台。�
 - **批注通知** —— 项目作者每 15 秒检查新批注，右侧显示未读数量和站内提示，无需额外部署实时服务。
 - **平台状态** —— 持久化的运行时长、累计处理文件与字节数、清理计数，在首页实时刷新。
 - **访客快速审阅** —— 客户使用分享密码和审核名称即可进入，无需注册账号；批注只属于当前分享。
-- **通用游客体验账号** —— 访客可通过欢迎页的一键填入按钮，使用 `guest@blendproof.itycon.cn`（口令 `tycon`）直接登录平台体验云端功能，无需专属邀请码。
+- **官方 Orbit 体验账号** —— 官方托管版可提供 `guest@blendproof.itycon.cn`（口令 `tycon`）一键测试云端功能；自托管部署默认关闭。
 - **封面视频** —— 欢迎卡片可以使用 `public/intro.mp4` 作为视频背景，并保留封面图作为海报、低动态模式和不支持视频浏览器的降级方案。
 - **永久演示** —— `/s/suzanne` 提供公开示例模型，访问口令 `tycon`；访客可添加批注，不占配额，也不进入清理。
 
@@ -215,6 +215,8 @@ npm run test:worker
 
 Web 改动上线前运行 `npm run build`；改动 Worker 时运行 `npm run worker:dry-run`，并确认产物中不含 `.blend`、`.dev.vars`、本地数据库或 `storage/` 内容。
 
+官方托管使用闭源 Orbit 账号平台。社区自托管可完整使用 BlendProof 自带的本地账号与邀请码：从 [`wrangler.self-host.example.jsonc`](wrangler.self-host.example.jsonc) 开始，保持 `UNIVERSAL_AUTH_MODE=off`，只替换自己的 D1、R2 和域名。详见 [`docs/SELF_HOSTED_IDENTITY.md`](docs/SELF_HOSTED_IDENTITY.md)。
+
 **协作约定**记录在 [`AGENTS.md`](AGENTS.md)：稳定产品边界、授权必须由 Worker 而非前端强制、以及真实 Cloudflare 资源、DNS、Secret 与远程 migration 需明确授权。长期状态记录在 [`.planning/STATE.md`](.planning/STATE.md)。
 
 <p align="right">(<a href="#readme-top">回到顶部</a>)</p>
@@ -238,6 +240,7 @@ Worker 优先处理 `/api/*`，其余路径回退到 SPA 静态资源。
 | `POST` | `/api/auth/register` | 邀请码注册 |
 | `POST` | `/api/auth/login` | 密码登录 |
 | `POST` | `/api/auth/logout` | 销毁会话 |
+| `GET` | `/api/auth/config` | 公开身份模式、账号品牌、管理入口与体验账号开关 |
 
 **项目与上传**
 
@@ -280,7 +283,7 @@ Worker 优先处理 `/api/*`，其余路径回退到 SPA 静态资源。
 
 ## 部署
 
-生产 Worker、D1、私有 R2、每小时 cron 与自定义域 `blendproof.itycon.cn` 均已上线。`wrangler.jsonc` 保存的是真实资源 ID，不再是占位配置。
+生产 Worker、D1、私有 R2、每小时 cron 与自定义域 `blendproof.itycon.cn` 均已上线。`wrangler.jsonc` 是包含 Orbit 接入的官方托管配置；自托管者应使用 `wrangler.self-host.example.jsonc`，不要复制官方账号绑定。
 
 R2 是默认适配器。自托管部署可以通过 `STORAGE_PROVIDER=s3` 接入 AWS SigV4 兼容的私有 bucket；配置项、最小权限、健康检查和适配器要求见 [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md)。
 

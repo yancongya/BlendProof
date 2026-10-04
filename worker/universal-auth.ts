@@ -25,6 +25,8 @@ export async function handleUniversalAuthRequest(request: Request, env: AuthEnv,
     return Response.json({
       mode: authMode(env),
       universalAvailable: authMode(env) !== 'off' && Boolean(issuer && validClientId(env.UNIVERSAL_OIDC_CLIENT_ID)),
+      providerName: providerName(env),
+      demoAccountEnabled: env.ENABLE_DEMO_ACCOUNT === 'true',
       registerUrl: issuer ? '/api/auth/universal/register' : null,
       resetPasswordUrl: issuer ? '/api/auth/universal/reset-password' : null,
       accountUrl: issuer ? '/api/auth/universal/account' : null,
@@ -44,10 +46,15 @@ export function authMode(env: AuthEnv): UniversalAuthMode {
   return env.UNIVERSAL_AUTH_MODE === 'required' || env.UNIVERSAL_AUTH_MODE === 'optional' ? env.UNIVERSAL_AUTH_MODE : 'off'
 }
 
+function providerName(env: AuthEnv): string {
+  const value = env.IDENTITY_PROVIDER_NAME?.trim() ?? ''
+  return /^[\p{L}\p{N} ._-]{1,40}$/u.test(value) ? value : '统一账号'
+}
+
 function accountRedirect(env: AuthEnv, path: string): Response {
   const issuer = configuredIssuer(env)
   if (!issuer || authMode(env) === 'off') return error('统一账号服务尚未启用。', 503)
-  return Response.redirect(`${issuer}${path}`, 302)
+  return Response.redirect(`${configuredAccountOrigin(env) ?? issuer}${path}`, 302)
 }
 
 async function startLogin(request: Request, env: AuthEnv, url: URL): Promise<Response> {
@@ -193,6 +200,13 @@ function configuredIssuer(env: AuthEnv): string | null {
   try {
     const url = new URL(env.UNIVERSAL_OIDC_ISSUER)
     return url.protocol === 'https:' && url.origin === env.UNIVERSAL_OIDC_ISSUER ? url.origin : null
+  } catch { return null }
+}
+function configuredAccountOrigin(env: AuthEnv): string | null {
+  if (!env.IDENTITY_ACCOUNT_ORIGIN) return null
+  try {
+    const url = new URL(env.IDENTITY_ACCOUNT_ORIGIN)
+    return url.protocol === 'https:' && url.origin === env.IDENTITY_ACCOUNT_ORIGIN ? url.origin : null
   } catch { return null }
 }
 function universalFetch(env: AuthEnv, path: string, init?: RequestInit) {

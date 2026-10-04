@@ -19,14 +19,14 @@
 ## 账号与角色
 
 - 账号角色只保留 `admin` 和 `user`。上传者、创建者和审稿者不设永久角色；审稿者能否评论由每条分享的「只读 / 可评论」权限决定。
-- 接入 Universal 后，公开统计中的用户数仍表示已经在 BlendProof 建立业务主体的产品用户，不表示 Universal 全平台账号总数，也不表示仅获得资格但从未进入 BlendProof 的人数。
+- 官方版接入 Orbit 后，公开统计中的用户数仍表示已经在 BlendProof 建立业务主体的产品用户，不表示 Orbit 全平台账号总数，也不表示仅获得资格但从未进入 BlendProof 的人数。
 - Cloudflare R2 容量阈值、`storage_pool`、上传预留、分享期限和清理策略继续由 BlendProof 管理；统一身份接入不得绕过或迁移这些业务约束。
-- Universal 登录采用服务端 BFF：浏览器不保存 OIDC token；refresh token 以服务端 AES-GCM 密文保存，并按 5 分钟窗口轮换、复查产品资格。
-- Universal 明确返回无效令牌、撤销资格或身份不匹配时立即撤销 BlendProof 会话。仅网络异常、限流或 `5xx` 可使用最近一次成功校验结果宽限最多 30 分钟；宽限期间一律降为普通用户，不保留产品管理员权限，超过宽限后拒绝访问但不销毁可恢复会话。
+- Orbit 登录采用服务端 BFF：浏览器不保存 OIDC token；refresh token 以服务端 AES-GCM 密文保存，并按 5 分钟窗口轮换、复查产品资格。
+- Orbit 明确返回无效令牌、撤销资格或身份不匹配时立即撤销 BlendProof 会话。仅网络异常、限流或 `5xx` 可使用最近一次成功校验结果宽限最多 30 分钟；宽限期间一律降为普通用户，不保留产品管理员权限，超过宽限后拒绝访问但不销毁可恢复会话。
 - Worker 间 OIDC token、JWKS、`/v1/me` 与 revoke 请求走 `UNIVERSAL_OIDC_SERVICE` Service Binding；公开 issuer 与浏览器授权地址仍为 `https://adobesync.itycon.cn`。
-- `UNIVERSAL_AUTH_MODE=required` 是当前生产状态：注册、登录、重置密码和账号管理均由 Universal 接管。若需紧急回退，可暂时改回 `optional` 并重新部署；回退仅恢复旧登录入口，不移除既有 Universal 身份绑定。
+- `UNIVERSAL_AUTH_MODE=required` 是官方生产状态：注册、登录、重置密码和账号管理均由 Orbit 接管。`UNIVERSAL_*` 仅作为兼容性技术标识保留。若需紧急回退，可暂时改回 `optional` 并重新部署。
 - 已注册用户可以作为项目创建者发起审稿，也可以通过可评论分享参与审稿。当前不增加「批准/驳回/多级审批」工作流；批注及 open/resolved 状态是现阶段的轻量审稿闭环。
-- 生产账号注册与产品资格由 Universal 管理；BlendProof 原邀请码注册接口仅作为 `off` 模式的自托管兼容实现，在当前 `required` 模式不可用。
+- 官方生产账号注册与产品资格由 Orbit 管理；BlendProof 原邀请码注册接口作为 `off` 模式的完整自托管实现保留。
 - 管理员可查看成员的空间/项目占用、停用普通成员，并在 5 GiB 与 48 小时硬上限内调低平台存储阈值和最长分享时间。
 - 「删除成员」采用停用账号和撤销会话，不物理删除项目、评论或审计关系；禁止管理员停用自己。
 
@@ -68,7 +68,7 @@ Cloudflare 部署时配置：
 
 该模型作为平台管理员维护的永久只读公开示例，可通过 `/s/suzanne` 访问，演示口令为 `tycon`。它不占用户配额、不进入 48 小时清理。在 `/s/suzanne` 入口处访客经口令解锁后可添加线上审稿批注，批注持久化存储于 D1 中并跨会话可见。此口令是公开演示提示，并非账号凭据或安全边界。
 
-同时平台提供通用访客体验账号（邮箱 `guest@blendproof.itycon.cn` / 口令 `tycon`），在欢迎页“账号”Tab 提供一键填入并登录按钮。Worker 自动处理体验账号的会话自举，方便未持有管理员邀请码的访客快速测试云端工作流。
+官方平台还提供访客体验账号（邮箱 `guest@blendproof.itycon.cn` / 口令 `tycon`）。它仅在 `ENABLE_DEMO_ACCOUNT=true` 时显示并可登录；自托管默认关闭，不继承官方体验账号。
 
 ## 部署注意事项
 
