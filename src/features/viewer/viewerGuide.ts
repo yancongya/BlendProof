@@ -65,7 +65,7 @@ export const CLIENT_GUIDE_STEPS: GuidedTourStep[] = [
   {
     id: "annotation",
     title: "添加批注",
-    description: "点击顶部「添加」进入标注模式；旁边的「批注」用于显示或隐藏已有 Pin。",
+    description: "分享允许批注时，点击顶部「添加」后在模型表面落点；旁边的「批注」用于显示或隐藏已有 Pin。只读分享不会显示添加入口。",
     target: '[data-guide="annotation-tools"]',
     placement: "bottom",
     group: "审稿",

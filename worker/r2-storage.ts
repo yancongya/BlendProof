@@ -1,17 +1,21 @@
 import type { ProjectStorage, PublicProjectAsset, StoredAsset } from '../server/contracts.js'
+import type { ObjectBody, ObjectHead, ObjectStorage } from './object-storage.js'
+import { assertStorageNamespace, assertVersion, projectAssetKey } from './storage-key.js'
 import { assertPublicAssetContent, assertPublicProjectAsset, publicAssetContentTypes } from '../server/asset-policy.js'
 
-export class R2ProjectStorage implements ProjectStorage {
+export class R2ProjectStorage implements ProjectStorage, ObjectStorage {
+  readonly provider = 'r2'
+
   constructor(private readonly bucket: R2Bucket) {}
 
   async has(projectId: string, asset: PublicProjectAsset, version = 1) {
     assertPublicProjectAsset(asset)
-    return Boolean(await this.bucket.head(r2AssetKey(projectId, version, asset)))
+    return Boolean(await this.bucket.head(projectAssetKey(projectId, version, asset)))
   }
 
   async get(projectId: string, asset: PublicProjectAsset, version = 1): Promise<StoredAsset | null> {
     assertPublicProjectAsset(asset)
-    const object = await this.bucket.get(r2AssetKey(projectId, version, asset))
+    const object = await this.bucket.get(projectAssetKey(projectId, version, asset))
     if (!object) return null
     return {
       body: object.body,
@@ -32,7 +36,7 @@ export class R2ProjectStorage implements ProjectStorage {
     assertStorageNamespace(projectId)
     assertVersion(version)
     assertPublicAssetContent(asset, body, contentType, { allowLocalSourceMetadata: false })
-    await this.bucket.put(r2AssetKey(projectId, version, asset), body, {
+    await this.bucket.put(projectAssetKey(projectId, version, asset), body, {
       httpMetadata: { contentType: publicAssetContentTypes[asset] },
       customMetadata,
     })
@@ -44,6 +48,33 @@ export class R2ProjectStorage implements ProjectStorage {
 
   async deleteProject(projectId: string) {
     await this.deletePrefix(projectId, `projects/${projectId}/`)
+  }
+
+  async headObject(key: string): Promise<ObjectHead | null> {
+    const object = await this.bucket.head(key)
+    if (!object) return null
+    return {
+      size: object.size,
+      etag: object.httpEtag,
+      contentType: object.httpMetadata?.contentType ?? null,
+      customMetadata: object.customMetadata ?? {},
+    }
+  }
+
+  async getObject(key: string): Promise<ObjectBody | null> {
+    const object = await this.bucket.get(key)
+    if (!object) return null
+    return {
+      body: object.body,
+      size: object.size,
+      etag: object.httpEtag,
+      contentType: object.httpMetadata?.contentType ?? null,
+      customMetadata: object.customMetadata ?? {},
+    }
+  }
+
+  async deleteObject(key: string | string[]) {
+    await this.bucket.delete(key)
   }
 
   private async deletePrefix(projectId: string, prefix: string) {
@@ -58,17 +89,5 @@ export class R2ProjectStorage implements ProjectStorage {
 }
 
 export function r2AssetKey(storageNamespace: string, version: number, asset: PublicProjectAsset) {
-  assertStorageNamespace(storageNamespace)
-  assertVersion(version)
-  assertPublicProjectAsset(asset)
-  return `projects/${storageNamespace}/v${version}/${asset}`
-}
-
-function assertVersion(version: number) {
-  if (!Number.isSafeInteger(version) || version < 1) throw new TypeError('资源版本无效。')
-  return version
-}
-
-function assertStorageNamespace(value: string) {
-  if (!/^[a-f0-9]{32,64}$/.test(value)) throw new TypeError('存储命名空间无效。')
+  return projectAssetKey(storageNamespace, version, asset)
 }

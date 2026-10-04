@@ -2,6 +2,7 @@ import { publicAssetContentTypes } from '../server/asset-policy.js'
 import { scryptAsync } from '@noble/hashes/scrypt.js'
 import { enforceRateLimit, rateLimitRules } from './rate-limit.js'
 import type { UploadEnv } from './uploads.js'
+import { objectStorage } from './object-storage.js'
 
 export type ShareEnv = UploadEnv & { SHARE_ACCESS_SECRET: string; SHARE_ACCESS_SECRET_PREVIOUS?: string }
 
@@ -456,14 +457,14 @@ async function shareAsset(request: Request, env: ShareEnv, token: string, asset:
   }
   const stored = await readyAsset(env, project, asset)
   if (!stored) return shareError('分享模型不存在。', 404, share)
-  const object = await env.ASSETS.get(stored.object_key)
-  if (!object || stored.etag === null || object.size !== stored.byte_size || object.httpEtag !== stored.etag ||
-    stored.content_type !== publicAssetContentTypes[asset] || object.httpMetadata?.contentType !== publicAssetContentTypes[asset]) {
+  const object = await objectStorage(env).getObject(stored.object_key)
+  if (!object || stored.etag === null || object.size !== stored.byte_size || object.etag !== stored.etag ||
+    stored.content_type !== publicAssetContentTypes[asset] || object.contentType !== publicAssetContentTypes[asset]) {
     return shareError('分享模型不存在。', 404, share)
   }
   return new Response(object.body, { headers: {
     'Content-Type': publicAssetContentTypes[asset],
-    'Content-Length': String(object.size), 'ETag': object.httpEtag, ...privateHeaders(share),
+    'Content-Length': String(object.size), 'ETag': object.etag, ...privateHeaders(share),
   } })
 }
 
@@ -520,10 +521,10 @@ async function resolveShare(env: ShareEnv, token: string, passwordRequired: bool
 async function readManifest(env: ShareEnv, project: ProjectRow): Promise<Record<string, unknown> | null> {
   const stored = await readyAsset(env, project, 'manifest.json')
   if (!stored) return null
-  const object = await env.ASSETS.get(stored.object_key)
+  const object = await objectStorage(env).getObject(stored.object_key)
   if (!object || object.size > 512 * 1024 || object.size !== stored.byte_size || stored.etag === null ||
-    object.httpEtag !== stored.etag || stored.content_type !== publicAssetContentTypes['manifest.json'] ||
-    object.httpMetadata?.contentType !== publicAssetContentTypes['manifest.json']) return null
+    object.etag !== stored.etag || stored.content_type !== publicAssetContentTypes['manifest.json'] ||
+    object.contentType !== publicAssetContentTypes['manifest.json']) return null
   try {
     const value = JSON.parse(await new Response(object.body).text())
     return sanitizeManifest(value)

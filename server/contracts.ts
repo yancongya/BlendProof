@@ -32,6 +32,7 @@ export interface ProjectStorage {
     body: Uint8Array | string,
     contentType: string,
     version?: number,
+    customMetadata?: Record<string, string>,
   ): Promise<void>
   deleteVersion?(projectId: string, version: number): Promise<void>
   deleteProject(projectId: string): Promise<void>

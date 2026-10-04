@@ -14,7 +14,11 @@ describe('BlendProof Worker local runtime', () => {
   it('starts with local D1 and R2 bindings', async () => {
     const response = await SELF.fetch('https://blendproof.test/api/health')
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ runtime: 'cloudflare-worker', d1: true, r2: true })
+    expect(await response.json()).toEqual({
+      runtime: 'cloudflare-worker',
+      database: { provider: 'd1', bound: true },
+      objectStorage: { provider: 'r2', bound: true },
+    })
     const tables = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all<{ name: string }>()
     expect(tables.results.map((row) => row.name)).toContain('projects')
     expect(tables.results.map((row) => row.name)).toContain('rate_limit_windows')

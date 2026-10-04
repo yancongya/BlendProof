@@ -2,3 +2,13 @@
 # Configure production values with `wrangler secret put <NAME>`.
 UPLOAD_SIGNING_SECRET="replace-with-at-least-32-random-characters"
 SHARE_ACCESS_SECRET="replace-with-an-independent-32-character-secret"
+
+# Object storage defaults to the Wrangler ASSETS R2 binding.
+# To use an AWS SigV4 compatible private bucket, uncomment the provider and
+# endpoint values, then keep access credentials in .dev.vars / Worker Secrets.
+# STORAGE_PROVIDER="s3"
+# S3_ENDPOINT="https://s3.example.com/private-bucket"
+# S3_REGION="us-east-1"
+# S3_ACCESS_KEY_ID="replace-with-storage-access-key"
+# S3_SECRET_ACCESS_KEY="replace-with-storage-secret-key"
+# S3_SESSION_TOKEN="optional-temporary-session-token"

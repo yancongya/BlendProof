@@ -634,7 +634,7 @@ export function StartPage({
                       <ShieldCheck size={14} /> 公开体验账号
                     </div>
                     <p style={{ margin: '0 0 8px', color: '#999', fontSize: '10px', lineHeight: 1.5 }}>
-                      访客可使用通用体验账号登录，体验完整的项目审稿与批注功能：
+                      想体验上传、发布和分享，请进入体验账号；如果只是审阅他人的模型，回到“开始”粘贴分享链接即可，无需登录。
                     </p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 8px', fontSize: '10px', color: '#bbb', background: '#141414', padding: '8px', borderRadius: '2px', border: '1px solid #282828' }}>
                       <span style={{ color: '#777' }}>邮箱：</span>

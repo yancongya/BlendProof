@@ -95,7 +95,7 @@ BlendProof 是一个专注于协作审稿的 Blender 风格 Web 3D 工作台。�
 |---|---|---|---|
 | Web | React 19、`@react-three/fiber`、`@react-three/drei`、three.js、Vite、TypeScript | `src/` | 上传工作台、Blender 风格 Viewer、Outliner、批注、分享界面 |
 | 本机 bridge | Express 5、`multer`、`node:sqlite` | `server/` | 在 loopback 接收 `.blend`、驱动 Blender 后台转换、导出 GLB 与 manifest、提供本地开发 API |
-| 云端 | Cloudflare Workers、D1、私有 R2、每小时 cron | `worker/` | 登录、邀请码、上传意图、配额账本、分享、评论、定时清理 |
+| 云端 | Cloudflare Workers、D1、私有对象存储、每小时 cron | `worker/` | 登录、邀请码、上传意图、配额账本、分享、评论、定时清理 |
 
 **发布链路：**
 
@@ -110,8 +110,8 @@ BlendProof 是一个专注于协作审稿的 Blender 风格 Web 3D 工作台。�
 
 - Worker 永不接收或保存 `.blend`、`multipart/form-data`、`application/x-blender` 请求体——见 `worker/index.ts:23`。
 - 写操作要求 `Origin` 头与 `APP_ORIGIN` 完全一致，见 `worker/index.ts:56`。
-- 公开响应会做递归扫描，确保 owner capability、token、密码 hash、storage namespace 与 R2 object key 不外泄。
-- R2 保持私有，只能通过 Worker 的 `ASSETS` binding 访问。
+- 公开响应会做递归扫描，确保 owner capability、token、密码 hash、storage namespace 与对象 key 不外泄。
+- 对象存储必须保持私有。官方部署使用 R2，自托管可以选择 S3 兼容适配器，详见 [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md)。
 
 <p align="right">(<a href="#readme-top">回到顶部</a>)</p>
 
@@ -230,7 +230,7 @@ Worker 优先处理 `/api/*`，其余路径回退到 SPA 静态资源。
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
-| `GET` | `/api/health` | 运行时探针：报告 Worker、D1、R2 binding |
+| `GET` | `/api/health` | 运行时探针：报告数据库与当前对象存储 provider |
 | `GET` | `/api/public/stats` | 公开平台指标（缓存 30 秒） |
 | `GET` | `/api/me` | 当前身份；匿名调用返回空身份 |
 | `GET` | `/api/me/stats` | 个人空间与项目占用 |
@@ -282,6 +282,8 @@ Worker 优先处理 `/api/*`，其余路径回退到 SPA 静态资源。
 
 生产 Worker、D1、私有 R2、每小时 cron 与自定义域 `blendproof.itycon.cn` 均已上线。`wrangler.jsonc` 保存的是真实资源 ID，不再是占位配置。
 
+R2 是默认适配器。自托管部署可以通过 `STORAGE_PROVIDER=s3` 接入 AWS SigV4 兼容的私有 bucket；配置项、最小权限、健康检查和适配器要求见 [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md)。
+
 ```sh
 npm run build                 # 生成 dist/ 供 Worker 静态资源托管
 npx wrangler d1 migrations apply <database> --remote
@@ -303,7 +305,7 @@ npx wrangler deploy
 | 分享默认有效期 | 24 小时 |
 | 清理周期 | 每小时 cron，`0 * * * *` |
 
-D1 作为原子配额账本：上传意图时预留、finalize 时结算、失败或过期时释放。cron 按精确 R2 key 删除，并重试未完成的账本条目。`/s/suzanne` 演示模型不计配额，也不进入清理。
+D1 作为原子配额账本：上传意图时预留、finalize 时结算、失败或过期时释放。cron 按与厂商无关的精确对象 key 删除，并重试未完成的账本条目。`/s/suzanne` 演示模型不计配额，也不进入清理。
 
 <p align="right">(<a href="#readme-top">回到顶部</a>)</p>
 

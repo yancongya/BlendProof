@@ -4,12 +4,13 @@ import { scheduledCleanup } from './cleanup.js'
 import { handleShareRequest } from './shares.js'
 import { currentUser, handleAuthRequest, publicStats } from './auth.js'
 import { handleUniversalAuthRequest } from './universal-auth.js'
+import { objectStorageHealth } from './object-storage.js'
 
 export default {
   async fetch(request: Request, env: UploadEnv): Promise<Response> {
     const url = new URL(request.url)
     if (request.method === 'GET' && url.pathname === '/api/health') {
-      return Response.json({ runtime: 'cloudflare-worker', d1: Boolean(env.DB), r2: Boolean(env.ASSETS) })
+      return Response.json({ runtime: 'cloudflare-worker', database: { provider: 'd1', bound: Boolean(env.DB) }, objectStorage: objectStorageHealth(env) })
     }
     if (request.method === 'GET' && url.pathname === '/api/public/stats') {
       return Response.json(await publicStats(env), { headers: { 'Cache-Control': 'public, max-age=30' } })

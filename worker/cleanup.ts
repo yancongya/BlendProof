@@ -1,5 +1,6 @@
 import type { PublicProjectAsset } from '../server/contracts.js'
-import { r2AssetKey } from './r2-storage.js'
+import { objectStorage } from './object-storage.js'
+import { projectAssetKey } from './storage-key.js'
 
 /**
  * Bounds are deliberately small enough for a scheduled invocation to finish
@@ -294,7 +295,7 @@ export async function processCleanupJobs(env: Env, options: CleanupOptions = {})
         }
 
         // Deliberately use the exact key from cleanup_jobs, never a prefix or list.
-        await env.ASSETS.delete(job.object_key)
+        await objectStorage(env).deleteObject(job.object_key)
         await env.DB.prepare(`UPDATE project_assets SET status = 'deleted', updated_at = ?
           WHERE project_id = ? AND object_key = ? AND status IN ('staging', 'deleting')`)
           .bind(now, job.project_id, job.object_key).run()
@@ -363,7 +364,7 @@ async function enqueueIntentCleanup(env: Env, intent: ExpiredIntentRow, now: str
     for (const name of parseAssetNames(intent.expected_assets_json)) {
       if (readyNames.has(name)) continue
       try {
-        const key = r2AssetKey(intent.staging_namespace, intent.asset_version, name)
+        const key = projectAssetKey(intent.staging_namespace, intent.asset_version, name)
         if (!objectKeys.has(key)) objectKeys.set(key, { assetVersion: intent.asset_version, ready: false })
       } catch {
         // The storage namespace is validated at creation time; ignore corrupt

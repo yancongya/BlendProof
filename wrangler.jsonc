@@ -49,6 +49,7 @@
   },
   "vars": {
     "APP_ORIGIN": "https://blendproof.itycon.cn",
+    "STORAGE_PROVIDER": "r2",
     "UNIVERSAL_AUTH_MODE": "required",
     "UNIVERSAL_AUTH_GRACE_SECONDS": "1800",
     "UNIVERSAL_OIDC_ISSUER": "https://adobesync.itycon.cn",

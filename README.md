@@ -95,7 +95,7 @@ Three layers, with the trust boundary drawn at the loopback bridge.
 |---|---|---|---|
 | Web | React 19, `@react-three/fiber`, `@react-three/drei`, three.js, Vite, TypeScript | `src/` | Upload workspace, Blender-style viewer, outliner, annotations, share UI |
 | Local bridge | Express 5, `multer`, `node:sqlite` | `server/` | Accepts `.blend` on loopback, drives Blender headless, exports GLB + manifest, serves the local development API |
-| Cloud | Cloudflare Workers, D1, private R2, hourly cron | `worker/` | Auth, invite codes, upload intents, quota ledger, shares, comments, scheduled cleanup |
+| Cloud | Cloudflare Workers, D1, private object storage, hourly cron | `worker/` | Auth, invite codes, upload intents, quota ledger, shares, comments, scheduled cleanup |
 
 **Publish flow:**
 
@@ -110,8 +110,8 @@ Three layers, with the trust boundary drawn at the loopback bridge.
 
 - The Worker never accepts or stores a `.blend`, `multipart/form-data`, or `application/x-blender` body — see `worker/index.ts:23`.
 - Mutating routes require an `Origin` header that exactly matches `APP_ORIGIN`; see `worker/index.ts:56`.
-- Public responses are recursively scanned so owner capabilities, tokens, password hashes, storage namespaces, and R2 object keys never leak.
-- R2 stays private; it is reachable only through the Worker's `ASSETS` binding.
+- Public responses are recursively scanned so owner capabilities, tokens, password hashes, storage namespaces, and object keys never leak.
+- Object storage stays private. Production uses R2; self-hosted deployments may select the S3-compatible adapter. See [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -232,7 +232,7 @@ The Worker serves `/api/*` ahead of static assets; everything else falls back to
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/health` | Runtime probe: reports Worker, D1, and R2 bindings |
+| `GET` | `/api/health` | Runtime probe: reports the database and selected object-storage provider |
 | `GET` | `/api/public/stats` | Public platform metrics (cached 30s) |
 | `GET` | `/api/me` | Current identity; anonymous callers get an empty identity |
 | `GET` | `/api/me/stats` | Own space and project usage |
@@ -284,6 +284,8 @@ The review data contract is specified in [`docs/REVIEW_CONTRACT.md`](docs/REVIEW
 
 The production Worker, D1 database, private R2 bucket, hourly cron, and custom domain `blendproof.itycon.cn` are live. `wrangler.jsonc` holds the real resource IDs, so it is no longer a placeholder config.
 
+R2 is the default adapter. Self-hosted deployments can select an AWS SigV4-compatible private bucket with `STORAGE_PROVIDER=s3`; configuration, permissions, health response, and adapter requirements are documented in [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md).
+
 ```sh
 npm run build                 # emit dist/ for Worker static assets
 npx wrangler d1 migrations apply <database> --remote
@@ -305,7 +307,7 @@ The authorization gates, secret handling, migration sequence, two-browser accept
 | Default share lifetime | 24 hours |
 | Cleanup schedule | Hourly cron, `0 * * * *` |
 
-D1 acts as the atomic quota ledger: reservations happen at upload intent, settlement at finalize, and release on failure or expiry. The cron job deletes by exact R2 key and retries unfinished ledger entries. The `/s/suzanne` demo model is exempt from both quota and cleanup.
+D1 acts as the atomic quota ledger: reservations happen at upload intent, settlement at finalize, and release on failure or expiry. The cron job deletes by exact provider-neutral object key and retries unfinished ledger entries. The `/s/suzanne` demo model is exempt from both quota and cleanup.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

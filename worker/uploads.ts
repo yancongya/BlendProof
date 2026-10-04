@@ -1,7 +1,8 @@
 import { assertPublicAssetContent, assertPublicProjectAsset, publicAssetContentTypes } from '../server/asset-policy.js'
 import type { PublicProjectAsset } from '../server/contracts.js'
 import { enforceRateLimit, rateLimitRules } from './rate-limit.js'
-import { R2ProjectStorage, r2AssetKey } from './r2-storage.js'
+import { objectStorage } from './object-storage.js'
+import { projectAssetKey } from './storage-key.js'
 
 export type UploadEnv = Env & { UPLOAD_SIGNING_SECRET: string }
 
@@ -153,7 +154,7 @@ export async function uploadAsset(request: Request, env: UploadEnv, projectId: s
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : '资源内容无效。', 422)
   }
-  const objectKey = r2AssetKey(intent.staging_namespace, intent.asset_version, asset)
+  const objectKey = projectAssetKey(intent.staging_namespace, intent.asset_version, asset)
   const now = new Date().toISOString()
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO project_assets
@@ -182,15 +183,15 @@ export async function uploadAsset(request: Request, env: UploadEnv, projectId: s
     reservation.byte_size !== expected.byteSize || reservation.sha256 !== expected.sha256) {
     return jsonError('资源上传状态冲突。', 409)
   }
-  const storage = new R2ProjectStorage(env.ASSETS)
+  const storage = objectStorage(env)
   await storage.put(intent.staging_namespace, asset, bytes, expected.contentType, intent.asset_version, {
     sha256: expected.sha256,
   })
-  const object = await env.ASSETS.head(objectKey)
+  const object = await storage.headObject(objectKey)
   const updated = await env.DB.prepare(`UPDATE project_assets SET etag = ?, updated_at = ?
     WHERE project_id = ? AND upload_intent_id = ? AND asset_version = ? AND asset_name = ?
       AND status = 'staging' AND sha256 = ? AND byte_size = ?`)
-    .bind(object?.httpEtag ?? null, new Date().toISOString(), intent.project_id, intent.id,
+    .bind(object?.etag ?? null, new Date().toISOString(), intent.project_id, intent.id,
       intent.asset_version, asset, expected.sha256, expected.byteSize).run()
   if (updated.meta.changes !== 1 || !object) return jsonError('资源登记失败，已进入清理队列。', 503)
   return new Response(null, { status: 204 })
@@ -219,13 +220,13 @@ export async function finalizeUpload(request: Request, env: UploadEnv, projectId
   }
   for (const asset of expected) {
     const row = rows.results.find((item) => item.asset_name === asset.name)
-    if (!row || row.object_key !== r2AssetKey(intent.staging_namespace, intent.asset_version, asset.name)) {
+    if (!row || row.object_key !== projectAssetKey(intent.staging_namespace, intent.asset_version, asset.name)) {
       return jsonError('派生资源对象键不匹配。', 409)
     }
-    const object = await env.ASSETS.head(row.object_key)
-    if (!object || !row.etag || object.httpEtag !== row.etag || object.size !== row.byte_size ||
-      object.httpMetadata?.contentType !== publicAssetContentTypes[asset.name] ||
-      object.customMetadata?.sha256 !== row.sha256) {
+    const object = await objectStorage(env).headObject(row.object_key)
+    if (!object || !row.etag || object.etag !== row.etag || object.size !== row.byte_size ||
+      object.contentType !== publicAssetContentTypes[asset.name] ||
+      object.customMetadata.sha256 !== row.sha256) {
       return jsonError('派生资源存储校验失败。', 409)
     }
   }
