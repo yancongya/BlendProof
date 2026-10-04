@@ -6,9 +6,15 @@ import { currentUser, handleAuthRequest, publicStats } from './auth.js'
 import { handleUniversalAuthRequest } from './universal-auth.js'
 import { objectStorageHealth } from './object-storage.js'
 
+type AppEnv = UploadEnv & { STATIC_ASSETS: Fetcher }
+
 export default {
-  async fetch(request: Request, env: UploadEnv): Promise<Response> {
+  async fetch(request: Request, env: AppEnv): Promise<Response> {
     const url = new URL(request.url)
+    if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/dev' || url.pathname === '/dev/' || url.pathname.startsWith('/s/'))) {
+      const shellPath = url.pathname === '/' ? '/landing/index.html' : '/index.html'
+      return env.STATIC_ASSETS.fetch(new Request(new URL(shellPath, url), request))
+    }
     if (request.method === 'GET' && url.pathname === '/api/health') {
       return Response.json({ runtime: 'cloudflare-worker', database: { provider: 'd1', bound: Boolean(env.DB) }, objectStorage: objectStorageHealth(env) })
     }
@@ -56,7 +62,7 @@ export default {
 
     return Response.json({ error: 'Not found' }, { status: 404 })
   },
-  async scheduled(_controller: ScheduledController, env: UploadEnv, context: ExecutionContext): Promise<void> {
+  async scheduled(_controller: ScheduledController, env: AppEnv, context: ExecutionContext): Promise<void> {
     context.waitUntil(scheduledCleanup(env))
   },
 }

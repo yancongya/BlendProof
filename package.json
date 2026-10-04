@@ -27,7 +27,8 @@
     "test:worker": "vitest run --config vitest.config.mts",
     "worker:types": "wrangler types",
     "worker:dev": "wrangler dev --local",
-    "worker:dry-run": "wrangler deploy --dry-run --outdir dist-worker"
+    "worker:dry-run": "wrangler deploy --dry-run --outdir dist-worker",
+    "deploy:production": "bash scripts/deploy-production.sh"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",

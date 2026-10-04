@@ -689,6 +689,9 @@ button {
 .notice p {
   color: #888;
 }
+.mobile-panel-backdrop {
+  display: none;
+}
 @media (max-width: 850px) {
   .blender-main {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -711,6 +714,7 @@ button {
     right: min(88vw, 340px);
     bottom: 36px;
     left: 0;
+    display: block;
     border: 0;
     background: rgb(0 0 0 / 42%);
   }
@@ -790,8 +794,10 @@ button {
   align-items: center;
   gap: 5px;
   min-width: 0;
-  height: 24px;
-  padding: 0 10px;
+  width: 26px;
+  height: 26px;
+  justify-content: center;
+  padding: 0;
   border: 1px solid #3d3d3d;
   border-radius: 4px;
   background: transparent;

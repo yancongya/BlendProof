@@ -371,11 +371,6 @@ export function StartPage({
                 <span>最近打开的项目</span>
                 <button onClick={onOpenFile}>打开其他文件</button>
               </div>
-              {statsState === "unavailable" && (
-                <p className="start-service-warning" role="status">
-                  暂时无法连接云端服务。你仍可在本机打开和查看文件，发布与分享请稍后重试。
-                </p>
-              )}
               {recentProjects.length ? (
                 <div className="start-recent-list">
                   {recentProjects.slice(0, 8).map((item) => (
@@ -404,7 +399,7 @@ export function StartPage({
             </section>
           )}
           {startTab === "status" && (
-            <section className="start-system-panel">
+            <section className={`start-system-panel start-system-panel--${statsState}`}>
               <div className="start-panel-heading">
                 <span>
                   <HardDrive size={14} /> 公益存储池
@@ -416,6 +411,16 @@ export function StartPage({
                     : "—"}
                 </i>
               </div>
+              {statsState === "loading" && (
+                <p className="start-service-loading" role="status">
+                  正在读取云端服务状态…
+                </p>
+              )}
+              {statsState === "unavailable" && (
+                <p className="start-service-warning" role="status">
+                  暂时无法连接云端服务。当前页面仍可查看本机文件；发布、分享和平台统计需要启动 Worker 后使用。
+                </p>
+              )}
               <div className="storage-reading">
                 <strong>
                   {stats ? formatBytes(stats.remainingBytes) : "—"}

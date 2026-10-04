@@ -1038,6 +1038,20 @@
 .start-stats small { color: #929292; font-size: 10px; }
 .start-retention { margin: 0 0 18px; color: #d8832e; font-size: 11px; }
 .start-service-warning { margin: 0 0 14px; padding: 9px 11px; border: 1px solid #69461f; border-radius: 3px; background: #2a2118; color: #e3a45f; font-size: 11px; line-height: 1.55; }
+.start-service-loading { margin: 24px 0; color: #858585; font-size: 11px; }
+.start-system-panel--loading .storage-reading,
+.start-system-panel--loading .storage-meter,
+.start-system-panel--loading .start-stats,
+.start-system-panel--loading .start-lifetime-stats,
+.start-system-panel--loading .start-retention,
+.start-system-panel--loading .start-site-notice,
+.start-system-panel--unavailable .storage-reading,
+.start-system-panel--unavailable .storage-meter,
+.start-system-panel--unavailable .start-stats,
+.start-system-panel--unavailable .start-lifetime-stats,
+.start-system-panel--unavailable .start-retention,
+.start-system-panel--unavailable .start-site-notice { display: none; }
+.start-system-panel--unavailable .start-service-warning { margin: 18px 0 0; }
 
 @media (max-width: 640px) {
   .start-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }

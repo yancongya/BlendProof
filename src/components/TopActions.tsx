@@ -1,9 +1,9 @@
-import { Globe } from 'lucide-react'
+import { Globe, Languages } from 'lucide-react'
 import { t, useI18n } from '../i18n'
 
 const LANDING_URL =
   (import.meta.env.VITE_LANDING_URL as string | undefined) ??
-  'https://blendproof.itycon.cn/landing/'
+  '/'
 
 /**
  * Landing-page link + language toggle. Rendered *in place* (inside the Blender
@@ -24,16 +24,17 @@ function Controls({ variant }: { variant: 'menubar' | 'splash' }): React.ReactNo
         title={t('查看 BlendProof 落地页')}
       >
         <Globe size={13} />
-        <span>落地页</span>
+        {variant === 'menubar' && <span>落地页</span>}
       </a>
       <button
         type="button"
         className="top-action"
         onClick={toggle}
         aria-label={t('切换语言')}
+        title={`${t('切换语言')} · ${lang === 'zh' ? 'English' : '中文'}`}
         data-i18n-ignore
       >
-        {lang === 'zh' ? 'EN' : '中文'}
+        {variant === 'splash' ? <Languages size={13} /> : (lang === 'zh' ? 'EN' : '中文')}
       </button>
     </div>
   )

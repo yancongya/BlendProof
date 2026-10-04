@@ -13,8 +13,8 @@ const projectRoot = resolve(here, '..')
  *
  * The same validator rejects any `src` that is a remote URL, so the entry must
  * stay a relative path — `base: './'` is what guarantees that, and it is also
- * required because both deploy targets serve this page from a sub-path
- * (`/landing/` on the Worker, `/BlendProof/` on GitHub Pages).
+ * required because the built files remain in `/landing/` even though the
+ * Worker serves its HTML shell at the public root route.
  */
 function dropModulePreload(): Plugin {
   return {
@@ -44,8 +44,8 @@ export default defineConfig({
     fs: { allow: [projectRoot] },
   },
   build: {
-    // Built into the app's dist so the Worker serves it at /landing/ as a real
-    // file, which keeps it clear of the SPA fallback in wrangler.jsonc.
+    // Built beside the app shell. The Worker maps `/` to this index while its
+    // assets keep the stable `/landing/` prefix.
     outDir: resolve(projectRoot, 'dist/landing'),
     // Never wipe the app build that lives alongside it in dist/.
     emptyOutDir: false,
