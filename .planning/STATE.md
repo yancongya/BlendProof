@@ -2,8 +2,8 @@
 
 Phase: 4 of 4（云端替换）
 Plan: 04-01
-Status: Production deployed; end-to-end upload acceptance pending
-Last activity: 2026-10-05 - 官方 Orbit 身份与社区自托管账号已拆分，待授权部署
+Status: Follow-up locally verified; production update deferred by user
+Last activity: 2026-11-03 - 落地页加载回归、统一发布流程及本地浏览器验收收尾；本轮生产发布按用户选择暂缓
 
 Progress: ████▉ 99%
 
@@ -16,9 +16,9 @@ Progress: ████▉ 99%
 ## Current Risks
 
 - `node:sqlite` 在本机 Node 22 可用但仍有 ExperimentalWarning，必须锁定运行时并保持 D1 适配边界。
-- Worker 已完成项目、派生资产、分享访问、密码、撤销、评论及定时清理本地实现；尚未进行真实 Cloudflare 资源验收。
+- Worker 已完成项目、派生资产、分享访问、密码、撤销、评论及定时清理本地实现；基础资源与 HTTP 入口此前已上线；完整云端业务 E2E 仍待验收。
 - 本机 bridge 使用精确 Origin/Referer 解析与短期、Origin-bound nonce；开发脚本中的固定配对码只用于本地便利，生产仍需带外配对入口。
-- Web typed client 已接入云端 publish、精确 upload intent、清单去敏、创建分享与 `/s/:token?source=cloud` 读取；尚未验证真实 Cloudflare 环境与网络故障恢复。
+- Web typed client 已接入云端 publish、精确 upload intent、清单去敏、创建分享与 `/s/:token?source=cloud` 读取；真实云端发布全链路与网络故障恢复仍待验收。
 - D1 固定窗口限流已覆盖项目创建、上传 intent、密码尝试与访客评论；尚待真实边缘 IP/并发复验。
 - D1 已作为 5 GiB 公益存储池的原子配额账本；上传先预留、finalize 结算、失败/过期释放，R2 指标仅用于未来对账。
 - 云端项目最长保留 48 小时（即使未创建分享），分享默认 24 小时；每小时 cron 通过精确 R2 key 账本重试清理。
@@ -50,6 +50,27 @@ Progress: ████▉ 99%
 
 ## Session Continuity
 
-Last session: 2026-09-17
-Stopped at: Completed landing page tarot portal, i18n & dual theme adaptation, card-rush transition, and loop-illo overlap bugfix
+Last session: 2026-11-03
+Stopped at: Final 11-step gate passed in 176s with local browser acceptance; finish the current branch push only. Production is deferred by user and must not resume automatically after a credential change.
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
+
+## 2026-11-02 落地页性能与发布收尾
+
+- 业务提交：`d64027f`（`codex/fix-guide-after-cover`），已推送同名 `origin` 分支；不代表已合并默认分支。
+- Cloudflare 版本：`fe79e2be-9874-4efe-8962-693d6e765ddc`；通过 `BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:production` 部署。此次未执行远程 migration、Secret 或 DNS 变更。
+- `verify:release` 完整 10 步通过（47 个后端/Viewer 测试、58 个 Worker 测试、落地页资源 smoke、完整构建及 dry-run/产物边界）；部署脚本再次运行同一门禁后发布。
+- 线上 HTTP 验证 13/13：根路径和 `/landing/` 返回落地页；`/landing` 保留 query 返回 308；`/dev`、`/dev/`、`/s/suzanne` 返回工作台壳；未知路径和缺失 WebP 为 404；健康及公开指标为 200。HTML、落地页 JS、代表性 WebP 与动态 3D chunk 均和本地发布产物逐字节一致。
+- 图片：17 个卡面源约 17.57 MB，512w WebP 合计 613,118 B，768w 合计 1,170,308 B；首屏 splash WebP 为 82,986 B。
+- 内置浏览器被当前 Work 设置禁用，未绕过设置启动其他浏览器。因此本次新增的是生产 HTTP 证据，不是生产交互/FCP/LCP/CLS 验收；先前本地双视口报告不能代替生产浏览器证明。
+- 观察到一次落地页 JS HTTP 超时；后续同 URL 请求为 200、67,858 B、12.09 秒并逐字节匹配。部署资产上传也曾重试后成功；不能据此宣称网络链路已不再慢。
+- 原始 HTTP 检查与重试证据保留在被忽略的 `output/release-20261102/`；长期发布记录见 `docs/RELEASE_ACCEPTANCE_2026-11-02.md`。
+- 未关闭的既有范围：完整云端发布/第二浏览器批注/过期清理 E2E；工作台主 JS 约 1.48 MB（gzip 434.73 KB）仍为后续分包优化项。
+
+## 2026-11-03 收尾与暂缓发布
+
+- 本轮修复：卡片独立加载、迟到成功/重试/BFCache 恢复，快速入门 Viewer 超时后的重试入口和调用方缓存清理，接收端错误提示，语言切换后的实时统计文案，健康接口字段对齐。
+- 发布流程：统一 localhost 开发 Origin，单次 11 步门禁，先构建后测试；去掉落地页内部重复构建，每步输出耗时，图片最多三项并行。新增自动 `verify:production` HTTP/hash 验证；原始报告均保持 ignored。
+- 本地浏览器覆盖创作者/审稿人完整页面、375/390px/桌面、主要演示及弹窗交互；关闭欢迎页后指南立即显示。32 个异步加载回归测试通过；真实 BFCache 本次未命中，模拟生命周期测试不等同浏览器命中证明。
+- 自有 web-perf Skill 已更新失败经验并推送私有源仓库 `yancongya/web-perf-skill`；SkillDo 来源已登记为该 Git 仓库，中央内容和工具链接独立核验。
+- 本轮没有生产部署。NAS 连接恢复后，托管 `cloudflare.itycon.workers-deploy` token 状态为 active，但目标账户 Worker 设置返回 403；用户明确选择“暂时只完成本地验收和推送”。恢复生产前需修复同一托管 alias 的账户权限，不在聊天/仓库传递 token。
+- 首轮线上版本记录为 `fe79e2be-9874-4efe-8962-693d6e765ddc`，本轮未重新核验当前线上版本；不得将本轮本地证据归给该历史线上版本。最终完整门禁 176 秒通过（图片处理 113 秒），详情及提交记录见 `docs/RELEASE_ACCEPTANCE_2026-11-02.md`。

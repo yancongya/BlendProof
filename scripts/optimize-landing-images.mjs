@@ -162,7 +162,19 @@ for (const tag of cardTags) {
 
 await mkdir(cardOutputRoot, { recursive: true });
 const results = [];
-for (const basename of cardBasenames) results.push(await optimizeCard(basename));
+// WebP encoding is CPU-heavy; bound concurrency instead of serializing every
+// card or launching all sources at once. Each task owns distinct output files.
+const basenames = [...cardBasenames];
+const concurrency = 3;
+for (let index = 0; index < basenames.length; index += concurrency) {
+  results.push(...await Promise.all(basenames.slice(index, index + concurrency).map(async (basename, offset) => {
+    const started = Date.now();
+    console.log(`[images] ${index + offset + 1}/${basenames.length} ${basename}`);
+    const result = await optimizeCard(basename);
+    console.log(`[images] ${basename} verified (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+    return result;
+  })));
+}
 results.push(await optimizeSplash(html));
 
 const cardResults = results.filter((result) => result.kind === 'card');

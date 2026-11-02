@@ -1730,7 +1730,7 @@
   .mk-browser__empty button:hover { filter: brightness(1.1); }
   .mk-browser__empty small { color: var(--faint); }
   .mk-browser__view {
-    position: absolute; inset: 0;
+    position: absolute; inset: 0 0 30px;
     display: flex; flex-direction: column;
   }
   .mk-browser__view[hidden] { display: none; }
@@ -1751,12 +1751,16 @@
     background: var(--view-g1);
   }
   .mk-browser__status {
+    position: absolute; right: 0; bottom: 0; left: 0;
     padding: 7px 10px;
     border-top: 1px solid var(--mk-line);
+    background: var(--stat-bg);
     color: var(--mk-ink-dim); font-size: 10px; min-height: 30px;
   }
+  .mk-browser__status[hidden] { display: none; }
   .mk-browser__status[data-kind="busy"] { color: var(--accent-warm); }
   .mk-browser__status[data-kind="ok"] { color: #79a95a; }
+  .mk-browser__status[data-kind="error"] { color: #f39a35; }
 
   /* 条款弹窗 */
   .legal-modal {
@@ -2242,8 +2246,11 @@ grid-template-columns: minmax(0, 1fr);
   .tarot-loading {
     position: absolute; left: 50%; top: calc(100% + 10px);
     transform: translateX(-50%);
+    max-width: min(90vw, 420px);
     color: #a8adb9; font: 500 11px/1.4 ui-monospace, monospace;
-    white-space: nowrap;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .tarot-loading[hidden] { display: none; }
   .tarot-loading.is-error { color: #f39a35; }
@@ -3053,15 +3060,15 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
         <p class="hero__subline" data-perspective="creator">源文件不出本机 · 一条链接搞定审稿 · 你也能在模型上批注回复</p>
         <div class="hero__tags" data-perspective="creator">
           <span class="hero-tag">纯免费</span>
-          <span class="hero-tag">开源</span>
-          <span class="hero-tag">全栈开源</span>
+          <span class="hero-tag">源码公开</span>
+          <span class="hero-tag">代码可审阅</span>
           <span class="hero-tag">无需安装</span>
         </div>
         <p class="hero__subline" data-perspective="reviewer">零安装 · 链接直达 · 点击模型写批注</p>
         <div class="hero__tags" data-perspective="reviewer">
           <span class="hero-tag">纯免费</span>
-          <span class="hero-tag">开源</span>
-          <span class="hero-tag">全栈开源</span>
+          <span class="hero-tag">源码公开</span>
+          <span class="hero-tag">代码可审阅</span>
           <span class="hero-tag">无需安装</span>
         </div>
       </div>
@@ -3861,8 +3868,8 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
                   <input type="password" id="mk-browser-pwd" autocomplete="new-password" readonly aria-label="口令">
                 </form>
                 <div class="mk-rx-model" id="mk-rx-model"></div>
-                <div class="mk-browser__status" id="mk-browser-status" role="status"></div>
               </div>
+              <div class="mk-browser__status" id="mk-browser-status" role="status" aria-live="polite" hidden></div>
             </div>
           </div>
           <p class="card__note">试试点「填入演示链接」——口令自动通过，模型载入。</p>
@@ -3890,7 +3897,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
             <li><b>上限优先于便利。</b>容量与保留期被硬约束保护，管理员只能在 5 GiB / 48 小时内调低，不能调高。</li>
             <li><b>邀请码注册。</b>不开放自由注册，是为了让容量和清理节奏可控——这是公益池能长期跑下去的前提。</li>
             <li><b>不看你的内容。</b>服务端只转发派生资产，没有人工查看环节；日志只记操作，不看模型。</li>
-            <li><b>开源，可自行部署。</b>不放心公益池？<a href="https://github.com/yancongya/BlendProof">代码全部公开</a>，可以自己搭一套一模一样的。</li>
+            <li><b>源码公开供审阅。</b><a href="https://github.com/yancongya/BlendProof">查看完整代码与部署说明</a>；使用与部署授权以仓库声明为准。</li>
           </ul>
         </div>
       </div>
@@ -3906,7 +3913,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
         <div class="card__body">
       <h2>平台此刻的真实状态。</h2>
       <p class="lead">
-        数据直接来自生产接口 <code>/api/public/stats</code>，随页面加载实时读取，不缓存。
+        数据来自当前站点接口 <code>/api/public/stats</code>，随页面加载实时读取，不缓存。
       </p>
 
       <dl class="live">

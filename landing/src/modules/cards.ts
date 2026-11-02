@@ -2,7 +2,7 @@
  * Card modules: pain flip, legal modals, chrome dots, card interactions, cards.
  */
 
-import { t, setNodeText } from '../i18n'
+import { ifEn, t, setNodeText } from '../i18n'
 
 export const prefersReducedMotion = (): boolean =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -197,30 +197,103 @@ function initQuickstart(): void {
     const mocks = Array.from(panel.querySelectorAll<HTMLElement>('.quickstart__mock'))
     // 客户视角的状态现在也在 quickstart__mock 内的 mk-browser 里
     const states = Array.from(panel.querySelectorAll<HTMLElement>('.qs-browser__state'))
+    const host = panel.querySelector<HTMLElement>('#qs-mini-viewer')
 
     let currentStep = -1
-    let miniViewer: { dispose: () => void } | null = null
-    let miniViewerLoading = false
+    let miniViewer: { dispose: () => void; ready: Promise<boolean> } | null = null
+    let cancelMiniViewerLoad: (() => void) | null = null
+    let miniViewerFeedback: HTMLElement | null = null
+    let pageHidden = false
+
+    const setMiniViewerState = (state: 'loading' | 'error' | null): void => {
+      miniViewerFeedback?.remove()
+      miniViewerFeedback = null
+      if (!host) return
+      // Its centered flex parent must still give the absolute canvas/status a width.
+      host.style.alignSelf = 'stretch'
+      host.setAttribute('aria-busy', String(state === 'loading'))
+      if (!state) return
+
+      const feedback = document.createElement('div')
+      feedback.className = 'qs-mini-viewer-status'
+      feedback.dataset.kind = state
+      feedback.style.cssText = 'position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px 16px 36px;text-align:center;font-size:12px;background:var(--view-g1);color:var(--ink)'
+      const message = document.createElement('span')
+      message.setAttribute('role', 'status')
+      message.textContent = state === 'loading'
+        ? ifEn('Loading model…', '正在加载模型…')
+        : ifEn('Model failed to load. Please retry.', '模型加载失败，请重试。')
+      const retry = document.createElement('button')
+      retry.type = 'button'
+      retry.className = 'qs-browser__open'
+      retry.textContent = ifEn('Retry', '重试')
+      retry.hidden = state !== 'error'
+      retry.addEventListener('click', ensureMiniViewer)
+      feedback.appendChild(message)
+      feedback.appendChild(retry)
+      host.appendChild(feedback)
+      miniViewerFeedback = feedback
+    }
+
+    const disposeMiniViewer = (): void => {
+      miniViewer?.dispose()
+      miniViewer = null
+    }
 
     const ensureMiniViewer = (): void => {
-      if (prefersReducedMotion()) return
-      const host = panel.querySelector<HTMLElement>('#qs-mini-viewer')
-      if (!host || miniViewer || miniViewerLoading) return
-      window.setTimeout(() => {
-        if (miniViewer || miniViewerLoading || !host.isConnected || currentStep !== 2) return
-        miniViewerLoading = true
+      if (prefersReducedMotion() || pageHidden || currentStep !== 2) return
+      if (!host?.isConnected || miniViewer || cancelMiniViewerLoad) return
+
+      let settled = false
+      let startTimer: number | undefined
+      const finish = (ready: boolean, showFailure = true): void => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(startTimer)
+        window.clearTimeout(timeout)
+        cancelMiniViewerLoad = null
+        if (!ready) disposeMiniViewer()
+        setMiniViewerState(!ready && showFailure ? 'error' : null)
+      }
+      // Bound the entire attempt, including the delay, chunk import and GLB load.
+      const timeout = window.setTimeout(() => finish(false), 15000)
+      cancelMiniViewerLoad = () => finish(false, false)
+      setMiniViewerState('loading')
+      startTimer = window.setTimeout(() => {
+        if (pageHidden || !host.isConnected || currentStep !== 2) return finish(false, false)
         void import('../hero3d')
           .then(({ createMiniViewer }) => {
-            miniViewerLoading = false
-            if (miniViewer || !host.isConnected || currentStep !== 2) return
+            // Imports cannot be aborted; ignore completions from expired attempts.
+            if (settled) return
+            if (pageHidden || !host.isConnected || currentStep !== 2) return finish(false, false)
             miniViewer = createMiniViewer(host)
+            if (!miniViewer) return finish(false)
+            void miniViewer.ready.then((ready) => {
+              if (pageHidden || !host.isConnected || currentStep !== 2) return finish(false, false)
+              finish(ready)
+            }, () => finish(false))
           })
-          .catch(() => { miniViewerLoading = false })
+          .catch(() => finish(false))
       }, 120)
+    }
+
+    if (host) {
+      window.addEventListener('pagehide', () => {
+        pageHidden = true
+        cancelMiniViewerLoad?.()
+        disposeMiniViewer()
+        setMiniViewerState(null)
+      })
+      window.addEventListener('pageshow', (event) => {
+        if (!event.persisted) return
+        pageHidden = false
+        ensureMiniViewer()
+      })
     }
 
     const showStep = (index: number): void => {
       currentStep = index
+      if (index !== 2) cancelMiniViewerLoad?.()
       steps.forEach((step, i) => step.classList.toggle('is-active', i === index))
       // mockup：多个 mock 时按 index 切换；单个 mock（客户视角）时始终显示
       if (mocks.length > 1) {

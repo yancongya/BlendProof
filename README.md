@@ -160,7 +160,7 @@ Vite serves the landing page at `http://localhost:5173/` during development. The
 
 ## Usage
 
-1. Start the dev server and open `http://localhost:5173`.
+1. Start the dev server and open `http://localhost:5173/` for the landing page, or `http://localhost:5173/dev/` for the project workspace.
 2. Open the upload workspace from the File menu and select a `.blend` file. The browser attempts local conversion first; unsupported files fall back to the local Blender bridge.
 3. Inspect the model — orbit, pan, isolate objects, switch camera and display mode.
 4. Click **Add annotation** to enter mark mode. Hover a surface for the orange snap highlight, right-click to place a comment at that view point, then write and save it in the popover. The owner can resolve or reopen it; new comments are surfaced by the in-app notification badge.
@@ -179,8 +179,8 @@ This writes `test-assets/simple-review-scene.blend`. Import it, click "create lo
 
 | Script | Purpose |
 |---|---|
-| `npm run dev` | Run the web app and the local bridge together |
-| `npm run dev:web` | Vite only, bound to `127.0.0.1` |
+| `npm run dev` | Run the web app, local bridge, and local Cloudflare Worker together |
+| `npm run dev:web` | Vite only at `localhost:5173`; fails if the port is occupied |
 | `npm run dev:server` | Local Express bridge only (`tsx watch`) |
 | `npm run build` | Type-check and build the project workspace plus landing page into `dist/` and `dist/landing/` |
 | `npm run build:app` | Build only the project workspace while preserving an existing `dist/landing/` |
@@ -193,13 +193,16 @@ This writes `test-assets/simple-review-scene.blend`. Import it, click "create lo
 | `npm run check:worker` | Type-check the Worker against `tsconfig.worker.json` |
 | `npm run check:arch` | Check source dependency direction and architecture budgets |
 | `npm run test:backend` | Local backend and Viewer test suite via `node:test` |
+| `npm run test:release-pipeline` | Check release ordering, CI authorization, and self-hosted route parity |
 | `npm run test:worker` | Worker test suite via Vitest + `@cloudflare/vitest-plugin` |
 | `npm run test:landing` | Build the landing page and run asset/loading smoke checks |
+| `npm run test:landing:built` | Check the existing landing build; used after the current release build to avoid rebuilding |
 | `npm run worker:dev` | Run the Worker locally against Miniflare |
 | `npm run worker:dry-run` | Build the Worker bundle into `dist-worker/` |
 | `npm run worker:types` | Regenerate `worker-configuration.d.ts` |
 | `npm run verify:release` | Run the complete local release gate, including package-boundary checks |
-| `npm run deploy:production` | Re-run the release gate and deploy after explicit approval |
+| `npm run verify:production` | Read-only checks of live routes, health response and asset hashes; called after deployment |
+| `npm run deploy:production` | Run the release gate and deploy after explicit approval |
 
 </details>
 
@@ -225,29 +228,23 @@ blendproof/
 └── storage/        Local project data (git-ignored)
 ```
 
-**Quality gates.** The release gate runs the following in order:
+**Quality gates.** `npm run verify:release` is the canonical local release pipeline. It regenerates and validates landing images, runs type/architecture/backend/release-pipeline checks, builds the current package, runs Worker tests against that build, runs landing tests, performs a Wrangler dry-run, and checks the final package boundaries. Each step reports its duration; a failure reports the step and exit code. During fixes, rerun affected checks; for a release, let the deployment script run the full gate once. Browser reports belong in ignored `output/`; release evidence is recorded in `docs/RELEASE_ACCEPTANCE_2026-11-02.md`.
 
 ```sh
-npm run check
-npm run check:worker
-npm run check:arch
-npm run test:backend
-npm run test:worker
-npm run build
-npm run test:landing
-npm run worker:dry-run
-npm run verify:release-assets
+npm run verify:release
 ```
 
-Use `npm run verify:release` to run the complete gate. `npm run test:landing` validates the WebP format, responsive `srcset`, lazy/async image attributes, image decode gating, retry behavior, and generated landing entry assets. The landing page keeps card artwork out of the initial blocking path with WebP resources, responsive 512/768w `srcset`, native lazy loading, and async decoding; the Hero 3D module is dynamically loaded only when the reviewer view needs it.
+`npm run test:landing` validates WebP output, responsive `srcset`, lazy/async image attributes, image decode/retry contracts, and landing entry assets. These checks do not simulate real network failures in a browser. The landing page keeps card artwork out of the initial blocking path with responsive 512/768w WebP, native lazy loading, async decoding, per-card readiness, and retry states; the Hero 3D module is dynamically loaded only when needed.
 
 `npm run build` is the complete build. `npm run build:app` is an app-only rebuild and intentionally preserves an existing `dist/landing/`; `npm run build:landing` rebuilds only the landing page. Confirm the dry-run bundle contains no `.blend`, `.dev.vars`, local database, or `storage/` content.
 
-Real-browser laboratory checks and production URL checks are separate evidence. Use the locally managed `web-perf` skill against the local Worker or deployed URL; a passing build/release gate does not by itself prove production browser acceptance.
+Real-browser laboratory checks and production URL checks are separate evidence. Use the locally managed `web-perf` skill against the local Worker or deployed URL; a passing build/release gate does not by itself prove production browser acceptance. On first visit, the identity cards start their optimized image loads independently as each card nears the viewport; an off-screen card does not block an already-ready choice.
 
 For official hosting, forks, identity secrets, callback isolation, and provider-outage behavior, see [`docs/SELF_HOSTED_IDENTITY.md`](docs/SELF_HOSTED_IDENTITY.md).
 
 Official hosting uses the closed Orbit account platform. Community deployments remain fully usable with BlendProof's bundled local accounts and invite codes: copy [`wrangler.self-host.example.jsonc`](wrangler.self-host.example.jsonc), keep `UNIVERSAL_AUTH_MODE=off`, and replace only your own D1, R2, and origin placeholders.
+
+The November 2, 2026 deployment and HTTP acceptance evidence, plus remaining browser-verification limits, are recorded in [`docs/RELEASE_ACCEPTANCE_2026-11-02.md`](docs/RELEASE_ACCEPTANCE_2026-11-02.md).
 
 **Working conventions** are recorded in [`AGENTS.md`](AGENTS.md): stable product boundaries, the requirement that the Worker enforces authorization rather than the UI, and the rule that real Cloudflare resources, DNS, secrets, and remote migrations require explicit approval. Long-term state lives in [`.planning/STATE.md`](.planning/STATE.md).
 
@@ -319,14 +316,15 @@ The production Worker, D1 database, private R2 bucket, hourly cron, and custom d
 
 R2 is the default adapter. Self-hosted deployments can select an AWS SigV4-compatible private bucket with `STORAGE_PROVIDER=s3`; configuration, permissions, health response, and adapter requirements are documented in [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md).
 
-Run the local release gate before any remote change. `deploy:production` runs it again and requires an explicit approval variable before invoking Wrangler:
+`deploy:production` is the single authorized production entrypoint: it requires an explicit approval variable, runs the complete release gate, then invokes Wrangler. Run `npm run verify:release` separately when you only need a local preflight; do not run both commands back-to-back unless you intentionally want the gate repeated:
 
 ```sh
-npm run verify:release
-# Apply remote D1 migrations only when this deployment explicitly includes them.
-npx wrangler d1 migrations apply <database> --remote
 BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:production
 ```
+
+The GitHub deployment workflow is manual-only and requires an explicit `YES` input plus both Cloudflare credentials before invoking the same script. The script removes those credentials from the release-gate subprocess and stops before Wrangler on any gate failure. Configure required reviewers for its `production` environment when repository-level approval is required; workflow YAML does not configure GitHub approval rules. Missing approval or credentials fails the job.
+
+This deployment script does not run remote D1 migrations, change secrets, or modify DNS. A remote migration is a separate production data change: review the pending migration and obtain explicit authorization for that change before running any `--remote` command.
 
 Do not bypass the gate with a direct `npx wrangler deploy`. Confirm `APP_ORIGIN` matches the live HTTPS origin exactly, with no trailing slash. Secrets (`UPLOAD_SIGNING_SECRET`, `SHARE_ACCESS_SECRET`, and the one-time `BOOTSTRAP_ADMIN_TOKEN`) are set through Wrangler secrets and never committed. After deployment, verify `/`, `/landing/`, `/dev/`, `/s/suzanne`, and a representative optimized landing asset with both HTTP checks and a real browser. Local tests and browser-lab reports must be reported separately from production acceptance.
 
@@ -378,12 +376,14 @@ A permanent public demo model with the passphrase `tycon`. It is exempt from quo
 
 ## Contributing
 
-BlendProof is a private repository. The configured `origin` is the project GitHub remote; contributions happen in-tree and are pushed through the reviewed branch workflow: follow the boundaries in [`AGENTS.md`](AGENTS.md), run the quality gates above, and verify UI changes in a real browser rather than relying on a successful build.
+BlendProof is a public, source-available repository; it is not currently distributed under an open-source license. The configured `origin` is the project GitHub remote; contributions happen in-tree and are pushed through the reviewed branch workflow: follow the boundaries in [`AGENTS.md`](AGENTS.md), run the quality gates above, and verify UI changes in a real browser rather than relying on a successful build.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## License
 
-UNLICENSED — all rights reserved. This is a private project with no `LICENSE` file; nothing here grants permission to use, copy, modify, or distribute it.
+UNLICENSED — all rights reserved. The public repository has no `LICENSE` file; nothing here grants permission to use, copy, modify, or distribute it.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+See [Performance and release workflow](docs/PERFORMANCE_RELEASE_WORKFLOW.md) for failure recovery, avoiding duplicate checks, and recording evidence.

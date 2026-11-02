@@ -5,8 +5,8 @@
  * walking text nodes and common attributes. Dynamic copy in main.ts /
  * hero3d.ts goes through t() / ifEn().
  *
- * Switching the language persists the choice and reloads, so every render
- * path simply reads the current lang once at startup.
+ * Switching language persists the choice and updates the document in place.
+ * Dynamic modules refresh cached text on blendproof:language-change.
  */
 
 export type Lang = 'zh' | 'en'
@@ -26,6 +26,15 @@ export function getLang(): Lang {
 /** zh text → en text, keyed by whitespace-collapsed Chinese source. */
 const EN: Record<string, string> = {
   /* chrome / top actions */
+  '造物者': 'Creator',
+  '审视者': 'Reviewer',
+  '试试点「填入演示链接」——口令自动通过，模型载入。': 'Try the demo link — the passphrase is filled in and the model loads.',
+  '数据来自当前站点接口': 'Live data from this deployment',
+  '准备好让客户直接在 3D 模型上批注了吗？': 'Ready for your client to comment directly on the 3D model?',
+  '开始使用 BlendProof': 'Get started with BlendProof',
+  '个人维护的公益项目 · 按现状提供服务 · 当前支持 macOS（Linux/Windows 支持开发中）': 'Personally maintained public-good project · provided as-is · macOS supported (Linux/Windows in development)',
+  '分享信息。权限、有效期、密码都在这里定，复制后发给客户即可。点击「复制」会生成包含链接、密码和说明的完整文本。': 'Share details. Set permissions, expiry and password, then copy the complete share text for your client.',
+
   '☀ 亮色': '☀ Light',
   '☾ 暗色': '☾ Dark',
   '切换亮色 / 暗色模式': 'Toggle light / dark theme',
@@ -75,11 +84,10 @@ const EN: Record<string, string> = {
   '仅查看': 'View only',
   '立即登录注册': 'Sign in / Sign up',
   '纯免费': 'Free',
-  '开源': 'Open source',
-  '全栈开源': 'Fully open source',
+  '源码公开': 'Source available',
+  '代码可审阅': 'Auditable code',
   '无需安装': 'No install',
   '分享信息': 'Share details',
-  '分享信息。权限、有效期、密码都在这里定，复制后发给客户即可。点击「复制」会生成包含链接、密码和说明的完整文本。': 'Share details. Set permissions, expiry and password here, then copy the complete link, password and note for your client.',
   '点击上方步骤查看详情': 'Click a step above to see the details',
   '配置权限 · 设置有效期 · 一键复制': 'Set permissions · expiry · copy once',
   '可批注': 'Commentable',
@@ -356,6 +364,9 @@ const EN: Record<string, string> = {
   '权限': 'Permission',
   '到期': 'Expiry',
   '24 小时后': 'in 24 hours',
+  '48 小时后': 'in 48 hours',
+  '分享信息。': 'Share details.',
+  '权限、有效期、密码都在这里定，复制后发给客户即可。点击「复制」会生成包含链接、密码和说明的完整文本。': 'Set permissions, expiry and password, then copy the complete share text for your client.',
   '已设置': 'Set',
   '无': 'None',
   '打开检查': 'Open to verify',
@@ -443,7 +454,9 @@ const EN: Record<string, string> = {
   '不看你的内容。': 'Your content stays unseen.',
   '服务端只转发派生资产，没有人工查看环节；日志只记操作，不看模型。':
     'The server only relays derived assets, with no human inspection step; logs record operations, never models.',
-  '开源，可自行部署。': 'Open source, self-hostable.',
+  '源码公开供审阅。': 'Source available for review.',
+  '查看完整代码与部署说明': 'View the full code and deployment documentation',
+  '；使用与部署授权以仓库声明为准。': '; use and deployment permissions follow the repository terms.',
   '不放心公益池？': 'Not sure about the public pool?',
   '代码全部公开': 'The code is fully public',
   '，可以自己搭一套一模一样的。': ' — you can stand up an identical copy yourself.',
@@ -479,8 +492,8 @@ const EN: Record<string, string> = {
   /* card 08 — stack & scope */
   '技术栈与支持范围': 'Stack & scope',
   '它是怎么工作的，以及能覆盖多少。': 'How it works, and how far it reaches.',
-  '没有魔法——就是浏览器的标准能力、Blender 的官方能力和一层薄薄的服务端。免安装路径覆盖静态场景，复杂文件自动回退本机 Blender。项目开源，每一行都欢迎审阅。':
-    'No magic — just standard browser capabilities, official Blender capabilities, and a thin server layer. The install-free path covers static scenes; complex files fall back to your local Blender automatically. The project is open source — audit every line.',
+  '没有魔法——就是浏览器的标准能力、Blender 的官方能力和一层薄薄的服务端。免安装路径覆盖静态场景，复杂文件自动回退本机 Blender。项目源码公开供审阅，具体使用与部署授权以仓库声明为准。':
+    'No magic — just standard browser capabilities, official Blender capabilities, and a thin server layer. The install-free path covers static scenes; complex files fall back to your local Blender automatically. The source is available for review; use and deployment permissions follow the repository terms.',
   '没有魔法——浏览器标准能力 + Blender 官方能力 + 一层薄服务端。免安装路径覆盖静态场景，复杂文件自动回退本机 Blender。':
     'No magic — standard browser APIs + official Blender capabilities + a thin server layer. The install-free path covers static scenes; complex files fall back to your local Blender.',
   '前端': 'Frontend',
@@ -672,4 +685,5 @@ export function applyStaticI18n(): void {
     themeBtn.textContent = en ? (EN[normalize(zh)] ?? zh) : zh
     themeBtn.setAttribute('aria-label', en ? 'Toggle light / dark theme' : '切换亮色 / 暗色模式')
   }
+  window.dispatchEvent(new Event('blendproof:language-change'))
 }

@@ -29,6 +29,7 @@ const html = readFileSync(htmlPath, 'utf-8')
 const appPath = join(DIST, 'app.js')
 const appCode = existsSync(appPath) ? readFileSync(appPath, 'utf-8') : ''
 const tarotSource = readFileSync(join(cwd, 'landing/src/modules/tarot.ts'), 'utf-8')
+const demosSource = readFileSync(join(cwd, 'landing/src/modules/demos.ts'), 'utf-8')
 const landingMainSource = readFileSync(join(cwd, 'landing/src/main.ts'), 'utf-8')
 
 // 读取所有 JS
@@ -255,16 +256,20 @@ check('19 个卡面图均使用原生 lazy loading 与 async decoding', cardImag
 const intendedSizes = '(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px'
 check('卡面 sizes 与桌面/平板/移动端显示宽度匹配',
   cardTagDetails.length === 19 && optimizedCardTags.every((tag) => getAttribute(tag, 'sizes') === intendedSizes))
-check('首次身份面板并行提升卡面加载优先级', /\.loading=["']eager["']/.test(js))
+check('身份卡接近视口时分别启动对应图片加载',
+  tarotSource.includes('new IntersectionObserver') &&
+  tarotSource.includes("rootMargin: '180px 0px'") &&
+  tarotSource.includes('prepareUnitImages(unit)'))
 check('卡组初始 aria-busy 且有 live loading 状态',
   /\baria-busy\s*=\s*["']true["']/i.test(tarotDeckTag) &&
   /\brole\s*=\s*["']status["']/i.test(tarotLoadingTag) &&
   /\baria-live\s*=\s*["']polite["']/i.test(tarotLoadingTag))
 check('卡片 loading 样式与图像 decode 完成处理存在',
   html.includes('.tarot-unit.is-loading') && js.includes('aria-busy') && js.includes('aria-disabled') && js.includes('decode'))
-check('卡面加载失败时保持入口禁用并提供重试路径',
-  tarotSource.includes('cardsReady = failedCount === 0') &&
-  tarotSource.includes('button.disabled = !cardsReady') &&
+check('各身份卡独立等待自身图片解码，失败时保留重试路径',
+  tarotSource.includes('const isUnitReady =') &&
+  tarotSource.includes('button.disabled = !ready') &&
+  tarotSource.includes('preparedUnits.forEach((unit) => prepareUnitImages(unit, true)') &&
   html.includes('id="tarot-retry"'))
 check('Hero 3D 状态按钮仅在 3D 初始化成功后显示',
   /class\s*=\s*["']hero3d__states["'][^>]*\bhidden\b/i.test(html) &&
@@ -273,6 +278,18 @@ check('Hero 3D 延迟初始化具备 API fallback 与有限重试',
   landingMainSource.includes("typeof IntersectionObserver === 'function'") &&
   landingMainSource.includes("typeof MutationObserver === 'function'") &&
   landingMainSource.includes('attempts >= 2'))
+check('身份卡加载错误提示可在窄屏换行',
+  html.includes('max-width: min(90vw, 420px)') &&
+  html.includes('white-space: normal') &&
+  html.includes('overflow-wrap: anywhere'))
+check('无效分享链接错误显示在 live status 区域',
+  demosSource.includes("status.hidden = false") &&
+  demosSource.includes("'error'") &&
+  /id="mk-browser-status"[^>]*role="status"[^>]*aria-live="polite"[^>]*hidden/.test(html))
+check('接收端演示在 BFCache 恢复后重新初始化 Viewer',
+  demosSource.includes("window.addEventListener('pageshow'") &&
+  demosSource.includes('event.persisted') &&
+  demosSource.includes('restoreOnPageshow'))
 
 console.log(`\n${fail === 0 ? '✓ 全部通过' : `✗ ${fail} 项失败`}`)
 process.exit(fail)

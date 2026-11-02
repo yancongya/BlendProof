@@ -33,81 +33,155 @@ function initTarotPortal(): void {
   const deck = document.getElementById('tarot-deck')
   const loadingNote = document.getElementById('tarot-loading')
   const retryBtn = document.getElementById('tarot-retry')
-  let cardsReady = false
-  let cardsReadyPromise: Promise<void> | null = null
+  type ImageTask = { state: 'loading' | 'ready' | 'failed'; dispose: () => void }
+  const unitImages = new Map(units.map((unit) => [unit, Array.from(unit.querySelectorAll('img'))]))
+  const imageTasks = new Map<HTMLImageElement, ImageTask>()
+  const preparedUnits = new Set<HTMLElement>()
+  let retrySequence = 0
+  let imageObserver: IntersectionObserver | undefined
 
-  const prepareCardImages = (): Promise<void> => {
-    if (cardsReadyPromise) return cardsReadyPromise
-
-    deck?.setAttribute('aria-busy', 'true')
-    loadingNote?.removeAttribute('hidden')
-    loadingNote?.classList.remove('is-error')
-    retryBtn?.setAttribute('hidden', '')
-    if (loadingNote) {
-      loadingNote.textContent = ifEn('Preparing card artwork…', '正在准备卡面…')
-    }
-    units.forEach((unit) => {
-      unit.classList.add('is-loading')
-      unit.setAttribute('aria-disabled', 'true')
-      unit.querySelectorAll<HTMLButtonElement>('.tarot-cta').forEach((button) => {
-        button.disabled = true
-      })
-    })
-
-    const images = units.flatMap((unit) => Array.from(unit.querySelectorAll('img')))
-    images.forEach((image) => { image.loading = 'eager' })
-
-    const waitForImage = async (image: HTMLImageElement): Promise<boolean> => {
-      if (!image.complete) {
-        await new Promise<void>((resolve) => {
-          let timer: number | undefined
-          const settled = (): void => {
-            if (timer !== undefined) window.clearTimeout(timer)
-            image.removeEventListener('load', settled)
-            image.removeEventListener('error', settled)
-            resolve()
-          }
-          image.addEventListener('load', settled, { once: true })
-          image.addEventListener('error', settled, { once: true })
-          timer = window.setTimeout(settled, 15000)
-          if (image.complete) settled()
-        })
-      }
-      if (image.naturalWidth === 0) return false
-      if (typeof image.decode === 'function') {
-        try { await image.decode() } catch { return false }
-      }
-      return true
-    }
-
-    cardsReadyPromise = Promise.all(images.map(waitForImage)).then((results) => {
-      const failedCount = results.filter((loaded) => !loaded).length
-      cardsReady = failedCount === 0
-      deck?.setAttribute('aria-busy', 'false')
-      units.forEach((unit) => {
-        unit.classList.toggle('is-loading', !cardsReady)
-        unit.setAttribute('aria-disabled', String(!cardsReady))
-        unit.querySelectorAll<HTMLButtonElement>('.tarot-cta').forEach((button) => {
-          button.disabled = !cardsReady
-        })
-      })
-
-      if (failedCount > 0 && loadingNote) {
-        loadingNote.classList.add('is-error')
-        loadingNote.textContent = ifEn(
-          'Some card images failed to load. Retry before choosing a role.',
-          '部分卡面加载失败，请先重试后再选择身份。',
-        )
-        retryBtn?.removeAttribute('hidden')
-      } else {
-        loadingNote?.setAttribute('hidden', '')
-      }
-    })
-
-    return cardsReadyPromise
+  const isUnitReady = (unit: HTMLElement): boolean => {
+    const images = unitImages.get(unit) ?? []
+    return preparedUnits.has(unit) && images.length > 0 &&
+      images.every((image) => imageTasks.get(image)?.state === 'ready')
   }
 
-  retryBtn?.addEventListener('click', () => window.location.reload())
+  const updateCardState = (): void => {
+    let loading = false
+    let failed = false
+    let readyCount = 0
+    units.forEach((unit) => {
+      const tasks = (unitImages.get(unit) ?? []).map((image) => imageTasks.get(image))
+      const ready = isUnitReady(unit)
+      if (ready) readyCount++
+      if (preparedUnits.has(unit)) {
+        loading ||= tasks.some((task) => !task || task.state === 'loading')
+        failed ||= tasks.some((task) => task?.state === 'failed')
+      }
+      unit.classList.toggle('is-loading', !ready)
+      unit.setAttribute('aria-disabled', String(!ready))
+      unit.querySelectorAll<HTMLButtonElement>('.tarot-cta').forEach((button) => {
+        button.disabled = !ready
+      })
+    })
+    deck?.setAttribute('aria-busy', String(loading))
+    retryBtn?.toggleAttribute('hidden', !failed)
+    loadingNote?.toggleAttribute('hidden', !failed && (readyCount > 0 || !loading))
+    loadingNote?.classList.toggle('is-error', failed)
+    if (loadingNote) {
+      loadingNote.textContent = failed
+        ? ifEn('Some card artwork failed to load. Retry or choose a ready role.', '部分卡面未能加载，可重试或选择已就绪的身份。')
+        : ifEn('Preparing card artwork…', '正在准备卡面…')
+    }
+  }
+
+  const startImageTask = (image: HTMLImageElement, retry: boolean): void => {
+    imageTasks.get(image)?.dispose()
+    let decoding = false
+    let timer: number | undefined
+    const task: ImageTask = {
+      state: 'loading',
+      dispose: () => {
+        window.clearTimeout(timer)
+        image.removeEventListener('load', loaded)
+        image.removeEventListener('error', failed)
+      },
+    }
+    imageTasks.set(image, task)
+    const isCurrent = (): boolean => imageTasks.get(image) === task
+    const failed = (): void => {
+      if (!isCurrent()) return
+      window.clearTimeout(timer)
+      task.state = 'failed'
+      updateCardState()
+      // Keep load listening after timeout: a slow request can still recover.
+    }
+    const loaded = async (): Promise<void> => {
+      if (!isCurrent() || decoding) return
+      decoding = true
+      try {
+        if (image.naturalWidth === 0) throw new Error('Empty card image')
+        if (typeof image.decode === 'function') await image.decode()
+        if (!isCurrent()) return
+        task.state = 'ready'
+        task.dispose()
+        updateCardState()
+      } catch {
+        failed()
+      } finally {
+        decoding = false
+      }
+    }
+    image.addEventListener('load', loaded)
+    image.addEventListener('error', failed)
+    timer = window.setTimeout(failed, 15000)
+    image.loading = 'eager'
+
+    if (retry) {
+      // Retry both responsive candidates as well as the fallback, not the page.
+      const retryId = `${Date.now()}-${++retrySequence}`
+      const retryUrl = (source: string): string => {
+        const url = new URL(source, document.baseURI)
+        url.searchParams.set('bp-retry', retryId)
+        return url.href
+      }
+      const src = image.getAttribute('src')
+      const srcset = image.getAttribute('srcset')
+      if (srcset) image.srcset = srcset.split(',').map((candidate) => {
+        const [source, descriptor] = candidate.trim().split(/\s+/)
+        return `${retryUrl(source)} ${descriptor}`
+      }).join(', ')
+      if (src) image.src = retryUrl(src)
+    }
+    if (image.complete) void loaded()
+  }
+
+  const prepareUnitImages = (unit: HTMLElement, retryFailed = false): void => {
+    preparedUnits.add(unit)
+    ;(unitImages.get(unit) ?? []).forEach((image) => {
+      const task = imageTasks.get(image)
+      if (!task || (retryFailed && task.state === 'failed')) startImageTask(image, Boolean(task))
+    })
+    updateCardState()
+  }
+
+  const observePortalCards = (): void => {
+    imageObserver?.disconnect()
+    const pending = units.filter((unit) => !preparedUnits.has(unit))
+    if (pending.length === 0) return
+    if (typeof IntersectionObserver === 'undefined') {
+      pending.forEach((unit) => prepareUnitImages(unit))
+      return
+    }
+    imageObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return
+        const unit = entry.target as HTMLElement
+        observer.unobserve(unit)
+        prepareUnitImages(unit)
+      })
+    }, { rootMargin: '180px 0px' })
+    pending.forEach((unit) => imageObserver?.observe(unit))
+  }
+
+  retryBtn?.addEventListener('click', () => {
+    preparedUnits.forEach((unit) => prepareUnitImages(unit, true))
+  })
+  window.addEventListener('pagehide', () => {
+    imageObserver?.disconnect()
+    imageTasks.forEach((task) => task.dispose())
+    imageTasks.clear()
+    updateCardState()
+  })
+  window.addEventListener('pageshow', (event) => {
+    // BFCache retains the DOM, but pagehide invalidates its load/decode tasks.
+    // Reattach on every restoration; cached complete images are decoded again.
+    if (event.persisted) {
+      preparedUnits.forEach((unit) => prepareUnitImages(unit))
+      // pagehide can precede the first intersection, leaving no prepared units.
+      if (root.dataset.identityChosen === 'false') observePortalCards()
+    }
+  })
 
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
   window.scrollTo(0, 0)
@@ -116,7 +190,7 @@ function initTarotPortal(): void {
     root.dataset.identityChosen = 'true'
   } else {
     root.dataset.identityChosen = 'false'
-    void prepareCardImages()
+    observePortalCards()
   }
 
   const noMotion = prefersReducedMotion()
@@ -231,7 +305,9 @@ function initTarotPortal(): void {
   units.forEach((unit) => {
     const role = unit.dataset.role as 'creator' | 'reviewer'
     const go = () => {
-      if (isLaunching || !cardsReady) return
+      if (isLaunching || !isUnitReady(unit)) return
+
+      imageObserver?.disconnect()
 
       units.forEach((u) => u.classList.toggle('is-selected', u === unit))
 
@@ -303,7 +379,7 @@ function initTarotPortal(): void {
       u.style.removeProperty('--rush-y')
     })
     window.scrollTo(0, 0)
-    void prepareCardImages()
+    observePortalCards()
     root.dataset.identityChosen = 'false'
   })
 

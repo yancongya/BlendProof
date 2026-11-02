@@ -8,9 +8,9 @@
   },
   "scripts": {
     "dev": "BLENDPROOF_PAIRING_CODE=blendproof-local-dev-pairing-code-01 VITE_LOCAL_BRIDGE_PAIRING_CODE=blendproof-local-dev-pairing-code-01 concurrently -k \"npm:dev:web\" \"npm:dev:server\" \"npm:dev:worker\"",
-    "dev:web": "vite --host 127.0.0.1",
+    "dev:web": "vite --host localhost --strictPort",
     "dev:server": "tsx watch server/index.ts",
-    "dev:worker": "wrangler dev --local --port 8787 --var APP_ORIGIN:http://127.0.0.1:5173",
+    "dev:worker": "wrangler dev --local --port 8787 --var APP_ORIGIN:http://localhost:5173",
     "build": "tsc -b && vite build && npm run build:landing",
     "build:app": "tsc -b && BLENDPROOF_PRESERVE_DIST=1 vite build",
     "build:landing": "vite build --config landing/vite.config.ts",
@@ -21,7 +21,8 @@
     "check": "tsc -b --pretty false",
     "optimize:landing-images": "node scripts/optimize-landing-images.mjs",
     "test:review-api": "tsx --test tests/review-api.test.ts",
-    "test:landing": "npm run build:landing && node tests/landing-smoke.mjs",
+    "test:landing": "npm run build:landing && npm run test:landing:built",
+    "test:landing:built": "node tests/landing-smoke.mjs && node --test tests/landing-loading.test.mjs",
     "test:backend": "tsx --test tests/blendproof-client.test.ts tests/db.test.ts tests/legacy-migration.test.ts tests/local-storage.test.ts tests/review-api.test.ts tests/viewer.test.ts",
     "check:worker": "tsc -p tsconfig.worker.json --pretty false",
     "check:arch": "node scripts/check-architecture.mjs",
@@ -31,7 +32,9 @@
     "worker:dry-run": "wrangler deploy --dry-run --outdir dist-worker",
     "verify:release": "bash scripts/verify-release.sh",
     "verify:release-assets": "node scripts/verify-release-assets.mjs",
-    "deploy:production": "bash scripts/deploy-production.sh"
+    "verify:production": "node scripts/verify-production.mjs",
+    "deploy:production": "bash scripts/deploy-production.sh",
+    "test:release-pipeline": "node --test tests/release-pipeline.test.mjs"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",

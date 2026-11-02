@@ -3,7 +3,7 @@
  * receiver browser, pain flip, legal modals.
  */
 
-import { t, setNodeText } from '../i18n'
+import { t, ifEn, setNodeText } from '../i18n'
 import { prefersReducedMotion } from './cards'
 
 const ORIGIN = window.location.origin
@@ -242,29 +242,85 @@ function initReceiverBrowser(): void {
 
   const reduced = prefersReducedMotion()
   let viewer: { dispose: () => void; ready: Promise<boolean> } | null = null
-  let viewerReady: Promise<boolean> | null = null
   let opened = false
+  let restoreOnPageshow = false
+  let attempt = 0
+  let cancelLoad: (() => void) | null = null
   let timers: number[] = []
 
-  const setStatus = (zh: string, kind: '' | 'busy' | 'ok'): void => {
+  const setStatus = (zh: string, kind: '' | 'busy' | 'ok' | 'error'): void => {
     setNodeText(status, zh)
     status.dataset.kind = kind
   }
 
+  const disposeViewer = (): void => {
+    viewer?.dispose()
+    viewer = null
+  }
+
   const loadViewer = (): Promise<boolean> => {
     if (reduced || !opened || view.hidden || !modelHost.isConnected) return Promise.resolve(false)
-    if (viewer) return viewer.ready
-    if (viewerReady) return viewerReady
 
-    viewerReady = import('../hero3d')
-      .then(({ createMiniViewer }) => {
-        if (!opened || view.hidden || !modelHost.isConnected) return false
-        viewer = createMiniViewer(modelHost)
-        return viewer?.ready ?? false
-      })
-      .catch(() => false)
-    return viewerReady
+    // Include chunk loading in the deadline, not just the GLB request.
+    return new Promise<boolean>((resolve) => {
+      let settled = false
+      const finish = (ready: boolean): void => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        cancelLoad = null
+        if (!ready) disposeViewer()
+        resolve(ready)
+      }
+      const timer = window.setTimeout(() => finish(false), 15000)
+      cancelLoad = () => finish(false)
+      void import('../hero3d')
+        .then(({ createMiniViewer }) => {
+          if (settled) return
+          if (!opened || view.hidden || !modelHost.isConnected) return finish(false)
+          viewer = createMiniViewer(modelHost)
+          if (!viewer) return finish(false)
+          void viewer.ready.then(finish, () => finish(false))
+        })
+        .catch(() => finish(false))
+    })
   }
+
+  const clearTimers = (): void => {
+    timers.forEach((timer) => window.clearTimeout(timer))
+    timers = []
+  }
+
+  window.addEventListener('pagehide', (event) => {
+    restoreOnPageshow = event.persisted && opened && !view.hidden
+    attempt += 1
+    opened = false
+    clearTimers()
+    cancelLoad?.()
+    disposeViewer()
+    go.disabled = false
+  })
+
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted || !restoreOnPageshow || view.hidden) return
+    restoreOnPageshow = false
+    const currentAttempt = ++attempt
+    opened = true
+    go.disabled = true
+    setStatus('口令通过 · 正在载入模型…', 'busy')
+    void loadViewer().then((modelReady) => {
+      if (currentAttempt !== attempt) return
+      if (modelReady) {
+        setStatus('模型已载入 · 拖拽旋转，滚轮缩放', 'ok')
+      } else if (reduced) {
+        setStatus('静态演示已就绪 · 已关闭动态视口', 'ok')
+      } else {
+        opened = false
+        setStatus(ifEn('Model unavailable · Click Go to retry', '模型暂不可用 · 点击前往重试'), '')
+      }
+      go.disabled = false
+    })
+  })
 
   const typePassword = (done: () => void): void => {
     const chars = 'tycon'
@@ -275,7 +331,7 @@ function initReceiverBrowser(): void {
       pwd.value = '•'.repeat(index)
       if (index >= chars.length) {
         window.clearInterval(timer)
-        window.setTimeout(done, reduced ? 0 : 420)
+        timers.push(window.setTimeout(done, reduced ? 0 : 420))
       }
     }, reduced ? 0 : 110)
     timers.push(timer)
@@ -284,25 +340,33 @@ function initReceiverBrowser(): void {
   const open = (): void => {
     const value = urlInput.value.trim()
     if (!/s\/suzanne|suzanne/i.test(value)) {
-      setStatus('未找到该分享——试试下面的演示链接。', 'busy')
+      setStatus(ifEn('Share not found. Try the demo link below.', '未找到该分享——试试下面的演示链接。'), 'error')
+      status.hidden = false
       return
     }
     if (opened) return
+    clearTimers()
+    disposeViewer()
+    const currentAttempt = ++attempt
     opened = true
     go.disabled = true
     empty.hidden = true
     view.hidden = false
+    status.hidden = false
 
     setStatus('正在验证口令…', 'busy')
     typePassword(() => {
+      if (currentAttempt !== attempt) return
       setStatus('口令通过 · 正在载入模型…', 'busy')
       void loadViewer().then((modelReady) => {
+        if (currentAttempt !== attempt) return
         if (modelReady) {
           setStatus('模型已载入 · 拖拽旋转，滚轮缩放', 'ok')
         } else if (reduced) {
           setStatus('静态演示已就绪 · 已关闭动态视口', 'ok')
         } else {
-          setStatus('模型暂不可用 · 请刷新页面重试', '')
+          opened = false
+          setStatus(ifEn('Model unavailable · Click Go to retry', '模型暂不可用 · 点击前往重试'), '')
         }
         go.disabled = false
       })

@@ -88,6 +88,7 @@ import type {
 import type { CameraState } from "../shared/types/camera";
 import type { SurfaceHit } from "../shared/types/picking";
 import type { Vec3 } from "../shared/types/geometry";
+import "./BlenderWorkspace.css";
 
 
 // ---------------------------------------------------------------------------

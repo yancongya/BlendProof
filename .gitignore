@@ -4,11 +4,9 @@ dist-worker
 .wrangler
 .dev.vars
 .DS_Store
-storage/projects
-storage/*.sqlite
-storage/*.sqlite-shm
-storage/*.sqlite-wal
-storage/.access-secret
+storage/
+*.blend
+*.blend[0-9]*
 tsconfig.tsbuildinfo
 .playwright-cli/
 output/

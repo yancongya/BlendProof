@@ -586,35 +586,33 @@ export function createMiniViewer(host: HTMLElement): { dispose: () => void; read
   let raf = 0
   let stopped = false
   let readySettled = false
+  let loadTimer: number | undefined
+  let loadedResources = new Set<{ dispose: () => void }>()
+
+  const collectResources = (root: THREE.Object3D): typeof loadedResources => {
+    const resources: typeof loadedResources = new Set()
+    root.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return
+      resources.add(child.geometry)
+      const materials = Array.isArray(child.material) ? child.material : [child.material]
+      materials.forEach((source) => {
+        resources.add(source)
+        Object.values(source).forEach((value) => {
+          if (value instanceof THREE.Texture) resources.add(value)
+        })
+      })
+    })
+    return resources
+  }
   let resolveReady!: (loaded: boolean) => void
   const ready = new Promise<boolean>((resolve) => {
     resolveReady = (loaded) => {
       if (readySettled) return
       readySettled = true
+      window.clearTimeout(loadTimer)
       resolve(loaded)
     }
   })
-
-  new GLTFLoader().load(
-    modelUrl,
-    (gltf) => {
-      if (stopped) return
-      const root = gltf.scene
-      const box = new THREE.Box3().setFromObject(root)
-      const size = box.getSize(new THREE.Vector3())
-      const center = box.getCenter(new THREE.Vector3())
-      root.position.sub(center)
-      root.scale.setScalar(2.0 / Math.max(size.x, size.y, size.z))
-      root.traverse((child) => {
-        if (child instanceof THREE.Mesh) child.material = material
-      })
-      scene.add(root)
-      running = true
-      resolveReady(true)
-    },
-    undefined,
-    () => stop(),
-  )
 
   const resize = (): void => {
     const { clientWidth: w, clientHeight: h } = host
@@ -657,10 +655,45 @@ export function createMiniViewer(host: HTMLElement): { dispose: () => void; read
     disposeBlenderNav()
     disposeAutoRotate()
     controls.dispose()
+    loadedResources.forEach((resource) => resource.dispose())
+    loadedResources.clear()
+    scene.clear()
     material.dispose()
     renderer.dispose()
+    renderer.domElement.remove()
+    window.removeEventListener('pagehide', stop)
   }
 
   window.addEventListener('pagehide', stop, { once: true })
+  loadTimer = window.setTimeout(stop, 15000)
+  try {
+    new GLTFLoader().load(
+      modelUrl,
+      (gltf) => {
+        const resources = collectResources(gltf.scene)
+        if (stopped) {
+          resources.forEach((resource) => resource.dispose())
+          return
+        }
+        loadedResources = resources
+        const root = gltf.scene
+        const box = new THREE.Box3().setFromObject(root)
+        const size = box.getSize(new THREE.Vector3())
+        const center = box.getCenter(new THREE.Vector3())
+        root.position.sub(center)
+        root.scale.setScalar(2.0 / Math.max(size.x, size.y, size.z))
+        root.traverse((child) => {
+          if (child instanceof THREE.Mesh) child.material = material
+        })
+        scene.add(root)
+        running = true
+        resolveReady(true)
+      },
+      undefined,
+      () => stop(),
+    )
+  } catch {
+    stop()
+  }
   return { dispose: stop, ready }
 }

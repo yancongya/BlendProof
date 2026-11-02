@@ -1,3 +1,4 @@
+import { cpSync, readdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
@@ -31,14 +32,32 @@ function landingAtRootDuringDev(): Plugin {
   }
 }
 
+function refreshPublicOnAppBuild(): Plugin {
+  return {
+    name: 'blendproof:refresh-public-on-app-build',
+    apply: 'build',
+    closeBundle() {
+      if (!preserveDist) return
+      // Native cp replaces read-only copies (intro.mp4) without deleting the
+      // neighbouring landing build, and also works on a fresh checkout.
+      const publicDir = resolve(process.cwd(), 'public')
+      const outDir = resolve(process.cwd(), 'dist')
+      for (const name of readdirSync(publicDir)) {
+        if (name === '.DS_Store') continue
+        cpSync(resolve(publicDir, name), resolve(outDir, name), { recursive: true, force: true })
+      }
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [landingAtRootDuringDev(), react()],
+  plugins: [landingAtRootDuringDev(), react(), refreshPublicOnAppBuild()],
   build: {
     // `build:app` runs beside the landing build in the same dist/ directory.
     // It opts into preservation so an app-only rebuild cannot remove /landing/.
     emptyOutDir: !preserveDist,
-    // The preserved dist contains read-only copied public assets; leave them
-    // in place during an app-only rebuild and refresh them in the full build.
+    // Vite copyFile cannot overwrite read-only public copies. Refresh them
+    // with native cp in the plugin above when preserving the landing build.
     copyPublicDir: !preserveDist,
   },
   server: {
