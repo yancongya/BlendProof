@@ -454,14 +454,15 @@
 `validate_page.py` **禁止** `<link rel="modulepreload">` 和 `<link rel="stylesheet">`，而 Vite 默认产物两者都会生成。构建必须：
 
 1. CSS 内联进 `<style>`
-2. 移除全部 `modulepreload` 链接
-3. JS 输出为**单个本地文件** `./app.js`（`<script type="module" src="./app.js">`），禁用代码分割
+2. HTML 不包含 `preload` 或 `modulepreload` 链接
+3. 入口固定为本地相对路径 `./app.js`；重型 R3F 实现通过动态 `import()` 拆到 `./assets/[name]-[hash].js`，所有动态 chunk 必须相对寻址且存在于构建产物
+4. `app.js` 未压缩体积不超过 **96 KiB**。该预算只约束首个入口文件，不把懒加载 chunk 算入入口预算
 
-第 3 条同时规避了 `node --check` 的版本风险：校验器只用正则抽取**内联** `<script>` 内容做语法检查，外置文件不参与。本机实测 Node v22.22 对 ESM 语法的 `node --check` 是通过的，但外置 JS 能让构建不依赖这个行为。
+`node tests/landing-smoke.mjs` 检查入口路径、动态 chunk 的相对路径与文件存在性、没有 `stylesheet`/`preload`/`modulepreload` 链接以及入口字节预算。`validate_page.py` 只用正则抽取**内联** `<script>` 内容做语法检查，外置 JS 不参与；CSS 仍必须内联，且所有 HTML 资源继续使用相对路径。
 
 **资产单一真源**：复用主仓库的 `public/default-monkey.glb`，构建时复制到 `dist/landing/assets/`，不手工维护第二份。
 
-**首屏图片优化（已实施）**：`public/blendproof-splash-v1.png` 原为 1672×940 PNG、**1789 KB**，是首屏最重的资源；而且**产品自己的启动封面（`src/overrides.css` 的 `.start-splash`）也在用它**，所以这是一处产品与落地页共同承担的负担。实测该图 `hasAlpha: no`，转 JPEG 安全。已生成 `public/blendproof-splash-v2.jpg` 并切换两处引用。
+**首屏图片优化（JPEG 基线）**：`public/blendproof-splash-v1.png` 原为 1672×940 PNG、**1789 KB**，产品启动封面和落地页曾共同使用。实测没有 alpha，转 JPEG 安全；已生成 `public/blendproof-splash-v2.jpg`，产品启动封面继续使用此 JPEG。落地页后续的 WebP 输出从该 JPEG 派生，不覆盖原始文件。
 
 | 方案 | 体积 | 说明 |
 |---|---|---|
@@ -470,15 +471,29 @@
 | JPEG 1400 宽 q85 | 221 KB | 更省，大屏背景略糊 |
 | JPEG 1200 宽 q82 | 140 KB | 只够落地页视口，不够全屏 |
 
-工具用 macOS 自带的 `sips`——项目本身仅支持 macOS，不引入新依赖。
+上述 JPEG 基线使用 macOS 自带的 `sips`。卡面与落地页首屏图的响应式 WebP 使用仓库脚本 `npm run optimize:landing-images`（Sharp 版本由 `package-lock.json` 固定），不依赖本机全局安装的 `cwebp`。
 
-**首屏资源清单（优化后）**：`index.html` 37.7 KB（gzip 11 KB）+ `app.js` 1154 KB（gzip 322 KB）+ `splash-v2.jpg` 275.7 KB + `default-monkey.glb` 69.7 KB。其中 `app.js` 已是最大项，若要继续减重，下一步是把 R3F 拆成动态 `import()`，让首屏先只加载 HTML 与图片、空闲时再拉 3D。
+**可重复的 WebP 产物约定**：`npm run optimize:landing-images` 校验 19 个卡面都提供 512w fallback 和成对的 `512w`/`768w` `srcset`，再提取素材名并查找原始 PNG/JPEG，生成 `landing/assets/optimized/cards/{name}-512.webp` 与 `-768.webp`（quality 84、alphaQuality 100、effort 6）；首屏图生成 `landing/assets/optimized/blendproof-splash.webp`（quality 84，保留原图尺寸）。生成阶段校验尺寸比例、输出小于原图，并逐像素核对透明素材 alpha。所有 RGB 都使用有损 WebP，不能称整张图片“无损”；opaque 输入也不得凭空增加 alpha。
+
+当前页面有 **19 个卡面 `<img>` 引用、17 个唯一源素材**；重复使用的素材仍只生成一组 512/768 输出。每个卡面都以 512w WebP 作为兼容 fallback，并在 `srcset` 中按 `512w`/`768w` 描述符提供两档素材；`sizes` 与 260px 桌面卡、21vw 平板卡及 170px 移动卡宽度匹配。WebP 首屏图替代落地页 JPEG 引用。Vite 再把实际引用的文件复制进 `dist/landing/assets/`。Smoke 会逐个检查 fallback 与 `srcset`/`sizes` 配对、引用数量、格式、宽高比例、相对构建文件存在性、逐像素 alpha 及传输体积预算（512w ≤700 KB、768w ≤1.3 MB、splash ≤100 KB）；首屏 WebP 必须保持像素尺寸、没有新增 alpha 且小于 JPEG 原图。素材清单发生有意变化时，需同步更新数量与字节预算。
+
+**卡面懒加载与加载态**：19 个卡面图在 HTML 中声明原生 `loading="lazy"` 与 `decoding="async"`；首次身份面板会把两张可见卡的全部图层提升为 eager 并发加载，因而不会逐个串行等待图片。完整图层需要同时就绪，所以两张卡共用 skeleton 和禁用态，全部图片 load/error 与 `decode()` settle 后解除 busy 并恢复选择；失败时保留可读错误提示。加载状态会更新 live region 文案，`prefers-reduced-motion` 下停止 shimmer。Hero 3D 状态按钮只在 WebGL 视口初始化成功后显示，动态分包失败或浏览器不支持 WebGL 时保留静态图且不展示无效控件。
+
+图片优化命令会写入 `landing/assets/optimized/`，不是只读检查，不能在 smoke 中自动运行。更新素材后的可复验顺序是：
+
+```bash
+npm run optimize:landing-images
+npm run build:landing
+node tests/landing-smoke.mjs
+```
+
+原单体 bundle 记录 `app.js` 1154 KB（估算 gzip 322 KB）属于拆分前基线，不再作为当前构建清单或性能结论。当前本地构建入口为 66.15 KB（gzip 26.19 KB），3D 动态 chunk 为 605.17 KB（gzip 155.93 KB），按需加载；Vite 对超过默认 500 KB 的 chunk 发出提示，该提示仍需留意，但这部分不阻塞初始入口。入口大小以 smoke 从 `dist/landing/app.js` 读取的未压缩字节数为准；96 KiB 是回归预算，不代表加载耗时或网络传输量。此处没有采集 Lighthouse/真实用户 Core Web Vitals，浏览器验收只代表本地构建的功能与请求行为。
 
 
 ### 已知工程坑（来自 skill 实战经验）
 
 - **`.blend` 被挡回**若做成可重试，必须用独立 generation counter 判断存活，不能复用步数计数器——否则多步演示会在第一步后自我取消。
-- **JS 每次改动都要 bump `?v=N`**。这是 skill 记录的最高成本陷阱：改了 `app.js` 不 bump，Chromium 继续喂缓存脚本，你会反复调一个已经修好的 bug。
+- **不要为固定名 `app.js` 手动 bump `?v=N`**。Worker 对静态资源使用 `ETag` 再验证；动态 chunk 使用内容哈希文件名。缓存行为以第 8 节记录为准。
 - **`getBoundingClientRect()` 不能跨时间缓存**。用合成 pointer 事件驱动拖拽/框选时，必须在 dispatch 时重算——中间任何 `focus()` 都可能滚动页面并悄悄弄坏坐标。
 
 ---
@@ -580,12 +595,12 @@ S5、S6 需登录。**登录仅在当次会话内进行，凭据不落盘、不�
 ```jsonc
 "assets": {
   "directory": "./dist",
-  "not_found_handling": "single-page-application",
-  "run_worker_first": ["/api/*"]
+  "not_found_handling": "none",
+  "run_worker_first": ["/api/*", "/", "/landing", "/dev", "/dev/", "/s/*"]
 }
 ```
 
-`single-page-application` 会让未匹配路径回退到应用的 `index.html`。`/landing/index.html` 是**真实存在的文件**，理论上静态资源服务会优先命中、不走 fallback——但**这一点必须实测确认，不能假设**。
+静态资源使用 `not_found_handling: "none"`，避免未知路径被错误回退到项目工作台。Worker 显式接管 `/`、`/landing`、`/dev`、`/dev/` 和 `/s/*`，再把这些入口映射到对应的静态壳；缺失资源和未知路径返回 404。
 
 预期产出结构：
 
@@ -595,8 +610,8 @@ dist/
 ├── assets/               ← 应用资源
 └── landing/
     ├── index.html        ← 落地页（CSS 内联）
-    ├── app.js            ← 落地页 bundle（React + R3F）
-    └── assets/           ← 模型、截图
+    ├── app.js            ← 落地页入口（≤96 KiB）
+    └── assets/           ← 动态 JS chunk、模型、截图与优化图片
 ```
 
 部署后逐条验证：
@@ -612,17 +627,20 @@ curl -s https://blendproof.itycon.cn/landing/ | grep -c '<落地页特征串>'
 curl -s -o /dev/null -w "%{http_code}\n" https://blendproof.itycon.cn/landing/app.js
 ```
 
-**已在 `wrangler dev --local`（真 Miniflare，与 CF 同源行为）中实测通过**，结论如下：
+**当前本地验收**在 `wrangler dev --local`（Miniflare）中验证根路径、规范静态入口和项目页；Worker 在根路径直接提供落地页 HTML，避免根入口再经过重定向：
 
 | 检查 | 结果 |
 |---|---|
-| `/`（应用首页） | 200 |
-| `/landing/` | 200 |
-| `/landing`（无尾斜杠） | 200，自动跳转到 `/landing/` |
+| `/`（主入口） | 200，直接返回落地页 HTML |
+| `/landing/` | 200，返回落地页 HTML |
+| `/landing`（无尾斜杠） | 308 重定向到 `/landing/`，保留查询参数 |
+| `/dev/` | 200，返回项目工作台壳 |
+| `/s/suzanne` | 200，返回项目工作台壳 |
+| 未知路径 | 404，不回退到项目工作台 |
 | `/landing/` 返回内容 | 落地页特征串命中 5 处、7 处；**应用特征 `id="root"` 命中 0 处** |
 | `./app.js`、`./assets/default-monkey.glb` | 均 200 |
 
-**结论：`not_found_handling: "single-page-application"` 不会吃掉真实存在的 `/landing/index.html`。** 这条原本标为"必须实测、不能假设"的风险已关闭，无需在 `worker/index.ts` 里做显式处理。
+`/landing/` 是规范静态构建入口，根路径 `/` 是用户入口和 SEO canonical；二者返回同一落地页内容。正式部署后仍需复测这些状态码、HTML 特征和资源 Content-Type。
 
 > 验证必须用 `wrangler dev`，不能用 `python -m http.server`。后者也会补尾斜杠，但它的路由行为与 Workers 静态资源不同，证明不了 CF 上的表现。
 
@@ -663,7 +681,7 @@ curl -s -o /dev/null -w "%{http_code}\n" https://blendproof.itycon.cn/landing/ap
 BlendProof/landing/                  ← 唯一源（React + R3F 源码）
         ↓ npm run build:landing
 ├── dist/landing/index.html          → Worker 的 /landing/
-├── dist/landing/app.js                    （连同 assets/ 一起进 dist）
+├── dist/landing/app.js                    （入口；动态 chunk 与图片在 assets/）
 └── gh-pages 分支（branch 模式推送） → yancongya.github.io/BlendProof/
                                           只推产物；源码与 docs/ 不进 Pages
 ```
@@ -769,7 +787,7 @@ const messages = {
 
 **构建侧结论**
 
-Vite 默认产物会同时踩中 `<link rel="stylesheet">` 和 `<link rel="modulepreload">` 两个禁止项，因此构建必须：CSS 内联、移除全部 preload/modulepreload、JS 输出为单个本地 `./app.js`。详细规格见第 6 节的"Hero 3D"小节。
+Vite 默认产物会同时踩中 `<link rel="stylesheet">` 和 `<link rel="modulepreload">` 两个禁止项，因此构建必须内联 CSS、禁止所有 preload/modulepreload 链接，并输出相对 `./app.js` 入口和相对路径动态 chunk；入口未压缩字节数上限为 96 KiB。详细规格与图片产物验收见第 6 节的“Hero 3D”小节。
 
 ```bash
 python3 ~/.workbuddy/skills/gh-pages-landing/scripts/validate_page.py /path/to/index.html
@@ -816,7 +834,7 @@ python3 ~/.workbuddy/skills/gh-pages-landing/scripts/validate_page.py /path/to/i
 `blendproof.itycon.cn/landing/` 与 `yancongya.github.io/BlendProof/` 是同一份内容，搜索引擎会判定重复并稀释权重。必须声明正本：
 
 ```html
-<link rel="canonical" href="https://blendproof.itycon.cn/landing/">
+<link rel="canonical" href="https://blendproof.itycon.cn/">
 ```
 
 **canonical 指向生产入口**（主域、品牌一致、长期稳定）；GitHub Pages 那份作为镜像存在。
@@ -826,7 +844,7 @@ python3 ~/.workbuddy/skills/gh-pages-landing/scripts/validate_page.py /path/to/i
 | 项 | 内容 |
 |---|---|
 | `robots.txt` | 允许抓取，`Sitemap:` 指向 sitemap 地址 |
-| `sitemap.xml` | 至少含 `/landing/`，`lastmod` 随构建更新 |
+| `sitemap.xml` | 至少含 `/`，`lastmod` 随构建更新；`/landing/` 作为静态别名不重复收录 |
 | `<title>` | ≤60 字符，含核心词（Blender、3D 审稿） |
 | `<meta name="description">` | ≤155 字符，写清"本机转换、云端只收 GLB"这个差异点 |
 | Open Graph | `og:title`／`og:description`／`og:image`（可用 splash 图）／`og:url` |
@@ -847,7 +865,7 @@ SEO 天然诱导夸大措辞，但第 1 节的三条红线不能破：无用户�
 | 风格基线 | Blender 界面还原，参考已有 UI 组件 |
 | 证明面 | 实拍 + mockup 面板混合 |
 | 仓库 | **新建公开仓库 `BlendProof`**；落地页是项目内的一部分，不另建 landing 仓库 |
-| 生产入口 | `blendproof.itycon.cn/landing/`，不用独立子域 |
+| 生产入口 | `blendproof.itycon.cn/` 是用户与 SEO 主入口；`/landing/` 是规范静态构建入口，不用独立子域 |
 | GitHub Pages | `yancongya.github.io/BlendProof/`，不配自定义域，**必须用 `branch` 模式**（避免 docs 模式暴露内部文档） |
 | hero 3D | **R3F 实时渲染**；LCP 由 `<h1>` 文本承担，hero 全程是 3D，不做图片替换 |
 | 第二强调色 | 启用 Blender logo 蓝 `#265787`；背景／描边用原色，文字必须用提亮版 `#5b9ee0` |
@@ -859,7 +877,7 @@ SEO 天然诱导夸大措辞，但第 1 节的三条红线不能破：无用户�
 ### 仍待确认
 
 1. **git 历史怎么处理** —— 精确替换（保留 53 个 commit 的演进历史）还是压平为单一初始 commit？见 8.6。这是公开前的最后一道关卡，且两者都要求先提交当前改动。
-2. **`/landing` 会不会被生产 Worker 的既有规则吞掉** —— `not_found_handling: "single-page-application"` 理论上不吃真实文件，但必须实测。
+2. **生产入口是否持续符合路由契约** —— 需要在每次部署后复测 `/`、`/landing`、`/landing/`、`/dev/`、`/s/suzanne`、未知路径以及关键静态资源的状态码和 Content-Type。
 3. **`BlendProof` 仓库尚未创建** —— 需要在 GitHub 新建公开仓库并推送。
 4. **hero 的低模占位用什么** —— 低面数猴头，还是纯线框？前者更接近最终观感，后者更轻。
 5. **D1 ID 与 R2 bucket 名是否也要移出仓库** —— 它们是标识符而非凭据，但会暴露基础设施结构。

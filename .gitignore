@@ -11,7 +11,7 @@ storage/*.sqlite-wal
 storage/.access-secret
 tsconfig.tsbuildinfo
 .playwright-cli/
-output/playwright/
+output/
 temp/*
 !temp/3D-Review-Research/
 !temp/3D-Review-Research/README.md

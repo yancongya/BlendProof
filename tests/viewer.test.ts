@@ -187,3 +187,15 @@ test("欢迎页显示期间不自动打开操作指南", () => {
   assert.match(welcomeBranch, /<BlenderWorkspace[\s\S]*?autoOpenGuide=\{false\}/);
   assert.match(source, /autoOpenGuide=\{!homeOpen\}/);
 });
+
+test("关闭欢迎页后立即打开操作指南，不等待视图交互或延迟计时器", () => {
+  const source = readFileSync(
+    new URL("../src/workspace/BlenderWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  const effect = source.match(
+    /useEffect\(\(\) => \{[\s\S]*?\}, \[autoOpenGuide, modelUrl\]\);/,
+  )?.[0] ?? "";
+  assert.match(effect, /setGuideOpen\(true\);/);
+  assert.doesNotMatch(effect, /setTimeout|1500/);
+});

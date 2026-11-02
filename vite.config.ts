@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 
 const bridgeTarget = process.env.BLENDPROOF_BRIDGE_TARGET ?? 'http://127.0.0.1:8788'
 const workerTarget = process.env.BLENDPROOF_WORKER_API_TARGET ?? 'http://127.0.0.1:8787'
+const preserveDist = process.env.BLENDPROOF_PRESERVE_DIST === '1'
 
 function landingAtRootDuringDev(): Plugin {
   return {
@@ -32,6 +33,14 @@ function landingAtRootDuringDev(): Plugin {
 
 export default defineConfig({
   plugins: [landingAtRootDuringDev(), react()],
+  build: {
+    // `build:app` runs beside the landing build in the same dist/ directory.
+    // It opts into preservation so an app-only rebuild cannot remove /landing/.
+    emptyOutDir: !preserveDist,
+    // The preserved dist contains read-only copied public assets; leave them
+    // in place during an app-only rebuild and refresh them in the full build.
+    copyPublicDir: !preserveDist,
+  },
   server: {
     port: 5173,
     proxy: {

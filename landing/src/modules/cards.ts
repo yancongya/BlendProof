@@ -3,7 +3,6 @@
  */
 
 import { t, setNodeText } from '../i18n'
-import { createMiniViewer } from '../hero3d'
 
 export const prefersReducedMotion = (): boolean =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -201,13 +200,22 @@ function initQuickstart(): void {
 
     let currentStep = -1
     let miniViewer: { dispose: () => void } | null = null
+    let miniViewerLoading = false
 
     const ensureMiniViewer = (): void => {
+      if (prefersReducedMotion()) return
       const host = panel.querySelector<HTMLElement>('#qs-mini-viewer')
-      if (!host || miniViewer) return
+      if (!host || miniViewer || miniViewerLoading) return
       window.setTimeout(() => {
-        if (miniViewer || !host.isConnected) return
-        miniViewer = createMiniViewer(host)
+        if (miniViewer || miniViewerLoading || !host.isConnected || currentStep !== 2) return
+        miniViewerLoading = true
+        void import('../hero3d')
+          .then(({ createMiniViewer }) => {
+            miniViewerLoading = false
+            if (miniViewer || !host.isConnected || currentStep !== 2) return
+            miniViewer = createMiniViewer(host)
+          })
+          .catch(() => { miniViewerLoading = false })
       }, 120)
     }
 

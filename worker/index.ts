@@ -11,8 +11,17 @@ type AppEnv = UploadEnv & { STATIC_ASSETS: Fetcher }
 export default {
   async fetch(request: Request, env: AppEnv): Promise<Response> {
     const url = new URL(request.url)
-    if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/dev' || url.pathname === '/dev/' || url.pathname.startsWith('/s/'))) {
-      const shellPath = url.pathname === '/' ? '/landing/index.html' : '/index.html'
+    if (request.method === 'GET' && url.pathname === '/landing') {
+      const landingUrl = new URL(url)
+      landingUrl.pathname = '/landing/'
+      return Response.redirect(landingUrl, 308)
+    }
+    if (request.method === 'GET' && url.pathname === '/') {
+      const landingShellUrl = new URL('/landing/', url)
+      return env.STATIC_ASSETS.fetch(new Request(landingShellUrl, request))
+    }
+    if (request.method === 'GET' && (url.pathname === '/dev' || url.pathname === '/dev/' || url.pathname.startsWith('/s/'))) {
+      const shellPath = '/'
       return env.STATIC_ASSETS.fetch(new Request(new URL(shellPath, url), request))
     }
     if (request.method === 'GET' && url.pathname === '/api/health') {

@@ -13,7 +13,7 @@
  *   animation before transitioning cleanly into the landing page.
  */
 
-import { t } from '../i18n'
+import { ifEn, t } from '../i18n'
 import { prefersReducedMotion } from './cards'
 
 function initTarotPortal(): void {
@@ -30,6 +30,85 @@ function initTarotPortal(): void {
   let identitySeen = false
   try { identitySeen = localStorage.getItem('bp-identity-seen') === '1' } catch { /* ignore */ }
 
+  const deck = document.getElementById('tarot-deck')
+  const loadingNote = document.getElementById('tarot-loading')
+  const retryBtn = document.getElementById('tarot-retry')
+  let cardsReady = false
+  let cardsReadyPromise: Promise<void> | null = null
+
+  const prepareCardImages = (): Promise<void> => {
+    if (cardsReadyPromise) return cardsReadyPromise
+
+    deck?.setAttribute('aria-busy', 'true')
+    loadingNote?.removeAttribute('hidden')
+    loadingNote?.classList.remove('is-error')
+    retryBtn?.setAttribute('hidden', '')
+    if (loadingNote) {
+      loadingNote.textContent = ifEn('Preparing card artwork…', '正在准备卡面…')
+    }
+    units.forEach((unit) => {
+      unit.classList.add('is-loading')
+      unit.setAttribute('aria-disabled', 'true')
+      unit.querySelectorAll<HTMLButtonElement>('.tarot-cta').forEach((button) => {
+        button.disabled = true
+      })
+    })
+
+    const images = units.flatMap((unit) => Array.from(unit.querySelectorAll('img')))
+    images.forEach((image) => { image.loading = 'eager' })
+
+    const waitForImage = async (image: HTMLImageElement): Promise<boolean> => {
+      if (!image.complete) {
+        await new Promise<void>((resolve) => {
+          let timer: number | undefined
+          const settled = (): void => {
+            if (timer !== undefined) window.clearTimeout(timer)
+            image.removeEventListener('load', settled)
+            image.removeEventListener('error', settled)
+            resolve()
+          }
+          image.addEventListener('load', settled, { once: true })
+          image.addEventListener('error', settled, { once: true })
+          timer = window.setTimeout(settled, 15000)
+          if (image.complete) settled()
+        })
+      }
+      if (image.naturalWidth === 0) return false
+      if (typeof image.decode === 'function') {
+        try { await image.decode() } catch { return false }
+      }
+      return true
+    }
+
+    cardsReadyPromise = Promise.all(images.map(waitForImage)).then((results) => {
+      const failedCount = results.filter((loaded) => !loaded).length
+      cardsReady = failedCount === 0
+      deck?.setAttribute('aria-busy', 'false')
+      units.forEach((unit) => {
+        unit.classList.toggle('is-loading', !cardsReady)
+        unit.setAttribute('aria-disabled', String(!cardsReady))
+        unit.querySelectorAll<HTMLButtonElement>('.tarot-cta').forEach((button) => {
+          button.disabled = !cardsReady
+        })
+      })
+
+      if (failedCount > 0 && loadingNote) {
+        loadingNote.classList.add('is-error')
+        loadingNote.textContent = ifEn(
+          'Some card images failed to load. Retry before choosing a role.',
+          '部分卡面加载失败，请先重试后再选择身份。',
+        )
+        retryBtn?.removeAttribute('hidden')
+      } else {
+        loadingNote?.setAttribute('hidden', '')
+      }
+    })
+
+    return cardsReadyPromise
+  }
+
+  retryBtn?.addEventListener('click', () => window.location.reload())
+
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
   window.scrollTo(0, 0)
 
@@ -37,6 +116,7 @@ function initTarotPortal(): void {
     root.dataset.identityChosen = 'true'
   } else {
     root.dataset.identityChosen = 'false'
+    void prepareCardImages()
   }
 
   const noMotion = prefersReducedMotion()
@@ -151,7 +231,7 @@ function initTarotPortal(): void {
   units.forEach((unit) => {
     const role = unit.dataset.role as 'creator' | 'reviewer'
     const go = () => {
-      if (isLaunching) return
+      if (isLaunching || !cardsReady) return
 
       units.forEach((u) => u.classList.toggle('is-selected', u === unit))
 
@@ -223,6 +303,7 @@ function initTarotPortal(): void {
       u.style.removeProperty('--rush-y')
     })
     window.scrollTo(0, 0)
+    void prepareCardImages()
     root.dataset.identityChosen = 'false'
   })
 

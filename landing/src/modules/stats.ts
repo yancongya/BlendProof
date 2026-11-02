@@ -4,7 +4,9 @@
 
 import { t, ifEn } from '../i18n'
 
-const ORIGIN = 'https://blendproof.itycon.cn'
+const ORIGIN = window.location.origin
+let liveStatusStarted = false
+let liveStatusObserver: IntersectionObserver | undefined
 
 type PublicStats = {
   capacityBytes: number
@@ -52,58 +54,94 @@ async function initLiveStatus(): Promise<void> {
   const note = document.querySelector<HTMLElement>('[data-stat="note"]')
   if (!note) return
 
-  const offline = (reason: string) => {
-    note.dataset.state = 'offline'
-    note.textContent = reason
-    setStat('health', t('未读取'), t('跨域或网络受限'))
-  }
+  const [healthResult, statsResult] = await Promise.allSettled([
+    fetch(`${ORIGIN}/api/health`, { cache: 'no-store' }),
+    fetch(`${ORIGIN}/api/public/stats`, { cache: 'no-store' }),
+  ])
+  const issues: string[] = []
+  let loadedStats: PublicStats | undefined
 
-  try {
-    const [healthResponse, statsResponse] = await Promise.all([
-      fetch(`${ORIGIN}/api/health`, { cache: 'no-store' }),
-      fetch(`${ORIGIN}/api/public/stats`, { cache: 'no-store' }),
-    ])
-
-    if (healthResponse.ok) {
-      const health = (await healthResponse.json()) as { runtime?: string; d1?: boolean; r2?: boolean }
+  if (healthResult.status === 'fulfilled' && healthResult.value.ok) {
+    try {
+      const health = (await healthResult.value.json()) as { runtime?: string; d1?: boolean; r2?: boolean }
       const parts = [
         health.runtime === 'cloudflare-worker' ? 'Worker' : health.runtime,
         health.d1 ? 'D1' : null,
         health.r2 ? 'R2' : null,
       ]
       setStat('health', health.d1 && health.r2 ? t('运行中') : t('部分可用'), parts.filter(Boolean).join(' · ') || undefined)
+    } catch {
+      setStat('health', t('未读取'), t('健康数据格式无效'))
+      issues.push(ifEn('Platform health data is unavailable.', '平台健康数据暂不可用。'))
     }
-
-    if (!statsResponse.ok) {
-      offline(ifEn(`Live API returned ${statsResponse.status}; platform data is temporarily unavailable.`, `实时接口返回 ${statsResponse.status}，暂时无法读取平台数据。`))
-      return
-    }
-
-    const stats = (await statsResponse.json()) as PublicStats
-
-    setStat('uptime', formatUptime(stats.launchedAt), t('自 2026-09-12 上线'))
-    setStat('capacity', formatBytes(stats.capacityBytes), ifEn(`${formatBytes(stats.usedBytes)} used`, `已用 ${formatBytes(stats.usedBytes)}`))
-    setStat('projects', String(stats.projectCount), ifEn(`${stats.activeShareCount} active shares`, `${stats.activeShareCount} 条活跃分享`))
-    setStat('processed', String(stats.processedFileCount), ifEn(`${formatBytes(stats.processedBytes)} total`, `累计 ${formatBytes(stats.processedBytes)}`))
-    setStat('cleaned', String(stats.cleanedFileCount), ifEn(`${formatBytes(stats.cleanedBytes)} freed`, `释放 ${formatBytes(stats.cleanedBytes)}`))
-
-    const meter = document.querySelector<HTMLElement>('[data-stat="meter"]')
-    if (meter && stats.capacityBytes > 0) {
-      meter.style.width = `${Math.min(100, (stats.usedBytes / stats.capacityBytes) * 100)}%`
-    }
-
-    note.dataset.state = 'online'
-    note.textContent = ifEn(
-      `Live data loaded. Projects are retained up to ${stats.retentionHours} hours, ` +
-      `shares default to ${stats.recommendedShareHours} hours, and cleanup runs hourly.`,
-      `实时数据读取成功。项目最长保留 ${stats.retentionHours} 小时，` +
-      `分享默认 ${stats.recommendedShareHours} 小时，每小时定时清理。`,
-    )
-  } catch {
-    offline(t('无法连接生产接口（跨域或网络受限），实时数据仅在线上站点可见。'))
+  } else {
+    const status = healthResult.status === 'fulfilled' ? ` (${healthResult.value.status})` : ''
+    setStat('health', t('未读取'), t('跨域或网络受限'))
+    issues.push(ifEn(`Platform health status is unavailable${status}.`, `平台健康状态暂不可用${status}。`))
   }
+
+  if (statsResult.status === 'fulfilled' && statsResult.value.ok) {
+    try {
+      const stats = (await statsResult.value.json()) as PublicStats
+      loadedStats = stats
+
+      setStat('uptime', formatUptime(stats.launchedAt), t('自 2026-09-12 上线'))
+      setStat('capacity', formatBytes(stats.capacityBytes), ifEn(`${formatBytes(stats.usedBytes)} used`, `已用 ${formatBytes(stats.usedBytes)}`))
+      setStat('projects', String(stats.projectCount), ifEn(`${stats.activeShareCount} active shares`, `${stats.activeShareCount} 条活跃分享`))
+      setStat('processed', String(stats.processedFileCount), ifEn(`${formatBytes(stats.processedBytes)} total`, `累计 ${formatBytes(stats.processedBytes)}`))
+      setStat('cleaned', String(stats.cleanedFileCount), ifEn(`${formatBytes(stats.cleanedBytes)} freed`, `释放 ${formatBytes(stats.cleanedBytes)}`))
+
+      const meter = document.querySelector<HTMLElement>('[data-stat="meter"]')
+      if (meter && stats.capacityBytes > 0) {
+        meter.style.width = `${Math.min(100, (stats.usedBytes / stats.capacityBytes) * 100)}%`
+      }
+    } catch {
+      issues.push(ifEn('Live statistics are unavailable.', '实时统计数据暂不可用。'))
+    }
+  } else {
+    const status = statsResult.status === 'fulfilled' ? ` (${statsResult.value.status})` : ''
+    issues.push(ifEn(`Live statistics are unavailable${status}.`, `实时统计数据暂不可用${status}。`))
+  }
+
+  if (issues.length > 0) {
+    note.dataset.state = 'offline'
+    note.textContent = issues.join(' ')
+    return
+  }
+
+  if (!loadedStats) return
+  note.dataset.state = 'online'
+  note.textContent = ifEn(
+    `Live data loaded. Projects are retained up to ${loadedStats.retentionHours} hours, ` +
+    `shares default to ${loadedStats.recommendedShareHours} hours, and cleanup runs hourly.`,
+    `实时数据读取成功。项目最长保留 ${loadedStats.retentionHours} 小时，` +
+    `分享默认 ${loadedStats.recommendedShareHours} 小时，每小时定时清理。`,
+  )
 }
 
-export async function init(): Promise<void> {
+function startLiveStatusOnce(): void {
+  if (liveStatusStarted) return
+  liveStatusStarted = true
+  liveStatusObserver?.disconnect()
+  liveStatusObserver = undefined
   void initLiveStatus()
+}
+
+export function init(): void {
+  if (liveStatusStarted || liveStatusObserver) return
+
+  const target = document.querySelector<HTMLElement>('.live')
+  if (!target || typeof IntersectionObserver === 'undefined') {
+    startLiveStatusOnce()
+    return
+  }
+
+  try {
+    liveStatusObserver = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) startLiveStatusOnce()
+    }, { rootMargin: '240px 0px', threshold: 0 })
+    liveStatusObserver.observe(target)
+  } catch {
+    startLiveStatusOnce()
+  }
 }

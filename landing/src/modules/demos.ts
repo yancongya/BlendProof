@@ -4,10 +4,9 @@
  */
 
 import { t, setNodeText } from '../i18n'
-import { createMiniViewer } from '../hero3d'
 import { prefersReducedMotion } from './cards'
 
-const ORIGIN = 'https://blendproof.itycon.cn'
+const ORIGIN = window.location.origin
 
 /** Outliner: working search, working eye toggles, live meta line, collapsible root. */
 function initOutlinerDemo(): void {
@@ -35,6 +34,18 @@ function initOutlinerDemo(): void {
     row.addEventListener('click', (event) => {
       if ((event.target as HTMLElement).closest('.mk-eye')) return
       select(row)
+    })
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        select(row)
+      }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        const offset = event.key === 'ArrowDown' ? 1 : -1
+        const current = rows.indexOf(row)
+        rows[(current + offset + rows.length) % rows.length]?.focus()
+      }
     })
   })
 
@@ -158,7 +169,7 @@ function initCopyDemo(): void {
   if (!copyButton) return
 
   copyButton.addEventListener('click', () => {
-    const link = 'https://blendproof.itycon.cn/s/suzanne'
+    const link = `${ORIGIN}/s/suzanne`
     const shareText = [
       '【BlendProof 分享】3D 审稿链接',
       '',
@@ -189,7 +200,7 @@ function initHeroCopyDemo(): void {
   if (!copyButton) return
 
   copyButton.addEventListener('click', () => {
-    const link = 'https://blendproof.itycon.cn/s/suzanne'
+    const link = `${ORIGIN}/s/suzanne`
     // 百度网盘风格的分享文本块：链接 + 提取码 + 说明
     const shareText = [
       '【BlendProof 分享】3D 审稿链接',
@@ -230,13 +241,29 @@ function initReceiverBrowser(): void {
   if (!urlInput || !go || !fill || !empty || !view || !pwd || !status || !modelHost) return
 
   const reduced = prefersReducedMotion()
-  let viewer: { dispose: () => void } | null = null
+  let viewer: { dispose: () => void; ready: Promise<boolean> } | null = null
+  let viewerReady: Promise<boolean> | null = null
   let opened = false
   let timers: number[] = []
 
   const setStatus = (zh: string, kind: '' | 'busy' | 'ok'): void => {
     setNodeText(status, zh)
     status.dataset.kind = kind
+  }
+
+  const loadViewer = (): Promise<boolean> => {
+    if (reduced || !opened || view.hidden || !modelHost.isConnected) return Promise.resolve(false)
+    if (viewer) return viewer.ready
+    if (viewerReady) return viewerReady
+
+    viewerReady = import('../hero3d')
+      .then(({ createMiniViewer }) => {
+        if (!opened || view.hidden || !modelHost.isConnected) return false
+        viewer = createMiniViewer(modelHost)
+        return viewer?.ready ?? false
+      })
+      .catch(() => false)
+    return viewerReady
   }
 
   const typePassword = (done: () => void): void => {
@@ -269,11 +296,16 @@ function initReceiverBrowser(): void {
     setStatus('正在验证口令…', 'busy')
     typePassword(() => {
       setStatus('口令通过 · 正在载入模型…', 'busy')
-      viewer = viewer ?? createMiniViewer(modelHost)
-      timers.push(window.setTimeout(() => {
-        setStatus('模型已载入 · 拖拽旋转，滚轮缩放', 'ok')
+      void loadViewer().then((modelReady) => {
+        if (modelReady) {
+          setStatus('模型已载入 · 拖拽旋转，滚轮缩放', 'ok')
+        } else if (reduced) {
+          setStatus('静态演示已就绪 · 已关闭动态视口', 'ok')
+        } else {
+          setStatus('模型暂不可用 · 请刷新页面重试', '')
+        }
         go.disabled = false
-      }, reduced ? 0 : 1100))
+      })
     })
   }
 

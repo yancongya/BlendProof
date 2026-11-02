@@ -404,6 +404,7 @@ export function initHero3D(): void {
           setState((button.dataset.state ?? 'solid') as HeroState)
         })
       })
+      document.querySelector<HTMLElement>('.hero3d__states')?.removeAttribute('hidden')
 
       // --- Camera flight to a pin's stored viewpoint ---
       interface Flight {
@@ -534,7 +535,7 @@ export function initHero3D(): void {
  * initialises only when the demo link is "opened", and only renders while
  * visible.
  */
-export function createMiniViewer(host: HTMLElement): { dispose: () => void } | null {
+export function createMiniViewer(host: HTMLElement): { dispose: () => void; ready: Promise<boolean> } | null {
   if (!webglAvailable() || prefersReducedMotion()) return null
 
   let renderer: THREE.WebGLRenderer
@@ -583,10 +584,21 @@ export function createMiniViewer(host: HTMLElement): { dispose: () => void } | n
 
   let running = false
   let raf = 0
+  let stopped = false
+  let readySettled = false
+  let resolveReady!: (loaded: boolean) => void
+  const ready = new Promise<boolean>((resolve) => {
+    resolveReady = (loaded) => {
+      if (readySettled) return
+      readySettled = true
+      resolve(loaded)
+    }
+  })
 
   new GLTFLoader().load(
     modelUrl,
     (gltf) => {
+      if (stopped) return
       const root = gltf.scene
       const box = new THREE.Box3().setFromObject(root)
       const size = box.getSize(new THREE.Vector3())
@@ -598,6 +610,7 @@ export function createMiniViewer(host: HTMLElement): { dispose: () => void } | n
       })
       scene.add(root)
       running = true
+      resolveReady(true)
     },
     undefined,
     () => stop(),
@@ -635,6 +648,9 @@ export function createMiniViewer(host: HTMLElement): { dispose: () => void } | n
   raf = requestAnimationFrame(tick)
 
   function stop(): void {
+    if (stopped) return
+    stopped = true
+    resolveReady(false)
     cancelAnimationFrame(raf)
     resizeObserver.disconnect()
     visibilityObserver.disconnect()
@@ -646,5 +662,5 @@ export function createMiniViewer(host: HTMLElement): { dispose: () => void } | n
   }
 
   window.addEventListener('pagehide', stop, { once: true })
-  return { dispose: stop }
+  return { dispose: stop, ready }
 }

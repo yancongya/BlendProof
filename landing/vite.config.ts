@@ -31,7 +31,7 @@ function dropModulePreload(): Plugin {
 
 export default defineConfig({
   root: here,
-  base: '/landing/',
+  base: './',
   publicDir: false,
   // 独立缓存目录：与项目根的 vite.config.ts 共存时（双 dev server 常开），
   // 共享 node_modules/.vite 会互相触发 re-optimize，导致后启动的一方反复失败。
@@ -51,15 +51,15 @@ export default defineConfig({
     emptyOutDir: false,
     target: 'es2022',
     assetsDir: 'assets',
+    modulePreload: false,
     rollupOptions: {
       output: {
         // One relative entry file named exactly `app.js`, so it cannot drift
         // into a hashed filename that the static checks and cache-busting
         // convention would have to chase.
         entryFileNames: 'app.js',
-        chunkFileNames: 'app.js',
+        chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name][extname]',
-        inlineDynamicImports: true,
       },
     },
   },

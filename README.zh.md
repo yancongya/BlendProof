@@ -144,6 +144,18 @@ npm run dev
 BLENDER_BIN="/Applications/Blender.app/Contents/MacOS/Blender" npm run dev:server
 ```
 
+### 应用入口
+
+| 路径 | 用途 |
+|---|---|
+| `/` | 落地页；Worker 会在这里提供规范的 `/landing/` 壳。 |
+| `/landing/` | 落地页规范静态入口。 |
+| `/landing` | `308` 永久重定向到 `/landing/`，并保留查询参数。 |
+| `/dev/` | 项目工作台和 Viewer；`/dev` 也会进入工作台。 |
+| `/s/<token>` | 分享 Viewer，与项目工作台复用同一个 Viewer。 |
+
+开发环境中 `http://localhost:5173/` 直接提供落地页。生产 Worker 显式处理 `/api/*`，将 `/` 映射到落地页，将 `/dev/` 和 `/s/*` 映射到项目应用壳。
+
 <p align="right">(<a href="#readme-top">回到顶部</a>)</p>
 
 ## 使用方式
@@ -170,17 +182,24 @@ npm run create:test-blend
 | `npm run dev` | 同时启动 Web 应用与本机 bridge |
 | `npm run dev:web` | 仅 Vite，绑定 `127.0.0.1` |
 | `npm run dev:server` | 仅本机 Express bridge（`tsx watch`） |
-| `npm run build` | 类型检查并构建 Web 产物到 `dist/` |
+| `npm run build` | 类型检查并构建项目工作台和落地页到 `dist/`、`dist/landing/` |
+| `npm run build:app` | 只构建项目工作台，并保留已有的 `dist/landing/` |
+| `npm run build:landing` | 只构建落地页到 `dist/landing/` |
+| `npm run optimize:landing-images` | 生成响应式 512/768w WebP 卡面和封面 WebP |
 | `npm run start` | 以非 watch 模式运行本机 bridge |
 | `npm run create:test-blend` | 生成简易审稿场景 |
 | `npm run create:viewer-fixtures` | 生成三组 Viewer 验收样例 |
 | `npm run check` | 类型检查 Web 与 server 源码 |
 | `npm run check:worker` | 按 `tsconfig.worker.json` 类型检查 Worker |
-| `npm run test:backend` | 本机后端测试套件（`node:test`） |
+| `npm run check:arch` | 检查源码依赖方向与架构预算 |
+| `npm run test:backend` | 本机后端与 Viewer 测试套件（`node:test`） |
 | `npm run test:worker` | Worker 测试套件（Vitest + `@cloudflare/vitest-plugin`） |
+| `npm run test:landing` | 构建落地页并运行资源与加载冒烟检查 |
 | `npm run worker:dev` | 用 Miniflare 在本地运行 Worker |
 | `npm run worker:dry-run` | 构建 Worker 产物到 `dist-worker/` |
 | `npm run worker:types` | 重新生成 `worker-configuration.d.ts` |
+| `npm run verify:release` | 运行完整本地发布门禁与产物边界检查 |
+| `npm run deploy:production` | 在显式授权后再次运行门禁并部署 |
 
 </details>
 
@@ -198,22 +217,33 @@ blendproof/
 ├── worker/         Cloudflare Worker：登录、上传、分享、限流、清理
 ├── migrations/     D1 schema，0001 至 0009
 ├── tests/          本机后端测试（node:test）
+├── landing/        落地页 HTML、源码模块与优化后的 WebP 素材
 ├── docs/           设计、验收与部署长文记录
 ├── public/         默认演示 GLB、manifest、封面图与可选封面视频
+├── scripts/        图片优化、发布校验与部署入口脚本
 ├── test-assets/    开发样例，不进入运行时存储
 └── storage/        本地项目数据（已 git 忽略）
 ```
 
-**验收门禁。** 至少运行：
+**验收门禁。** 发布流水线按顺序运行：
 
 ```sh
 npm run check
 npm run check:worker
+npm run check:arch
 npm run test:backend
 npm run test:worker
+npm run build
+npm run test:landing
+npm run worker:dry-run
+npm run verify:release-assets
 ```
 
-Web 改动上线前运行 `npm run build`；改动 Worker 时运行 `npm run worker:dry-run`，并确认产物中不含 `.blend`、`.dev.vars`、本地数据库或 `storage/` 内容。
+直接运行 `npm run verify:release` 可执行完整门禁。`npm run test:landing` 会检查 WebP、响应式 `srcset`、原生懒加载与异步解码、图片解码门禁、失败重试和落地页入口资源。落地页使用 WebP、512/768w `srcset`、原生 lazy loading 和 async decoding，Hero 3D 只在审阅者视角需要且接近视口时动态加载。
+
+`npm run build` 是完整构建；`npm run build:app` 只重建项目工作台，并有意保留已有的 `dist/landing/`；`npm run build:landing` 只重建落地页。Worker dry-run 产物中不得出现 `.blend`、`.dev.vars`、本地数据库或 `storage/`。
+
+真实浏览器实验室检查与生产 URL 检查属于不同证据。使用本机托管的 `web-perf` skill 检查本地 Worker 或部署后的 URL；本地构建和门禁通过不等于生产浏览器验收通过。
 
 官方托管使用闭源 Orbit 账号平台。社区自托管可完整使用 BlendProof 自带的本地账号与邀请码：从 [`wrangler.self-host.example.jsonc`](wrangler.self-host.example.jsonc) 开始，保持 `UNIVERSAL_AUTH_MODE=off`，只替换自己的 D1、R2 和域名。详见 [`docs/SELF_HOSTED_IDENTITY.md`](docs/SELF_HOSTED_IDENTITY.md)。
 
@@ -223,7 +253,7 @@ Web 改动上线前运行 `npm run build`；改动 Worker 时运行 `npm run wor
 
 ## 接口
 
-Worker 优先处理 `/api/*`，其余路径回退到 SPA 静态资源。
+Worker 显式处理 `/api/*`，将 `/` 映射到落地页，将 `/landing` 重定向到 `/landing/`，并将 `/dev/` 与 `/s/*` 映射到项目应用壳。缺失的静态资源返回 404，不会把任意路径都回退成项目壳。
 
 <details>
   <summary>Worker 路由</summary>
@@ -287,13 +317,16 @@ Worker 优先处理 `/api/*`，其余路径回退到 SPA 静态资源。
 
 R2 是默认适配器。自托管部署可以通过 `STORAGE_PROVIDER=s3` 接入 AWS SigV4 兼容的私有 bucket；配置项、最小权限、健康检查和适配器要求见 [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md)。
 
+先运行本地发布门禁，再进行任何远程变更。`deploy:production` 内部会再次运行门禁，并要求显式授权变量后才调用 Wrangler：
+
 ```sh
-npm run build                 # 生成 dist/ 供 Worker 静态资源托管
+npm run verify:release
+# 只有本次部署明确包含 migration 时才执行远程 D1 migration。
 npx wrangler d1 migrations apply <database> --remote
-npx wrangler deploy
+BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:production
 ```
 
-顺序不能颠倒：先执行 D1 migrations 再部署，并确认 `APP_ORIGIN` 与实际 HTTPS Origin 完全一致、无尾斜杠。Secret（`UPLOAD_SIGNING_SECRET`、`SHARE_ACCESS_SECRET` 与一次性的 `BOOTSTRAP_ADMIN_TOKEN`）通过 Wrangler Secret 配置，绝不提交。
+不要用直接的 `npx wrangler deploy` 绕过门禁。确认 `APP_ORIGIN` 与真实 HTTPS Origin 完全一致、没有尾斜杠。Secret（`UPLOAD_SIGNING_SECRET`、`SHARE_ACCESS_SECRET` 与一次性的 `BOOTSTRAP_ADMIN_TOKEN`）通过 Wrangler Secret 配置，绝不提交。部署后需要用 HTTP 检查和真实浏览器分别验证 `/`、`/landing/`、`/dev/`、`/s/suzanne` 与一个落地页优化资源；本地测试和浏览器实验室报告必须与生产验收分开记录。
 
 授权闸门、Secret 处理、migration 顺序、双浏览器验收清单与回滚流程见 [`docs/PHASE_4D_DEPLOYMENT_RECOVERY.md`](docs/PHASE_4D_DEPLOYMENT_RECOVERY.md)。
 
@@ -343,7 +376,7 @@ D1 作为原子配额账本：上传意图时预留、finalize 时结算、失�
 
 ## 参与贡献
 
-BlendProof 是未配置远端的私有仓库，不接收外部 Pull Request。协作在仓库内进行：遵循 [`AGENTS.md`](AGENTS.md) 的边界约定，跑通上述验收门禁，并在真实浏览器中验证 UI 改动，而不是只看构建是否成功。
+BlendProof 是私有仓库，当前已配置 `origin` GitHub 远端。协作在仓库内进行，并通过经过审核的分支流程推送：遵循 [`AGENTS.md`](AGENTS.md) 的边界约定，跑通上述验收门禁，并在真实浏览器中验证 UI 改动，而不是只看构建是否成功。
 
 <p align="right">(<a href="#readme-top">回到顶部</a>)</p>
 

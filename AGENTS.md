@@ -32,3 +32,41 @@
 - UI 变更使用内置浏览器或 Playwright 实际点击验证，不只依赖构建成功。
 - 不覆盖或提交用户的无关修改。当前 `temp/3D-Review-Research/README.md` 的删除状态属于用户，除非用户明确要求，否则保持不动。
 - 长期状态记录在 `.planning/STATE.md`，阶段 4 明细记录在 `.planning/phases/04-cloud/04-01-PLAN.md`。
+
+## 入口与发布流程
+
+- `/` 是落地页；Worker 将根请求提供为规范的 `/landing/` 落地页壳。
+- `/landing/` 是规范静态落地页入口；`/landing` 必须返回 `308` 到 `/landing/` 并保留查询参数。
+- `/dev/` 是项目工作台；`/dev` 也进入项目工作台。`/s/<token>` 是分享页，并复用同一个 Viewer。
+- 本地开发使用 `npm run dev`：Vite 在 `5173` 提供 Web，Blender bridge 在 `8788`，本地 Worker 在 `8787`。
+- `npm run build` 构建工作台与落地页；`npm run build:app` 只构建工作台并保留 `dist/landing/`；`npm run build:landing` 只构建落地页。
+- 落地页大图必须先运行 `npm run optimize:landing-images`，使用 WebP、512/768w `srcset`、原生懒加载和异步解码；Hero 3D 必须保持动态加载，不能阻塞首屏身份入口。
+
+## 检查与发布门禁
+
+变更后按需运行并在发布前完成完整门禁：
+
+```sh
+npm run check
+npm run check:worker
+npm run check:arch
+npm run test:backend
+npm run test:worker
+npm run test:landing
+npm run build
+npm run worker:dry-run
+npm run verify:release
+```
+
+`npm run deploy:production` 会重新运行 `verify:release`，只有设置显式授权变量才会调用 Wrangler：
+
+```sh
+BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:production
+```
+
+不得用直接的 `npx wrangler deploy` 绕过发布门禁。真实 Cloudflare 资源、远程 D1 migration、DNS、Secret 和生产数据变更仍需用户明确授权；本地测试、浏览器实验室报告与生产 URL 验收必须分开记录。
+
+## 交付边界
+
+- 不提交 `.dev.vars`、`storage/`、`output/`、`*.blend` 或本地浏览器/性能报告。落地页 `landing/assets/optimized/` 是运行时发布资源，应保留并随构建校验。
+- 推送前先审核 `git diff --check`、`git diff --stat` 和提交文件清单；不要 force push，不要擅自创建版本 tag。

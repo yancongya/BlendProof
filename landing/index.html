@@ -1,8 +1,15 @@
 <!doctype html>
-<html lang="zh-CN" data-identity-chosen="true">
+<html lang="zh-CN" data-identity-chosen="false">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/landing/">
+<script>
+  try {
+    document.documentElement.dataset.identityChosen =
+      localStorage.getItem('bp-identity-seen') === '1' ? 'true' : 'false'
+  } catch { /* Storage can be unavailable in private or embedded contexts. */ }
+</script>
 <title>BlendProof · 3D 审稿链接</title>
 <link rel="icon" type="image/svg+xml" href="/blendproof-logo.svg">
 <meta name="description" content="浏览器优先在本地把 .blend 转成 GLB，复杂文件才回退本机 Blender；云端只收派生模型与清单。审稿者打开一条链接即可查看并批注。5 GiB 公益存储池，到期自动清理。">
@@ -576,15 +583,14 @@
     padding: 16px;
   }
 
-  .quickstart__mockup::before {
-    content: "点击上方步骤查看详情";
+  .quickstart__empty-note {
     display: flex; align-items: center; justify-content: center;
     height: 100%;
     color: var(--faint);
     font-size: 12px;
   }
 
-  .quickstart__mockup:has(.quickstart__mock.is-visible)::before {
+  .quickstart__mockup:has(.quickstart__mock.is-visible) .quickstart__empty-note {
     display: none;
   }
 
@@ -1608,6 +1614,7 @@
     position: absolute; right: 10px; top: 10px; z-index: 3;
     display: flex; gap: 4px;
   }
+  .hero3d__states[hidden] { display: none; }
   .hero3d__state {
     border: 1px solid var(--mk-chip-border); border-radius: 2px;
     background: var(--bar-bg); color: var(--mk-chip-ink);
@@ -2232,6 +2239,20 @@ grid-template-columns: minmax(0, 1fr);
     flex-wrap: nowrap;
     position: relative;
   }
+  .tarot-loading {
+    position: absolute; left: 50%; top: calc(100% + 10px);
+    transform: translateX(-50%);
+    color: #a8adb9; font: 500 11px/1.4 ui-monospace, monospace;
+    white-space: nowrap;
+  }
+  .tarot-loading[hidden] { display: none; }
+  .tarot-loading.is-error { color: #f39a35; }
+  .tarot-loading__retry {
+    top: calc(100% + 34px);
+    border: 1px solid rgba(243,154,53,.55); border-radius: 3px;
+    padding: 4px 8px; background: rgba(243,154,53,.08); color: inherit;
+    cursor: pointer; font: inherit;
+  }
 
   /* Card unit wrapper */
   .tarot-unit {
@@ -2248,6 +2269,20 @@ grid-template-columns: minmax(0, 1fr);
     height: clamp(255px, 31.5vw, 390px);
     border-radius: 13px;
     transition: filter .28s ease;
+  }
+  .tarot-unit.is-loading .atropos-scale { visibility: hidden; }
+  .tarot-unit.is-loading .tarot-atropos::after {
+    content: ""; position: absolute; inset: 0; z-index: 20;
+    border: 1px solid rgba(255,255,255,.1); border-radius: 13px;
+    background: linear-gradient(105deg, #15161d 20%, #20232e 38%, #15161d 56%);
+    background-size: 220% 100%;
+    animation: tarotCardLoading 1.2s ease-in-out infinite;
+  }
+  @keyframes tarotCardLoading {
+    to { background-position-x: -220%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tarot-unit.is-loading .tarot-atropos::after { animation: none; }
   }
 
   .tarot-unit[data-role="creator"] { --card-glow: 251, 146, 28; }
@@ -2823,41 +2858,45 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
     <p>先告诉我们，你在这次审稿中负责什么？</p>
   </div>
 
-  <div class="tarot-deck">
+  <div class="tarot-deck" id="tarot-deck" aria-busy="true">
+    <div class="tarot-loading" id="tarot-loading" role="status" aria-live="polite"
+         data-i18n-key="正在准备卡面…">正在准备卡面…</div>
+    <button class="tarot-loading tarot-loading__retry" id="tarot-retry" type="button" hidden
+            data-i18n-key="重试加载卡面">重试加载卡面</button>
 
     <!-- I · 造物者 (Atropos multi-layer) -->
-    <div class="tarot-unit" data-role="creator" id="tarot-unit-creator"
-         tabindex="0" role="button" aria-label="选择身份：造物者（3D 创作者）">
+    <div class="tarot-unit is-loading" data-role="creator" id="tarot-unit-creator"
+         tabindex="0" role="button" aria-disabled="true" aria-label="选择身份：造物者（3D 创作者）">
       <div class="atropos tarot-atropos" id="atropos-creator">
         <div class="atropos-scale">
           <div class="atropos-rotate">
             <div class="atropos-inner">
               <div class="tc-creator-viewport">
                 <div class="tc-creator-layer tc-creator-bg" data-atropos-offset="-5" aria-hidden="true">
-                  <img src="./assets/cards/artificer-v3-background.webp" alt="" width="1024" height="1536">
+                  <img src="./assets/optimized/cards/artificer-v3-background-512.webp" srcset="./assets/optimized/cards/artificer-v3-background-512.webp 512w, ./assets/optimized/cards/artificer-v3-background-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                 </div>
                 <div class="tc-creator-layer tc-creator-drone" data-atropos-offset="-2" aria-hidden="true">
                   <div class="tc-local-rotate" data-local-rotate data-rx="-2.4" data-ry="-3.2" data-rz="-6" data-rzy="-2">
-                    <img src="./assets/cards/artificer-v3-drone.webp" alt="" width="1024" height="1536">
+                    <img src="./assets/optimized/cards/artificer-v3-drone-512.webp" srcset="./assets/optimized/cards/artificer-v3-drone-512.webp 512w, ./assets/optimized/cards/artificer-v3-drone-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                   </div>
                 </div>
                 <div class="tc-creator-layer tc-creator-character" data-atropos-offset="0">
-                  <img src="./assets/cards/artificer-v3-character.webp"
+                  <img src="./assets/optimized/cards/artificer-v3-character-512.webp" srcset="./assets/optimized/cards/artificer-v3-character-512.webp 512w, ./assets/optimized/cards/artificer-v3-character-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px"
                        alt="造物者操纵低多边形 Suzanne 模型"
-                       loading="eager" decoding="async"
+                       loading="lazy" decoding="async"
                        width="1024" height="1536">
                 </div>
                 <div class="tc-creator-layer tc-creator-foreground" data-atropos-offset="2" aria-hidden="true">
-                  <img src="./assets/cards/artificer-v3-foreground-decor.webp" alt="" width="1024" height="1536">
+                  <img src="./assets/optimized/cards/artificer-v3-foreground-decor-512.webp" srcset="./assets/optimized/cards/artificer-v3-foreground-decor-512.webp 512w, ./assets/optimized/cards/artificer-v3-foreground-decor-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                 </div>
                 <div class="tc-creator-layer tc-creator-cube" data-atropos-offset="-0.75" aria-hidden="true">
                   <div class="tc-local-rotate" data-local-rotate data-rx="3" data-ry="4.5" data-rz="6" data-rzy="2">
-                    <img src="./assets/cards/artificer-v7-cube-hand.webp" alt="" width="1024" height="1536">
+                    <img src="./assets/optimized/cards/artificer-v7-cube-hand-512.webp" srcset="./assets/optimized/cards/artificer-v7-cube-hand-512.webp 512w, ./assets/optimized/cards/artificer-v7-cube-hand-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                   </div>
                 </div>
                 <div class="tc-creator-layer tc-creator-suzanne" data-atropos-offset="3.5" aria-hidden="true">
                   <div class="tc-local-rotate" data-local-rotate data-rx="5.5" data-ry="7.5" data-rz="10" data-rzy="4">
-                    <img src="./assets/cards/artificer-v3-suzanne.webp" alt="" width="1024" height="1536">
+                    <img src="./assets/optimized/cards/artificer-v3-suzanne-512.webp" srcset="./assets/optimized/cards/artificer-v3-suzanne-512.webp 512w, ./assets/optimized/cards/artificer-v3-suzanne-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                   </div>
                 </div>
                 <svg class="creator-sketch" viewBox="0 0 1024 1536" preserveAspectRatio="none" aria-hidden="true">
@@ -2869,16 +2908,16 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
                 <div class="tc-holo" data-atropos-offset="7" aria-hidden="true"></div>
               </div>
               <div class="tc-creator-layer tc-creator-frame" data-atropos-offset="0" aria-hidden="true">
-                <img src="./assets/cards/artificer-frame.webp" alt="" width="1024" height="1536">
+                <img src="./assets/optimized/cards/artificer-frame-512.webp" srcset="./assets/optimized/cards/artificer-frame-512.webp 512w, ./assets/optimized/cards/artificer-frame-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
               </div>
               <div class="tc-creator-layer tc-creator-brush" data-atropos-offset="7" aria-hidden="true">
-                <img src="./assets/cards/artificer-v7-brush-hand.webp" alt="" width="1024" height="1536">
+                <img src="./assets/optimized/cards/artificer-v7-brush-hand-512.webp" srcset="./assets/optimized/cards/artificer-v7-brush-hand-512.webp 512w, ./assets/optimized/cards/artificer-v7-brush-hand-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
               </div>
               <div class="tc-creator-name" data-atropos-offset="0" data-i18n-key="I · 造物者">I · 造物者</div>
               <div class="atropos-highlight"                 aria-hidden="true"></div>
             </div>
             <div class="tc-card-glow" aria-hidden="true">
-              <img src="./assets/cards/artificer-frame.webp" alt="" width="1024" height="1536">
+              <img src="./assets/optimized/cards/artificer-frame-512.webp" srcset="./assets/optimized/cards/artificer-frame-512.webp 512w, ./assets/optimized/cards/artificer-frame-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
             </div>
           </div>
         </div>
@@ -2887,51 +2926,51 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
       <div class="tarot-info">
         <div class="tarot-role-name">模型创作者</div>
         <div class="tarot-role-desc">我制作模型，也负责发起审稿</div>
-        <button type="button" class="tarot-cta">进入创作者工作台 ↵</button>
+        <button type="button" class="tarot-cta" disabled>进入创作者工作台 ↵</button>
       </div>
     </div>
 
     <!-- II · 审视者 (Atropos multi-layer) -->
-    <div class="tarot-unit" data-role="reviewer" id="tarot-unit-reviewer"
-         tabindex="0" role="button" aria-label="选择身份：审视者（审稿客户与总监）">
+    <div class="tarot-unit is-loading" data-role="reviewer" id="tarot-unit-reviewer"
+         tabindex="0" role="button" aria-disabled="true" aria-label="选择身份：审视者（审稿客户与总监）">
       <div class="atropos tarot-atropos" id="atropos-reviewer">
         <div class="atropos-scale">
           <div class="atropos-rotate">
             <div class="atropos-inner">
               <div class="tc-reviewer-viewport">
                 <div class="tc-reviewer-layer tc-reviewer-bg" data-atropos-offset="-5" aria-hidden="true">
-                  <img src="./assets/cards/observer-v3-background.webp" alt="" width="1024" height="1536">
+                  <img src="./assets/optimized/cards/observer-v3-background-512.webp" srcset="./assets/optimized/cards/observer-v3-background-512.webp 512w, ./assets/optimized/cards/observer-v3-background-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                 </div>
                 <div class="tc-reviewer-layer tc-reviewer-stage" data-atropos-offset="-2.5" aria-hidden="true">
-                  <img src="./assets/cards/observer-v3-stage.webp" alt="" width="1024" height="1536">
+                  <img src="./assets/optimized/cards/observer-v3-stage-512.webp" srcset="./assets/optimized/cards/observer-v3-stage-512.webp 512w, ./assets/optimized/cards/observer-v3-stage-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                 </div>
                 <div class="tc-reviewer-layer tc-reviewer-ring" data-atropos-offset="-1" aria-hidden="true">
                   <div class="tc-local-rotate" data-local-rotate data-rx="1.6" data-ry="2.4" data-rz="28" data-rzy="12">
-                    <img src="./assets/cards/observer-v4-ring.webp" alt="" width="1024" height="1536">
+                    <img src="./assets/optimized/cards/observer-v4-ring-512.webp" srcset="./assets/optimized/cards/observer-v4-ring-512.webp 512w, ./assets/optimized/cards/observer-v4-ring-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                   </div>
                 </div>
                 <div class="tc-reviewer-layer tc-reviewer-suzanne" data-atropos-offset="2.5">
                   <div class="tc-local-rotate" data-local-rotate data-rx="8" data-ry="10" data-rz="15" data-rzy="4">
-                    <img src="./assets/cards/observer-v4-suzanne.webp"
+                    <img src="./assets/optimized/cards/observer-v4-suzanne-512.webp" srcset="./assets/optimized/cards/observer-v4-suzanne-512.webp 512w, ./assets/optimized/cards/observer-v4-suzanne-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px"
                          alt="审视者通过木偶控制线检查低多边形 Suzanne 模型"
-                         loading="eager" decoding="async"
+                         loading="lazy" decoding="async"
                          width="1024" height="1536">
                   </div>
                 </div>
                 <div class="tc-reviewer-layer tc-reviewer-viewfinder" data-atropos-offset="1.25" aria-hidden="true">
-                  <img src="./assets/cards/observer-v4-viewfinder.webp" alt="" width="1024" height="1536">
+                  <img src="./assets/optimized/cards/observer-v4-viewfinder-512.webp" srcset="./assets/optimized/cards/observer-v4-viewfinder-512.webp 512w, ./assets/optimized/cards/observer-v4-viewfinder-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                 </div>
                 <div class="tc-reviewer-layer tc-reviewer-rig" data-atropos-offset="0.5" aria-hidden="true">
-                  <img src="./assets/cards/observer-v4-rig.webp" alt="" width="1024" height="1536">
+                  <img src="./assets/optimized/cards/observer-v4-rig-512.webp" srcset="./assets/optimized/cards/observer-v4-rig-512.webp 512w, ./assets/optimized/cards/observer-v4-rig-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                 </div>
                 <div class="tc-reviewer-layer tc-reviewer-upper" data-atropos-offset="7" aria-hidden="true">
                   <div class="tc-local-rotate" data-local-rotate data-rx="1.1" data-ry="1.7" data-rz="0.3">
-                    <img src="./assets/cards/observer-v4-upper-hand.webp" alt="" width="1024" height="1536">
+                    <img src="./assets/optimized/cards/observer-v4-upper-hand-512.webp" srcset="./assets/optimized/cards/observer-v4-upper-hand-512.webp 512w, ./assets/optimized/cards/observer-v4-upper-hand-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                   </div>
                 </div>
                 <div class="tc-reviewer-layer tc-reviewer-lower" data-atropos-offset="5" aria-hidden="true">
                   <div class="tc-local-rotate" data-local-rotate data-rx="1.8" data-ry="2.5" data-rz="0.4">
-                    <img src="./assets/cards/observer-v4-lower-hand.webp" alt="" width="1024" height="1536">
+                    <img src="./assets/optimized/cards/observer-v4-lower-hand-512.webp" srcset="./assets/optimized/cards/observer-v4-lower-hand-512.webp 512w, ./assets/optimized/cards/observer-v4-lower-hand-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
                   </div>
                 </div>
                 <div class="reviewer-scan" aria-hidden="true">
@@ -2940,13 +2979,13 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
                 <div class="tc-holo" data-atropos-offset="0" aria-hidden="true"></div>
               </div>
               <div class="tc-reviewer-layer tc-reviewer-frame" data-atropos-offset="0" aria-hidden="true">
-                <img src="./assets/cards/observer-frame-v1.webp" alt="" width="1024" height="1536">
+                <img src="./assets/optimized/cards/observer-frame-v1-512.webp" srcset="./assets/optimized/cards/observer-frame-v1-512.webp 512w, ./assets/optimized/cards/observer-frame-v1-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
               </div>
               <div class="tc-reviewer-name" data-atropos-offset="0" data-i18n-key="II · 审视者">II · 审视者</div>
               <div class="atropos-highlight"                 aria-hidden="true"></div>
             </div>
             <div class="tc-card-glow" aria-hidden="true">
-              <img src="./assets/cards/observer-frame-v1.webp" alt="" width="1024" height="1536">
+              <img src="./assets/optimized/cards/observer-frame-v1-512.webp" srcset="./assets/optimized/cards/observer-frame-v1-512.webp 512w, ./assets/optimized/cards/observer-frame-v1-768.webp 768w" sizes="(min-width: 1240px) 260px, (min-width: 810px) 21vw, 170px" alt="" loading="lazy" decoding="async" width="1024" height="1536">
             </div>
           </div>
         </div>
@@ -2955,7 +2994,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
       <div class="tarot-info">
         <div class="tarot-role-name">客户、负责人或团队审稿人</div>
         <div class="tarot-role-desc">我负责查看模型并提出修改意见</div>
-        <button type="button" class="tarot-cta">进入审稿视角 ↵</button>
+        <button type="button" class="tarot-cta" disabled>进入审稿视角 ↵</button>
       </div>
     </div>
 
@@ -3033,9 +3072,12 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
           <figure class="hero3d" aria-label="演示视口：Suzanne 模型，可拖拽旋转">
             <div class="hero3d__view" id="hero3d">
               <div class="hero3d__fallback">
-                <img src="../public/blendproof-splash-v2.jpg" alt="BlendProof 审稿视口，展示可旋转的 3D 模型" width="1600" height="899">
+                <img src="./assets/optimized/blendproof-splash.webp"
+                     data-optimization-source="../public/blendproof-splash-v2.jpg"
+                     alt="BlendProof 审稿视口，展示可旋转的 3D 模型"
+                     loading="lazy" decoding="async" width="1600" height="899">
               </div>
-              <div class="hero3d__states" role="group" aria-label="演示状态">
+              <div class="hero3d__states" role="group" aria-label="演示状态" hidden>
                 <button type="button" class="hero3d__state" data-state="solid" aria-pressed="true">实体</button>
                 <button type="button" class="hero3d__state" data-state="review" aria-pressed="false">审稿中</button>
                 <button type="button" class="hero3d__state" data-state="resolved" aria-pressed="false">已批示</button>
@@ -3120,6 +3162,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
             </div>
 
             <div class="quickstart__mockup">
+              <span class="quickstart__empty-note" data-i18n-key="点击上方步骤查看详情">点击上方步骤查看详情</span>
               <!-- 步骤1：选择文件 — 复用 mk-browser -->
               <div class="quickstart__mock" data-show="1">
                 <div class="mk-browser" style="width:100%">
@@ -3213,6 +3256,7 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
 
             <!-- 固定浏览器 mockup，3 步共享 -->
             <div class="quickstart__mockup">
+              <span class="quickstart__empty-note" data-i18n-key="点击上方步骤查看详情">点击上方步骤查看详情</span>
               <div class="quickstart__mock is-visible">
                 <div class="mk-browser" style="width:100%">
                   <div class="mk-browser__bar">
@@ -3230,10 +3274,10 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
                     </div>
                     <!-- 步骤2：口令逐字填充，点「打开审稿」进入 -->
                     <div class="qs-browser__state" data-state="2" hidden>
-                      <div class="mk-browser__pass">
+                      <form class="mk-browser__pass">
                         <span>口令已自动填充</span>
-                        <input type="password" id="qs-browser-pwd" readonly aria-label="口令">
-                      </div>
+                        <input type="password" id="qs-browser-pwd" autocomplete="new-password" readonly aria-label="口令">
+                      </form>
                       <div class="qs-browser__open-row">
                         <button type="button" class="qs-browser__open" disabled>打开审稿</button>
                       </div>
@@ -3452,14 +3496,14 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
               <div class="mk-chrome"><span>Outliner</span><i>场景集合</i></div>
               <div class="mk-outliner" id="mk-outliner">
                 <label class="mk-search">⌕<input type="text" class="mk-search-input" placeholder="搜索对象" aria-label="搜索场景对象"></label>
-                <div class="mk-tree-root" id="mk-tree-root" role="treeitem" aria-expanded="true"><span>⌄</span><strong>Scene Collection</strong></div>
-                <div class="mk-tree-row selected" data-name="Monkey_Head" data-meta="MESH · 4,832 verts" role="treeitem" aria-selected="true"><i>▣</i><span>Monkey_Head</span><button type="button" class="mk-eye" aria-label="隐藏 Monkey_Head">◉</button></div>
-                <div class="mk-tree-row" data-name="Eyes" data-meta="MESH · 640 verts" role="treeitem" aria-selected="false"><i>▣</i><span>Eyes</span><button type="button" class="mk-eye" aria-label="隐藏 Eyes">◉</button></div>
-                <div class="mk-tree-row" data-name="Ground_Plane" data-meta="PLANE · 4 verts" role="treeitem" aria-selected="false"><i>▣</i><span>Ground_Plane</span><button type="button" class="mk-eye" aria-label="隐藏 Ground_Plane">◉</button></div>
-                <div class="mk-tree-row" data-name="Key_Light" data-meta="POINT · 800 W" role="treeitem" aria-selected="false"><i>✦</i><span>Key_Light</span><button type="button" class="mk-eye" aria-label="隐藏 Key_Light">◉</button></div>
-                <div class="mk-tree-row" data-name="Camera_Front" data-meta="CAMERA · 50 mm" role="treeitem" aria-selected="false"><i>◎</i><span>Camera_Front</span><button type="button" class="mk-eye" aria-label="隐藏 Camera_Front">◉</button></div>
-                <div class="mk-tree-row" data-name="Review_Marker_03" data-meta="EMPTY · 批注锚点" role="treeitem" aria-selected="false"><i>◈</i><span>Review_Marker_03</span><button type="button" class="mk-eye off" aria-label="显示 Review_Marker_03">◌</button></div>
-                <div class="mk-tree-row" data-name="Review_Marker_07" data-meta="EMPTY · 批注锚点" role="treeitem" aria-selected="false"><i>◈</i><span>Review_Marker_07</span><button type="button" class="mk-eye" aria-label="隐藏 Review_Marker_07">◉</button></div>
+                <div class="mk-tree-root" id="mk-tree-root" role="treeitem" tabindex="0" aria-expanded="true"><span>⌄</span><strong>Scene Collection</strong></div>
+                <div class="mk-tree-row selected" tabindex="0" data-name="Monkey_Head" data-meta="MESH · 4,832 verts" role="treeitem" aria-selected="true"><i>▣</i><span>Monkey_Head</span><button type="button" class="mk-eye" aria-label="隐藏 Monkey_Head">◉</button></div>
+                <div class="mk-tree-row" tabindex="0" data-name="Eyes" data-meta="MESH · 640 verts" role="treeitem" aria-selected="false"><i>▣</i><span>Eyes</span><button type="button" class="mk-eye" aria-label="隐藏 Eyes">◉</button></div>
+                <div class="mk-tree-row" tabindex="0" data-name="Ground_Plane" data-meta="PLANE · 4 verts" role="treeitem" aria-selected="false"><i>▣</i><span>Ground_Plane</span><button type="button" class="mk-eye" aria-label="隐藏 Ground_Plane">◉</button></div>
+                <div class="mk-tree-row" tabindex="0" data-name="Key_Light" data-meta="POINT · 800 W" role="treeitem" aria-selected="false"><i>✦</i><span>Key_Light</span><button type="button" class="mk-eye" aria-label="隐藏 Key_Light">◉</button></div>
+                <div class="mk-tree-row" tabindex="0" data-name="Camera_Front" data-meta="CAMERA · 50 mm" role="treeitem" aria-selected="false"><i>◎</i><span>Camera_Front</span><button type="button" class="mk-eye" aria-label="隐藏 Camera_Front">◉</button></div>
+                <div class="mk-tree-row" tabindex="0" data-name="Review_Marker_03" data-meta="EMPTY · 批注锚点" role="treeitem" aria-selected="false"><i>◈</i><span>Review_Marker_03</span><button type="button" class="mk-eye off" aria-label="显示 Review_Marker_03">◌</button></div>
+                <div class="mk-tree-row" tabindex="0" data-name="Review_Marker_07" data-meta="EMPTY · 批注锚点" role="treeitem" aria-selected="false"><i>◈</i><span>Review_Marker_07</span><button type="button" class="mk-eye" aria-label="隐藏 Review_Marker_07">◉</button></div>
                 <p class="mk-meta">已选择 <b id="mk-meta-name">Monkey_Head</b> · <span id="mk-meta-info">MESH · 4,832 verts</span></p>
               </div>
               <figcaption><b>产品内的 Outliner。</b>行选中即 Blender 的 #2f5582 蓝，眼睛列可隐藏对象，小键盘 . 聚焦选中。</figcaption>
@@ -3812,10 +3856,10 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
                 <small>打开后会自动通过口令并载入模型</small>
               </div>
               <div class="mk-browser__view" id="mk-browser-view" hidden>
-                <div class="mk-browser__pass">
+                <form class="mk-browser__pass">
                   <span>口令已自动填充</span>
-                  <input type="password" id="mk-browser-pwd" readonly aria-label="口令">
-                </div>
+                  <input type="password" id="mk-browser-pwd" autocomplete="new-password" readonly aria-label="口令">
+                </form>
                 <div class="mk-rx-model" id="mk-rx-model"></div>
                 <div class="mk-browser__status" id="mk-browser-status" role="status"></div>
               </div>
@@ -3949,9 +3993,9 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
       <p class="card__note"><b>两条转换路径，能力不同。</b>浏览器直转只覆盖静态网格子集，材质按首材质近似；需要动画、骨骼或完整着色时会自动回退到你本机的 Blender 导出。无论哪条路径，审稿者看到的都是<b>转换后的展示模型</b>，不是 Blender 里的实时画面。</p>
 
       <div class="legal-modals">
-        <dialog class="legal-modal" id="legal-privacy">
+        <dialog class="legal-modal" id="legal-privacy" aria-labelledby="legal-privacy-title">
           <header class="legal-modal__head">
-            <b>隐私政策</b>
+            <b id="legal-privacy-title">隐私政策</b>
             <button type="button" class="legal-modal__close" aria-label="关闭">✕</button>
           </header>
           <div class="legal__body">
@@ -3967,9 +4011,9 @@ var Atropos=function(){"use strict";function t(){return t=Object.assign?Object.a
           </div>
         </dialog>
 
-        <dialog class="legal-modal" id="legal-terms">
+        <dialog class="legal-modal" id="legal-terms" aria-labelledby="legal-terms-title">
           <header class="legal-modal__head">
-            <b>服务条款</b>
+            <b id="legal-terms-title">服务条款</b>
             <button type="button" class="legal-modal__close" aria-label="关闭">✕</button>
           </header>
           <div class="legal__body">

@@ -44,6 +44,9 @@ export const EN: Record<string, string> = {
   '聚焦选中对象（小键盘 .）': 'Focus selected (Numpad .)',
   '显示或隐藏网格与坐标轴': 'Show or hide grid and axes',
   '显示或隐藏全部批注 Pin': 'Show or hide all annotation pins',
+  '切换为平直着色': 'Switch to flat shading',
+  '切换为平滑着色': 'Switch to smooth shading',
+  '展开侧边栏': 'Open sidebar',
 
   // ---- Share status ----
   '已分享，': 'Shared,',

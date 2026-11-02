@@ -144,6 +144,18 @@ Open `http://localhost:5173`. Three ports are involved:
 BLENDER_BIN="/Applications/Blender.app/Contents/MacOS/Blender" npm run dev:server
 ```
 
+### Application entry points
+
+| Path | Purpose |
+|---|---|
+| `/` | Landing page. The Worker serves the canonical `/landing/` shell here. |
+| `/landing/` | Canonical static landing-page entry. |
+| `/landing` | Permanent redirect (`308`) to `/landing/`, preserving the query string. |
+| `/dev/` | Project workspace and Viewer. `/dev` also resolves to the workspace. |
+| `/s/<token>` | Share Viewer route, using the same Viewer as the project workspace. |
+
+Vite serves the landing page at `http://localhost:5173/` during development. The production Worker keeps API routes under `/api/*`, maps `/` to the landing shell, and maps `/dev/` and `/s/*` to the application shell.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Usage
@@ -170,17 +182,24 @@ This writes `test-assets/simple-review-scene.blend`. Import it, click "create lo
 | `npm run dev` | Run the web app and the local bridge together |
 | `npm run dev:web` | Vite only, bound to `127.0.0.1` |
 | `npm run dev:server` | Local Express bridge only (`tsx watch`) |
-| `npm run build` | Type-check and build the web bundle into `dist/` |
+| `npm run build` | Type-check and build the project workspace plus landing page into `dist/` and `dist/landing/` |
+| `npm run build:app` | Build only the project workspace while preserving an existing `dist/landing/` |
+| `npm run build:landing` | Build only the landing page into `dist/landing/` |
+| `npm run optimize:landing-images` | Generate responsive 512/768w WebP card assets and the splash WebP |
 | `npm run start` | Run the local bridge without watch mode |
 | `npm run create:test-blend` | Generate the simple review scene |
 | `npm run create:viewer-fixtures` | Generate the three viewer acceptance fixtures |
 | `npm run check` | Type-check the web and server sources |
 | `npm run check:worker` | Type-check the Worker against `tsconfig.worker.json` |
-| `npm run test:backend` | Local backend test suite via `node:test` |
+| `npm run check:arch` | Check source dependency direction and architecture budgets |
+| `npm run test:backend` | Local backend and Viewer test suite via `node:test` |
 | `npm run test:worker` | Worker test suite via Vitest + `@cloudflare/vitest-plugin` |
+| `npm run test:landing` | Build the landing page and run asset/loading smoke checks |
 | `npm run worker:dev` | Run the Worker locally against Miniflare |
 | `npm run worker:dry-run` | Build the Worker bundle into `dist-worker/` |
 | `npm run worker:types` | Regenerate `worker-configuration.d.ts` |
+| `npm run verify:release` | Run the complete local release gate, including package-boundary checks |
+| `npm run deploy:production` | Re-run the release gate and deploy after explicit approval |
 
 </details>
 
@@ -198,22 +217,33 @@ blendproof/
 ├── worker/         Cloudflare Worker: auth, uploads, shares, rate limits, cleanup
 ├── migrations/     D1 schema, 0001 through 0009
 ├── tests/          Local backend tests (node:test)
+├── landing/        Landing-page HTML, source modules, and optimized WebP assets
 ├── docs/           Long-form design, acceptance, and deployment records
 ├── public/         Default demo GLB, manifest, splash art, and optional intro video
+├── scripts/        Image optimization, release verification, and deployment entrypoints
 ├── test-assets/    Development fixtures; excluded from runtime storage
 └── storage/        Local project data (git-ignored)
 ```
 
-**Quality gates.** Run at minimum:
+**Quality gates.** The release gate runs the following in order:
 
 ```sh
 npm run check
 npm run check:worker
+npm run check:arch
 npm run test:backend
 npm run test:worker
+npm run build
+npm run test:landing
+npm run worker:dry-run
+npm run verify:release-assets
 ```
 
-Run `npm run build` before shipping web changes and `npm run worker:dry-run` when touching the Worker. Confirm the dry-run bundle contains no `.blend`, `.dev.vars`, local database, or `storage/` content.
+Use `npm run verify:release` to run the complete gate. `npm run test:landing` validates the WebP format, responsive `srcset`, lazy/async image attributes, image decode gating, retry behavior, and generated landing entry assets. The landing page keeps card artwork out of the initial blocking path with WebP resources, responsive 512/768w `srcset`, native lazy loading, and async decoding; the Hero 3D module is dynamically loaded only when the reviewer view needs it.
+
+`npm run build` is the complete build. `npm run build:app` is an app-only rebuild and intentionally preserves an existing `dist/landing/`; `npm run build:landing` rebuilds only the landing page. Confirm the dry-run bundle contains no `.blend`, `.dev.vars`, local database, or `storage/` content.
+
+Real-browser laboratory checks and production URL checks are separate evidence. Use the locally managed `web-perf` skill against the local Worker or deployed URL; a passing build/release gate does not by itself prove production browser acceptance.
 
 For official hosting, forks, identity secrets, callback isolation, and provider-outage behavior, see [`docs/SELF_HOSTED_IDENTITY.md`](docs/SELF_HOSTED_IDENTITY.md).
 
@@ -225,7 +255,7 @@ Official hosting uses the closed Orbit account platform. Community deployments r
 
 ## API
 
-The Worker serves `/api/*` ahead of static assets; everything else falls back to the SPA.
+The Worker handles `/api/*` explicitly, maps `/` to the landing shell, redirects `/landing` to `/landing/`, and maps `/dev/` plus `/s/*` to the project application shell. Missing static assets return 404; the project shell is not a catch-all for arbitrary paths.
 
 <details>
   <summary>Worker routes</summary>
@@ -289,13 +319,16 @@ The production Worker, D1 database, private R2 bucket, hourly cron, and custom d
 
 R2 is the default adapter. Self-hosted deployments can select an AWS SigV4-compatible private bucket with `STORAGE_PROVIDER=s3`; configuration, permissions, health response, and adapter requirements are documented in [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md).
 
+Run the local release gate before any remote change. `deploy:production` runs it again and requires an explicit approval variable before invoking Wrangler:
+
 ```sh
-npm run build                 # emit dist/ for Worker static assets
+npm run verify:release
+# Apply remote D1 migrations only when this deployment explicitly includes them.
 npx wrangler d1 migrations apply <database> --remote
-npx wrangler deploy
+BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:production
 ```
 
-Order matters: apply D1 migrations before deploying, and confirm `APP_ORIGIN` matches the live HTTPS origin exactly, with no trailing slash. Secrets (`UPLOAD_SIGNING_SECRET`, `SHARE_ACCESS_SECRET`, and the one-time `BOOTSTRAP_ADMIN_TOKEN`) are set through Wrangler secrets and never committed.
+Do not bypass the gate with a direct `npx wrangler deploy`. Confirm `APP_ORIGIN` matches the live HTTPS origin exactly, with no trailing slash. Secrets (`UPLOAD_SIGNING_SECRET`, `SHARE_ACCESS_SECRET`, and the one-time `BOOTSTRAP_ADMIN_TOKEN`) are set through Wrangler secrets and never committed. After deployment, verify `/`, `/landing/`, `/dev/`, `/s/suzanne`, and a representative optimized landing asset with both HTTP checks and a real browser. Local tests and browser-lab reports must be reported separately from production acceptance.
 
 The authorization gates, secret handling, migration sequence, two-browser acceptance checklist, and rollback runbook are in [`docs/PHASE_4D_DEPLOYMENT_RECOVERY.md`](docs/PHASE_4D_DEPLOYMENT_RECOVERY.md).
 
@@ -345,7 +378,7 @@ A permanent public demo model with the passphrase `tycon`. It is exempt from quo
 
 ## Contributing
 
-BlendProof is a private repository with no remote configured, so it does not accept external pull requests. Contributions happen in-tree: follow the boundaries in [`AGENTS.md`](AGENTS.md), run the quality gates above, and verify UI changes in a real browser rather than relying on a successful build.
+BlendProof is a private repository. The configured `origin` is the project GitHub remote; contributions happen in-tree and are pushed through the reviewed branch workflow: follow the boundaries in [`AGENTS.md`](AGENTS.md), run the quality gates above, and verify UI changes in a real browser rather than relying on a successful build.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

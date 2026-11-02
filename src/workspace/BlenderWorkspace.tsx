@@ -20,7 +20,6 @@ import type { CSSProperties, ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { PanelRightOpen } from "lucide-react";
 
-import { Environment } from "@react-three/drei";
 import {
   Box,
   Camera,
@@ -62,7 +61,6 @@ import {
   BlenderViewportGrid,
   BoxSelectionController,
   ConversionPanel,
-  DecorativeBoundary,
   Model,
   ObjectOutliner,
   PanelResizeHandle,
@@ -239,8 +237,7 @@ export function BlenderWorkspace({
       return;
     }
 
-    const timer = window.setTimeout(() => setGuideOpen(true), 1500);
-    return () => window.clearTimeout(timer);
+    setGuideOpen(true);
   }, [autoOpenGuide, modelUrl]);
 
   const closeGuide = useCallback(() => {
@@ -721,21 +718,27 @@ export function BlenderWorkspace({
               <div className="view-controls" aria-label="视图控制">
                 <div className="icon-group" aria-label="显示模式">
                   <button
-                    title="线框"
+                    title={t("线框")}
+                    aria-label={t("线框")}
+                    data-tooltip={t("线框")}
                     className={displayMode === "wire" ? "active" : ""}
                     onClick={() => onDisplayMode("wire")}
                   >
                     <Grid2X2 />
                   </button>
                   <button
-                    title="灰模"
+                    title={t("灰模")}
+                    aria-label={t("灰模")}
+                    data-tooltip={t("灰模")}
                     className={displayMode === "gray" ? "active" : ""}
                     onClick={() => onDisplayMode("gray")}
                   >
                     <Circle />
                   </button>
                   <button
-                    title="材质预览"
+                    title={t("材质预览")}
+                    aria-label={t("材质预览")}
+                    data-tooltip={t("材质预览")}
                     className={displayMode === "material" ? "active" : ""}
                     onClick={() => onDisplayMode("material")}
                   >
@@ -744,28 +747,36 @@ export function BlenderWorkspace({
                 </div>
                 <div className="icon-group camera-group" aria-label="镜头预设">
                   <button
-                    title="正视图 - 小键盘 1"
+                    title={t("正视图 - 小键盘 1")}
+                    aria-label={t("正视图 - 小键盘 1")}
+                    data-tooltip={t("正视图 - 小键盘 1")}
                     className={cameraPreset === "front" ? "active" : ""}
                     onClick={() => onCameraPreset("front")}
                   >
                     1
                   </button>
                   <button
-                    title="右视图 - 小键盘 3"
+                    title={t("右视图 - 小键盘 3")}
+                    aria-label={t("右视图 - 小键盘 3")}
+                    data-tooltip={t("右视图 - 小键盘 3")}
                     className={cameraPreset === "right" ? "active" : ""}
                     onClick={() => onCameraPreset("right")}
                   >
                     3
                   </button>
                   <button
-                    title="顶视图 - 小键盘 7"
+                    title={t("顶视图 - 小键盘 7")}
+                    aria-label={t("顶视图 - 小键盘 7")}
+                    data-tooltip={t("顶视图 - 小键盘 7")}
                     className={cameraPreset === "top" ? "active" : ""}
                     onClick={() => onCameraPreset("top")}
                   >
                     7
                   </button>
                   <button
-                    title="透视图 - 小键盘 0"
+                    title={t("透视图 - 小键盘 0")}
+                    aria-label={t("透视图 - 小键盘 0")}
+                    data-tooltip={t("透视图 - 小键盘 0")}
                     className={cameraPreset === "perspective" ? "active" : ""}
                     onClick={() => onCameraPreset("perspective")}
                   >
@@ -774,6 +785,7 @@ export function BlenderWorkspace({
                   <button
                     title={t("聚焦选中对象（小键盘 .）")}
                     aria-label={t("聚焦选中对象")}
+                    data-tooltip={t("聚焦选中对象（小键盘 .）")}
                     disabled={selected.size === 0}
                     onClick={() => setFocusRequest({ names: [...selected], nonce: Date.now() })}
                   >
@@ -787,6 +799,8 @@ export function BlenderWorkspace({
                       cameraPreset === `file:${camera.uuid}` ? "active" : ""
                     }`}
                     title={tf("使用文件相机：%s", camera.name || "Camera")}
+                    aria-label={tf("使用文件相机：%s", camera.name || "Camera")}
+                    data-tooltip={tf("使用文件相机：%s", camera.name || "Camera")}
                     onClick={() => onCameraPreset(`file:${camera.uuid}`)}
                   >
                     相机 {camera.name || "Camera"}
@@ -798,7 +812,9 @@ export function BlenderWorkspace({
                     overlaysVisible ? "active" : ""
                   }`}
                   aria-pressed={overlaysVisible}
-                  title="显示或隐藏网格与坐标轴"
+                  title={t("显示或隐藏网格与坐标轴")}
+                  aria-label={t("显示或隐藏网格与坐标轴")}
+                  data-tooltip={t("显示或隐藏网格与坐标轴")}
                   onClick={() => setOverlaysVisible((visible) => !visible)}
                 >
                   <Grid2X2 size={12} />
@@ -816,6 +832,8 @@ export function BlenderWorkspace({
                       }`}
                       data-testid="annotation-toggle"
                       title={t("在模型上点击添加批注")}
+                      aria-label={t("在模型上点击添加批注")}
+                      data-tooltip={t("在模型上点击添加批注")}
                       aria-pressed={annotationMode}
                       onClick={() => {
                         setAnnotationMode((current) => !current);
@@ -835,7 +853,9 @@ export function BlenderWorkspace({
                       annotationsVisible ? "active" : ""
                     }`}
                     aria-pressed={annotationsVisible}
-                    title="显示或隐藏全部批注 Pin"
+                    title={t("显示或隐藏全部批注 Pin")}
+                    aria-label={t("显示或隐藏全部批注 Pin")}
+                    data-tooltip={t("显示或隐藏全部批注 Pin")}
                     onClick={() =>
                       setAnnotationsVisible((visible) => !visible)
                     }
@@ -851,9 +871,11 @@ export function BlenderWorkspace({
                   aria-pressed={shadingMode === "flat"}
                   title={
                     shadingMode === "smooth"
-                      ? "切换为平直着色"
-                      : "切换为平滑着色"
+                      ? t("切换为平直着色")
+                      : t("切换为平滑着色")
                   }
+                  aria-label={shadingMode === "smooth" ? t("切换为平直着色") : t("切换为平滑着色")}
+                  data-tooltip={shadingMode === "smooth" ? t("切换为平直着色") : t("切换为平滑着色")}
                   onClick={() =>
                     setShadingMode((mode) =>
                       mode === "smooth" ? "flat" : "smooth",
@@ -868,6 +890,7 @@ export function BlenderWorkspace({
                     className="editor-mode overlay-toggle"
                     title={t("展开侧边栏")}
                     aria-label={t("展开侧边栏")}
+                    data-tooltip={t("展开侧边栏")}
                     onClick={() => setRightPanelVisible(true)}
                   >
                     <PanelRightOpen size={12} />
@@ -951,12 +974,6 @@ export function BlenderWorkspace({
                       onSelect={selectReviewComment}
                     />
                   )}
-                </Suspense>
-                <Suspense fallback={null}>
-                  {/* 环境贴图来自 CDN：失败只是少了氛围，不该让用户看到「模型无法加载」。 */}
-                  <DecorativeBoundary>
-                    <Environment preset="city" />
-                  </DecorativeBoundary>
                 </Suspense>
                 <BlenderViewControls
                   preset={cameraPreset}

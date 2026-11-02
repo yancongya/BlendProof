@@ -11,6 +11,21 @@ const testEnv = env as typeof env & { TEST_MIGRATIONS: D1Migration[] }
 beforeAll(async () => applyD1Migrations(env.DB, testEnv.TEST_MIGRATIONS))
 
 describe('BlendProof Worker local runtime', () => {
+  it.each([
+    ['/landing', 'https://blendproof.test/landing?utm_source=legacy'],
+  ])('redirects %s to the canonical landing path and preserves query parameters', async (_path, input) => {
+    const response = await SELF.fetch(input, { redirect: 'manual' })
+    expect(response.status).toBe(308)
+    expect(response.headers.get('location')).toBe('https://blendproof.test/landing/?utm_source=legacy')
+  })
+
+  it('serves the landing page directly at the root route', async () => {
+    const response = await SELF.fetch('https://blendproof.test/?utm_source=legacy')
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('text/html')
+    expect(await response.text()).toContain('选择你的身份')
+  })
+
   it('starts with local D1 and R2 bindings', async () => {
     const response = await SELF.fetch('https://blendproof.test/api/health')
     expect(response.status).toBe(200)
