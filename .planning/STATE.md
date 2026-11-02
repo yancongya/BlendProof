@@ -51,7 +51,7 @@ Progress: ████▉ 99%
 ## Session Continuity
 
 Last session: 2026-11-03
-Stopped at: Final 11-step gate passed in 176s with local browser acceptance; finish the current branch push only. Production is deferred by user and must not resume automatically after a credential change.
+Stopped at: Local acceptance complete; ef09b17 pushed to origin/codex/fix-guide-after-cover and web-perf Skill fa28c1b pushed/synchronized. Production is deferred by user and must not resume automatically after a credential change.
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 
 ## 2026-11-02 落地页性能与发布收尾
@@ -74,3 +74,4 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - 自有 web-perf Skill 已更新失败经验并推送私有源仓库 `yancongya/web-perf-skill`；SkillDo 来源已登记为该 Git 仓库，中央内容和工具链接独立核验。
 - 本轮没有生产部署。NAS 连接恢复后，托管 `cloudflare.itycon.workers-deploy` token 状态为 active，但目标账户 Worker 设置返回 403；用户明确选择“暂时只完成本地验收和推送”。恢复生产前需修复同一托管 alias 的账户权限，不在聊天/仓库传递 token。
 - 首轮线上版本记录为 `fe79e2be-9874-4efe-8962-693d6e765ddc`，本轮未重新核验当前线上版本；不得将本轮本地证据归给该历史线上版本。最终完整门禁 176 秒通过（图片处理 113 秒），详情及提交记录见 `docs/RELEASE_ACCEPTANCE_2026-11-02.md`。
+- 本轮业务与规范提交 `ef09b17` 已推送 `origin/codex/fix-guide-after-cover`；自有 Skill `fa28c1b` 已推送并同步 SkillDo，15 个注册工具软链接有效。后续仅追加交付记录，不改变运行时产物、不重复门禁；剩余生产任务按用户要求暂停。

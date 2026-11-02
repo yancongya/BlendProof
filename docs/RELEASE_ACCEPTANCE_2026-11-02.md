@@ -88,3 +88,10 @@
 本轮没有执行生产部署。托管 Worker token 虽为 active，但目标账户读取返回 `403 No access to the specified resource`。NAS 短暂连接超时已恢复；旧 Wrangler 账户缓存与域名元数据交叉核对后，也不能获得 Worker 访问。用户明确决定“暂时只完成本地验收和推送”，生产暂缓，不改 DNS、Secret 或远程 migration。
 
 通用失败经验已写入自有 `web-perf-skill` 的 `SKILL.md` 和 reference，并推送到私有仓库 `yancongya/web-perf-skill`。中央副本通过 SkillDo 更新，来源登记为该 Git 仓库；不再依赖第三方原版更新路径。项目流程见 `PERFORMANCE_RELEASE_WORKFLOW.md`。
+
+### 本轮提交与交付
+
+- 业务及流程提交：`ef09b17`（`perf: 完善落地页加载恢复与统一发布验收流程`），已推送至 `origin/codex/fix-guide-after-cover`，未合并 `main`、未创建版本 tag。
+- 自有 Skill：`fa28c1b` 已推送 `yancongya/web-perf-skill` 的 `main`；远端 HEAD 与本地一致，SkillDo 中央 revision 同步完成。三个更新文档逐字节一致，15 个注册工具路径均为指向中央副本的有效软链接。
+- 提交仅包含本任务 28 个明确文件；凭据、运行时存储、原始 `.blend`、浏览器/性能报告未加入提交。
+- 本小节是业务推送完成后的文档记录，不改变已验收的运行时代码，因此不重复完整门禁。生产按用户选择暂缓，恢复前需要用户重新明确要求，不能因凭据修复而自动部署。
