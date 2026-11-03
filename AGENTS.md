@@ -70,3 +70,11 @@ GitHub Actions 只允许手动触发，运行时必须显式选择 `YES`，并�
 - 推送前先审核 `git diff --check`、`git diff --stat` 和提交文件清单；不要 force push，不要擅自创建版本 tag。
 
 发布失败经验与操作顺序见 `docs/PERFORMANCE_RELEASE_WORKFLOW.md`；通用规则在 SkillDo 管理的自有 `web-perf` Skill 中维护。
+
+## 每次任务结束后的本地清理
+
+- 在相关测试、浏览器/发布验收结束且证据已保存后，运行 `npm run clean:task` 预览，再执行 `npm run clean:task -- --apply`。这是任务收尾步骤，不是定时任务，不挂到 `postbuild` 或部署门禁中途。
+- 固定候选仅为 `dist/`、`dist-worker/`、`tsconfig.tsbuildinfo`、`node_modules/.vite-temp/`。默认保留 `node_modules` 依赖与 `.vite` 热缓存、`.wrangler` 本地数据库、`storage`、`output` 验收证据、源码、锁文件和 `landing/assets/optimized` 发布素材。
+- 检查 Git 跟踪、ignore、软链接和运行进程。构建/预览/Worker 等仍运行时跳过；源码 Vite dev 运行时仅保留其临时缓存，闲置构建产物可清理。检查权限不足则停止，不把无法检查当作空闲；不得为清理停止用户已有服务。
+- macOS 下移动到 `~/.Trash/BlendProof-builds/<operation>/`，原路径清单保存在废纸篓及 `output/cleanup/`；不永久删除、不自动清空废纸篓，也不宣称已释放物理磁盘空间。其他平台仅支持预览。
+- 需要继续部署或核对原构建 hash 时先保留 `dist`。清理后再运行 Worker 静态路由/落地页 built 测试必须重新构建；不能拿清理前的产物身份证明后来重建的产物。

@@ -193,7 +193,8 @@ This writes `test-assets/simple-review-scene.blend`. Import it, click "create lo
 | `npm run check:worker` | Type-check the Worker against `tsconfig.worker.json` |
 | `npm run check:arch` | Check source dependency direction and architecture budgets |
 | `npm run test:backend` | Local backend and Viewer test suite via `node:test` |
-| `npm run test:release-pipeline` | Check release ordering, CI authorization, and self-hosted route parity |
+| `npm run test:release-pipeline` | Check release ordering, CI authorization, route parity, and cleanup safety |
+| `npm run clean:task` | Preview idle build cleanup; add `-- --apply` to move eligible outputs to macOS Trash |
 | `npm run test:worker` | Worker test suite via Vitest + `@cloudflare/vitest-plugin` |
 | `npm run test:landing` | Build the landing page and run asset/loading smoke checks |
 | `npm run test:landing:built` | Check the existing landing build; used after the current release build to avoid rebuilding |
@@ -387,3 +388,7 @@ UNLICENSED — all rights reserved. The public repository has no `LICENSE` file;
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 See [Performance and release workflow](docs/PERFORMANCE_RELEASE_WORKFLOW.md) for failure recovery, avoiding duplicate checks, and recording evidence.
+
+### End-of-task local cleanup
+
+After tests, browser/release acceptance and evidence capture, run `npm run clean:task` (preview), then `npm run clean:task -- --apply`. The macOS apply step moves only idle, ignored build outputs and temporary compiler files to recoverable Trash; it preserves dependencies, local databases, reports and optimized landing assets. It never runs during a build/deploy or empties Trash automatically. See the workflow above for the allowlist, process guards and rebuild requirements. Other platforms support preview only.

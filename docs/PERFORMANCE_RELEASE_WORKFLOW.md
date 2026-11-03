@@ -34,3 +34,22 @@
 5. 将最终事实追加到 `RELEASE_ACCEPTANCE_2026-11-02.md`，同步 `.planning/STATE.md`。仅更新记录的后续文档提交不需要再次部署相同运行时产物。
 
 通用经验维护在自有 `web-perf-skill` 仓库，由 SkillDo 更新中央副本；源码、中央内容及各工具软链接分别核验。原始浏览器/性能报告、`.blend`、运行时存储和凭据不提交。
+
+## 任务收尾清理（每次执行）
+
+顺序：完成所需测试和浏览器/发布验收 → 保存报告与构建身份 → 清理 → 更新并提交交付记录。本地任务无需为清理启动生产部署；仍要用原 `dist` 部署、排错或比对线上 hash 时延后清理。
+
+```sh
+npm run clean:task              # 只读预览
+npm run clean:task -- --apply   # macOS：移入可恢复废纸篓
+```
+
+- 固定候选为 `dist/`、`dist-worker/`、`tsconfig.tsbuildinfo`、`node_modules/.vite-temp/`；不会递归寻找其他项目的构建目录。
+- 保留约 604 MB 的本项目依赖（本次盘点值，不是固定预算），避免每次重新安装；不自动运行 `npm prune` 或删除所谓“未使用模块”。依赖移除必须另行核对源码、动态 import、构建和锁文件。
+- `.vite` 热缓存、`.wrangler` 本地 D1、`storage`、`output` 证据、源码、锁文件、压缩后的发布图片都不在候选内。
+- 对候选检查 Git 跟踪/ignore、软链接、进程和打开文件；移动前重新检查。运行中的 build、preview、Worker 或未知项目运行时会阻断；只有明确的源码 Vite dev 可与闲置 dist 清理共存，且其 `.vite-temp` 保留。无法读取进程不视为空闲，不为清理停止已有服务。
+- 桌面 CUA/Xcode MCP 工具可能继承仓库 cwd，但不等于项目服务；只排除脚本明确识别、入口在仓库外的这两类工具，仍逐候选检查打开文件。不能泛化为忽略所有 Node/MCP 进程。
+- 使用原生文件移动，遵循 `mac-dev-cleanup` 的 Trash-first 边界，不运行全盘清理。目标为 `~/.Trash/BlendProof-builds/<operation>/`；恢复清单保存在该目录的 `manifest.json` 及 `output/cleanup/`。恢复时先确认原路径不存在，再按清单移回，不能覆盖新构建。
+- 仅移出工作目录，不自动清空废纸篓，不声称已释放物理磁盘。非 macOS 只支持预览；跨文件系统移动失败时不降级成复制后永久删除。
+- 不挂到 `postbuild`、`verify:release` 或 `deploy:production` 中途。清理后独立跑 `test:worker`/`test:landing:built`/`verify:production` 前需重新构建，原验收记录只对应原产物。
+- `test:release-pipeline` 同时验证清理白名单、dry-run、进程保护、受跟踪文件/软链接拒绝、重复执行和恢复清单；不要为清理再跑整套图片编码与业务 UI 验收。

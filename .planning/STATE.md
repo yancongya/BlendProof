@@ -3,7 +3,7 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: Follow-up locally verified; production update deferred by user
-Last activity: 2026-11-03 - 落地页加载回归、统一发布流程及本地浏览器验收收尾；本轮生产发布按用户选择暂缓
+Last activity: 2026-11-03 - 新增每次任务收尾清理；约 10.5 MiB 闲置构建已移入可恢复废纸篓，保留现有开发服务；用户再次确认生产暂缓
 
 Progress: ████▉ 99%
 
@@ -75,3 +75,11 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - 本轮没有生产部署。NAS 连接恢复后，托管 `cloudflare.itycon.workers-deploy` token 状态为 active，但目标账户 Worker 设置返回 403；用户明确选择“暂时只完成本地验收和推送”。恢复生产前需修复同一托管 alias 的账户权限，不在聊天/仓库传递 token。
 - 首轮线上版本记录为 `fe79e2be-9874-4efe-8962-693d6e765ddc`，本轮未重新核验当前线上版本；不得将本轮本地证据归给该历史线上版本。最终完整门禁 176 秒通过（图片处理 113 秒），详情及提交记录见 `docs/RELEASE_ACCEPTANCE_2026-11-02.md`。
 - 本轮业务与规范提交 `ef09b17` 已推送 `origin/codex/fix-guide-after-cover`；自有 Skill `fa28c1b` 已推送并同步 SkillDo，15 个注册工具软链接有效。后续仅追加交付记录，不改变运行时产物、不重复门禁；剩余生产任务按用户要求暂停。
+
+## 2026-11-03 每次任务收尾清理
+
+- 新增 `npm run clean:task`（默认只读），`-- --apply` 仅移动明确、未跟踪、ignored 且闲置的构建文件到 macOS 废纸篓。白名单与每次任务收尾顺序已写入 README、README.zh、AGENTS 及性能工作流；不挂到构建/部署中途。
+- 本轮检查：`npm run check`、`npm run check:worker` 通过；发布流程与清理回归共 16 项通过（5 项既有发布合同 + 11 项清理保护）。没有改变 Web/Worker 运行时代码，不重复图片编码、业务 UI 或完整发布门禁；此前 176 秒门禁只归属此前版本。
+- 已执行 dry-run 后 apply：移动 `dist`、`dist-worker`、`tsconfig.tsbuildinfo` 共 11,016,855 B（约 10.5 MiB）到可恢复废纸篓。操作 ID：`2026-11-03T12-18-41-973Z-0daecf0f`；本地恢复清单 `output/cleanup/<operation>.json` 保持 ignored。
+- 两个已有 Vite 开发服务未停止，`.vite-temp` 因运行中而跳过；依赖、`.vite` 热缓存、本地数据库/存储、性能报告和压缩后的发布图片全部保留。移动到废纸篓不等于释放物理空间，不自动清空。
+- 首次进程盘点因桌面工具继承项目 cwd 而保守跳过；随后明确识别仓库外 CUA/Xcode MCP 工具并保留逐候选打开文件检查，补充回归测试。生产是否恢复已再次询问，用户明确答复“仍暂缓生产，只完成本地清理和推送”。之后发布或使用 built 测试前需重新构建。

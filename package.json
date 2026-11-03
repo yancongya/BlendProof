@@ -34,7 +34,8 @@
     "verify:release-assets": "node scripts/verify-release-assets.mjs",
     "verify:production": "node scripts/verify-production.mjs",
     "deploy:production": "bash scripts/deploy-production.sh",
-    "test:release-pipeline": "node --test tests/release-pipeline.test.mjs"
+    "test:release-pipeline": "node --test tests/release-pipeline.test.mjs tests/clean-task.test.mjs",
+    "clean:task": "node scripts/clean-task.mjs"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",

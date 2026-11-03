@@ -193,7 +193,8 @@ npm run create:test-blend
 | `npm run check:worker` | 按 `tsconfig.worker.json` 类型检查 Worker |
 | `npm run check:arch` | 检查源码依赖方向与架构预算 |
 | `npm run test:backend` | 本机后端与 Viewer 测试套件（`node:test`） |
-| `npm run test:release-pipeline` | 检查发布顺序、CI 授权和自托管入口一致性 |
+| `npm run test:release-pipeline` | 检查发布顺序、CI 授权、自托管入口和清理安全性 |
+| `npm run clean:task` | 预览闲置构建清理；加 `-- --apply` 移入 macOS 可恢复废纸篓 |
 | `npm run test:worker` | Worker 测试套件（Vitest + `@cloudflare/vitest-plugin`） |
 | `npm run test:landing` | 构建落地页并运行资源与加载冒烟检查 |
 | `npm run test:landing:built` | 仅检查现有落地页产物；完整门禁在本次构建后调用，避免重复构建 |
@@ -385,3 +386,7 @@ UNLICENSED —— 保留所有权利。公开仓库目前没有 `LICENSE` 文件
 <p align="right">(<a href="#readme-top">回到顶部</a>)</p>
 
 发布故障排查、避免重复检查与证据记录规范见 [性能与发布工作流](docs/PERFORMANCE_RELEASE_WORKFLOW.md)。
+
+### 任务收尾清理
+
+测试、浏览器/发布验收及证据保存完成后，先运行 `npm run clean:task` 预览，再运行 `npm run clean:task -- --apply`。macOS 下只把闲置、Git ignored 的构建产物及临时编译文件移入可恢复的废纸篓；保留依赖、数据库、报告和落地页压缩素材。不在构建或部署中途运行，不自动清空废纸篓。白名单、进程保护及重建要求见 `docs/PERFORMANCE_RELEASE_WORKFLOW.md`；其他平台只支持预览。
