@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import ts from 'typescript'
+import { cacheEntryIsFresh, paramsFingerprint } from '../scripts/lib/image-cache.mjs'
 import { fileURLToPath } from 'node:url'
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
@@ -349,4 +350,176 @@ test('Actions 发布入口在 package.json 与协作文档中登记', () => {
   assert.match(read('docs/PERFORMANCE_RELEASE_WORKFLOW.md'), /deploy:actions/)
   assert.match(read('README.md'), /deploy:actions/)
   assert.match(read('README.zh.md'), /deploy:actions/)
+})
+
+test('图片缓存命中要求参数、源哈希与每个产物哈希全部一致', () => {
+  const params = paramsFingerprint({ quality: 84, widths: [512, 768] })
+  const entry = { paramsHash: params, sourceSha256: 'src', outputs: [{ path: 'a.webp', bytes: 1, sha256: 'oa' }, { path: 'b.webp', bytes: 2, sha256: 'ob' }] }
+  const hashes = new Map([['a.webp', 'oa'], ['b.webp', 'ob']])
+  const check = (over = {}) => cacheEntryIsFresh(entry, { paramsHash: params, sourceSha256: 'src', outputHashes: hashes, ...over })
+  assert.equal(check(), true)
+  assert.equal(check({ sourceSha256: 'other' }), false, '源变化必须重编码')
+  assert.equal(check({ paramsHash: paramsFingerprint({ quality: 85, widths: [512, 768] }) }), false, '编码参数变化必须重编码')
+  assert.equal(check({ outputHashes: new Map([['a.webp', 'oa'], ['b.webp', 'CHANGED']]) }), false, '产物被改动必须重编码')
+  assert.equal(check({ outputHashes: new Map([['a.webp', 'oa']]) }), false, '产物缺失必须重编码')
+  assert.equal(cacheEntryIsFresh(undefined, { paramsHash: params, sourceSha256: 'src', outputHashes: hashes }), false)
+  assert.equal(cacheEntryIsFresh({ ...entry, outputs: [] }, { paramsHash: params, sourceSha256: 'src', outputHashes: hashes }), false)
+})
+
+test('参数指纹与键顺序无关且随编码参数变化', () => {
+  const a = paramsFingerprint({ widths: [512, 768], quality: 84 })
+  assert.equal(a, paramsFingerprint({ quality: 84, widths: [512, 768] }))
+  assert.notEqual(a, paramsFingerprint({ widths: [512], quality: 84 }))
+  assert.notEqual(a, paramsFingerprint({ widths: [512, 768], quality: 84, effort: 6 }))
+})
+
+test('优化器持久化清单、支持 --force 绕过，且清单已提交供 CI 复用', () => {
+  const src = read('scripts/optimize-landing-images.mjs')
+  assert.match(src, /saveCache\(cachePath, nextCache\)/)
+  assert.match(src, /BLENDPROOF_IMAGE_FORCE/)
+  assert.match(src, /cacheEntryIsFresh\(/)
+  // The manifest is what lets a fresh CI checkout skip 88s of re-encoding.
+  assert.ok(existsSync('scripts/image-cache.json'), 'image cache manifest must be committed')
+  const manifest = JSON.parse(read('scripts/image-cache.json'))
+  assert.equal(Object.keys(manifest.entries).length, 18, '17 cards + 1 splash')
+  for (const entry of Object.values(manifest.entries)) {
+    assert.match(entry.paramsHash, /^[0-9a-f]{64}$/)
+    assert.match(entry.sourceSha256, /^[0-9a-f]{64}$/)
+    for (const output of entry.outputs) assert.match(output.sha256, /^[0-9a-f]{64}$/)
+  }
+})
+
+function shipBin(t) {
+  const bin = mkdtempSync(join(tmpdir(), 'blendproof-ship-'))
+  t.after(() => rmSync(bin, { recursive: true, force: true }))
+  const calls = join(bin, 'calls.log')
+  writeFileSync(join(bin, 'git'), `#!/bin/sh
+printf 'git:%s\n' "$*" >> "$CALL_LOG"
+case "$1 $2" in
+  "status --porcelain") printf '%s' "$FAKE_DIRTY" ;;
+  "rev-parse --abbrev-ref") printf '%s\n' "$FAKE_BRANCH" ;;
+  "rev-parse HEAD") printf '%s\n' "$FAKE_LOCAL" ;;
+  "ls-remote origin") printf '%s\trefs/heads/%s\n' "$FAKE_REMOTE" "$FAKE_BRANCH" ;;
+esac
+`)
+  writeFileSync(join(bin, 'npm'), `#!/bin/sh
+printf 'npm:%s\n' "$*" >> "$CALL_LOG"
+exit "$MOCK_NPM_EXIT"
+`)
+  writeFileSync(join(bin, 'bash'), `#!/bin/sh
+printf 'bash:%s\n' "$*" >> "$CALL_LOG"
+exit "$MOCK_BASH_EXIT"
+`)
+  for (const name of ['git', 'npm', 'bash']) chmodSync(join(bin, name), 0o755)
+  return { calls, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CALL_LOG: calls,
+    MOCK_NPM_EXIT: '0', MOCK_BASH_EXIT: '0', FAKE_BRANCH: 'codex/ship-test',
+    FAKE_LOCAL: 'a'.repeat(40), FAKE_REMOTE: 'a'.repeat(40), FAKE_DIRTY: '' } }
+}
+
+const runShip = (env, args) => spawnSync('/bin/bash', ['scripts/ship.sh', ...args], { cwd: process.cwd(), env, encoding: 'utf8' })
+
+test('ship 未授权时不推送不部署', (t) => {
+  const { calls, env } = shipBin(t)
+  for (const approved of ['', 'NO']) {
+    const result = runShip({ ...env, BLENDPROOF_PRODUCTION_APPROVED: approved }, [])
+    assert.equal(result.status, 2)
+    assert.equal(existsSync(calls), false, 'unauthorized ship must not invoke git/npm/deploy')
+  }
+})
+
+test('ship 工作区脏时拒绝发布', (t) => {
+  const { calls, env } = shipBin(t)
+  const result = runShip({ ...env, BLENDPROOF_PRODUCTION_APPROVED: 'YES', FAKE_DIRTY: ' M README.md' }, [])
+  assert.equal(result.status, 2)
+  assert.match(result.stderr, /未提交改动/)
+  // Read-only preflight git calls are expected; side effects are not.
+  const log = readFileSync(calls, 'utf8')
+  assert.match(log, /git:status --porcelain/)
+  assert.equal(log.includes('git:push'), false, 'dirty tree must not push')
+  assert.equal(log.includes('bash:scripts/deploy'), false, 'dirty tree must not deploy')
+  assert.equal(log.includes('clean:task'), false, 'dirty tree must not clean')
+})
+
+test('ship 走 CI 通道时不重复跑门禁，并在发布后清理', (t) => {
+  const { calls, env } = shipBin(t)
+  const result = runShip({ ...env, BLENDPROOF_PRODUCTION_APPROVED: 'YES' }, [])
+  assert.equal(result.status, 0, result.stderr)
+  const log = readFileSync(calls, 'utf8')
+  assert.match(log, /bash:scripts\/deploy-via-actions\.sh codex\/ship-test/)
+  assert.match(log, /npm:run clean:task -- --apply/)
+  assert.equal(log.includes('npm:run verify:release'), false, 'CI already runs the gate; ship must not duplicate it')
+  assert.equal(log.split('\n').filter((l) => l.startsWith('bash:scripts/deploy')).length, 1, 'exactly one deploy channel')
+  assert.equal(log.includes('git:push'), false, 'in-sync ref must not push')
+})
+
+test('ship 支持 --gate/--push/--ff-main/--no-clean/--channel local', (t) => {
+  const gated = shipBin(t)
+  const gatedRun = runShip({ ...gated.env, BLENDPROOF_PRODUCTION_APPROVED: 'YES' }, ['--gate', '--channel', 'local'])
+  assert.equal(gatedRun.status, 0, gatedRun.stderr)
+  const gatedLog = readFileSync(gated.calls, 'utf8')
+  assert.ok(gatedLog.indexOf('npm:run verify:release') < gatedLog.indexOf('bash:scripts/deploy-production.sh'), 'gate must run before deploy')
+  assert.equal(gatedLog.includes('deploy-via-actions'), false)
+
+  const pushed = shipBin(t)
+  const pushRun = runShip({ ...pushed.env, BLENDPROOF_PRODUCTION_APPROVED: 'YES', FAKE_REMOTE: 'b'.repeat(40) }, ['--push', '--ff-main'])
+  assert.equal(pushRun.status, 0, pushRun.stderr)
+  const pushLog = readFileSync(pushed.calls, 'utf8')
+  assert.match(pushLog, /git:push origin HEAD:refs\/heads\/codex\/ship-test/)
+  assert.match(pushLog, /git:push origin HEAD:refs\/heads\/main/)
+  assert.ok(pushLog.indexOf('git:push') < pushLog.indexOf('bash:scripts/deploy'), 'push must precede deploy')
+
+  const refused = shipBin(t)
+  const refuseRun = runShip({ ...refused.env, BLENDPROOF_PRODUCTION_APPROVED: 'YES', FAKE_REMOTE: 'b'.repeat(40) }, [])
+  assert.equal(refuseRun.status, 2)
+  assert.match(refuseRun.stderr, /--push/)
+  assert.equal(readFileSync(refused.calls, 'utf8').includes('bash:scripts/deploy'), false, 'unpushed HEAD must not deploy')
+
+  const noClean = shipBin(t)
+  const noCleanRun = runShip({ ...noClean.env, BLENDPROOF_PRODUCTION_APPROVED: 'YES' }, ['--no-clean'])
+  assert.equal(noCleanRun.status, 0, noCleanRun.stderr)
+  assert.equal(readFileSync(noClean.calls, 'utf8').includes('clean:task'), false)
+})
+
+test('ship 部署失败时传播退出码且不清理', (t) => {
+  const { calls, env } = shipBin(t)
+  const result = runShip({ ...env, BLENDPROOF_PRODUCTION_APPROVED: 'YES', MOCK_BASH_EXIT: '4' }, [])
+  assert.equal(result.status, 4)
+  const log = readFileSync(calls, 'utf8')
+  assert.equal(log.includes('npm:run clean:task'), false, 'a failed release must not be followed by cleanup')
+})
+
+test('ship --dry-run 不产生任何副作用', (t) => {
+  const { calls, env } = shipBin(t)
+  const result = runShip({ ...env, BLENDPROOF_PRODUCTION_APPROVED: '' }, ['--dry-run', '--push'])
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /dry-run/)
+  const log = readFileSync(calls, 'utf8')
+  assert.equal(log.includes('git:push'), false, 'dry-run must not push')
+  assert.equal(log.includes('bash:scripts/deploy'), false, 'dry-run must not deploy')
+  assert.equal(log.includes('clean:task'), false, 'dry-run must not clean')
+})
+
+test('ship 入口在 package.json 与文档中登记', () => {
+  const pkg = JSON.parse(read('package.json'))
+  assert.equal(pkg.scripts.ship, 'bash scripts/ship.sh')
+  assert.match(read('AGENTS.md'), /npm run ship/)
+  assert.match(read('README.md'), /run ship/)
+  assert.match(read('README.zh.md'), /run ship/)
+  assert.match(read('docs/PERFORMANCE_RELEASE_WORKFLOW.md'), /npm run ship/)
+})
+
+test('分享页审稿昵称输入即持久化，不只依赖提交按钮', () => {
+  const src = read('src/pages/SharePage.tsx')
+  // Typing lifts the name gate, so persistence must happen on change; otherwise a
+  // reviewer who never clicks 继续审稿 loses the name on reload while their posted
+  // annotations keep it (reproduced against production on 2026-11-05).
+  assert.match(src, /onChange=\{updateGuestName\}/)
+  assert.equal(src.includes('onChange={setGuestName}'), false, 'the gate lifts on change, so the raw setter must not be the change handler')
+  const start = src.indexOf('const updateGuestName')
+  assert.ok(start > 0)
+  const handler = src.slice(start, start + 800)
+  assert.match(handler, /localStorage\.setItem/)
+  assert.match(handler, /removeItem/, '清空昵称必须移除键，否则重载会复活旧名字')
+  assert.match(handler, /catch/, '存储被禁用时不能让整个分享页崩溃')
+  assert.match(src, /blendproof-guest-name:\$\{token\}/)
 })

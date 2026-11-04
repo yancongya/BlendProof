@@ -204,6 +204,7 @@ npm run create:test-blend
 | `npm run verify:release` | 运行完整本地发布门禁与产物边界检查 |
 | `npm run verify:production` | 只读检查线上入口、健康响应及资源 hash；部署脚本成功发布后自动调用 |
 | `npm run deploy:production` | 显式授权后在本机运行完整门禁并部署 |
+| `npm run ship` | 一条命令发布：预检、推送、单通道部署、线上验收、收尾清理 |
 | `npm run deploy:actions` | 对已推送的 ref 触发 Actions 手动发布、跟踪 run，再做线上路由验收 |
 
 </details>
@@ -315,6 +316,8 @@ Worker 显式处理 `/api/*`，将 `/` 映射到落地页，将 `/landing` 重�
 生产 Worker、D1、私有 R2、每小时 cron 与自定义域 `blendproof.itycon.cn` 均已上线。`wrangler.jsonc` 是包含 Orbit 接入的官方托管配置；自托管者应使用 `wrangler.self-host.example.jsonc`，不要复制官方账号绑定。
 
 R2 是默认适配器。自托管部署可以通过 `STORAGE_PROVIDER=s3` 接入 AWS SigV4 兼容的私有 bucket；配置项、最小权限、健康检查和适配器要求见 [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md)。
+
+`npm run ship` 是推荐的唯一发布入口：校验工作区干净且 ref 已推送，只走一条通道部署，执行线上验收，最后做可恢复的构建清理。CI 通道下它不会在本地重复跑门禁（CI job 内部已跑）；需要本地门禁时加 `--gate` 或改用 `--channel local`，`--dry-run` 只打印计划、无副作用。
 
 生产发布有两条已授权入口，二者要求同一个显式授权变量。`deploy:production` 在本机构建并部署：先检查显式授权，再运行完整发布门禁，全部通过后才调用 Wrangler。只想单独预检时运行 `npm run verify:release`；不要紧接着再部署而重复跑门禁，除非你明确需要重复验证：
 

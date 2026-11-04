@@ -204,6 +204,7 @@ This writes `test-assets/simple-review-scene.blend`. Import it, click "create lo
 | `npm run verify:release` | Run the complete local release gate, including package-boundary checks |
 | `npm run verify:production` | Read-only checks of live routes, health response and asset hashes; called after deployment |
 | `npm run deploy:production` | Run the release gate and deploy from this machine after explicit approval |
+| `npm run ship` | One-command release: preflight, push, deploy through one channel, verify live, then clean build artifacts |
 | `npm run deploy:actions` | Trigger the manual GitHub Actions release for a pushed ref, track the run, then verify live routes |
 
 </details>
@@ -317,6 +318,8 @@ The review data contract is specified in [`docs/REVIEW_CONTRACT.md`](docs/REVIEW
 The production Worker, D1 database, private R2 bucket, hourly cron, and custom domain `blendproof.itycon.cn` are live. `wrangler.jsonc` is the official-hosting configuration and includes Orbit integration. Self-hosters should start from `wrangler.self-host.example.jsonc` rather than copying official account bindings.
 
 R2 is the default adapter. Self-hosted deployments can select an AWS SigV4-compatible private bucket with `STORAGE_PROVIDER=s3`; configuration, permissions, health response, and adapter requirements are documented in [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md).
+
+`npm run ship` is the recommended single entrypoint: it verifies the worktree is clean and the ref is pushed, deploys through exactly one channel, runs the live verification, and finishes with the recoverable build cleanup. It does not re-run the release gate on the CI channel because the CI job already runs it; pass `--gate` or `--channel local` when you want a local gate run, and `--dry-run` to print the plan without side effects.
 
 Production has two authorized entrypoints and both require the same explicit approval variable. `deploy:production` builds and deploys from this machine: it runs the complete release gate, then invokes Wrangler. Run `npm run verify:release` separately when you only need a local preflight; do not run both commands back-to-back unless you intentionally want the gate repeated:
 

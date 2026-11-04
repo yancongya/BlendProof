@@ -86,6 +86,21 @@ export function SharePage() {
       ? window.localStorage.getItem(`blendproof-guest-name:${token}`) ?? ""
       : "",
   );
+  // Typing already lifts the name gate (see the render condition below), so the
+  // name must be persisted on change as well. Persisting only in onSubmit meant a
+  // reviewer who never clicked 继续审稿 lost their name on every reload, while the
+  // annotations they had already posted kept showing that name to the author.
+  const updateGuestName = (value: string): void => {
+    setGuestName(value);
+    if (!token) return;
+    const storageKey = `blendproof-guest-name:${token}`;
+    try {
+      if (value.trim()) window.localStorage.setItem(storageKey, value);
+      else window.localStorage.removeItem(storageKey);
+    } catch {
+      /* Storage can be blocked by private mode or quota; this session still works. */
+    }
+  };
   // 批注的本地副本与全部写操作由审稿域统一持有；本页只做装配。
   const {
     comments: guestComments,
@@ -213,12 +228,12 @@ export function SharePage() {
     return (
       <GuestNameNotice
         value={guestName}
-        onChange={setGuestName}
+        onChange={updateGuestName}
         onSubmit={() => {
           const name = guestName.trim();
           if (!name || !token) return;
-          window.localStorage.setItem(`blendproof-guest-name:${token}`, name);
-          setGuestName(name);
+          // Store the trimmed form so a reload does not resurrect stray spaces.
+          updateGuestName(name);
         }}
       />
     );

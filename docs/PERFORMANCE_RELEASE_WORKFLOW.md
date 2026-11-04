@@ -1,5 +1,33 @@
 # 性能与发布工作流
 
+## 一条命令发布
+
+发布只用 `npm run ship`，它串起：预检 → 推送 → 部署 → 线上验收 → 收尾清理。
+
+```sh
+BLENDPROOF_PRODUCTION_APPROVED=YES npm run ship -- --channel ci --ref main --push --ff-main
+npm run ship -- --dry-run            # 只打印计划，不需要授权，无副作用
+```
+
+| 选项 | 作用 |
+| --- | --- |
+| `--channel ci\|local` | `ci`（默认）触发 Actions，由 CI 跑门禁并部署；`local` 本机跑门禁后 wrangler 部署，可做逐字节 hash 验收 |
+| `--ref NAME` | 发布 ref，默认当前分支 |
+| `--push` | 本地领先远端时推送该 ref；默认拒绝并提示，不擅自推送 |
+| `--ff-main` | 同时把 `main` 快进到该 ref（非快进由 git 拒绝，绝不强推） |
+| `--gate` | 发布前额外在本地跑一次完整门禁 |
+| `--no-clean` | 跳过收尾清理 |
+| `--dry-run` | 只打印计划 |
+
+规则：
+
+- 工作区必须干净；`ship` 不会替你提交，脏树直接退出并打印 `git status`。
+- **不重复门禁**：CI 通道的 job 内部已跑 11 步门禁，`ship` 不再本地跑一遍；需要本地门禁时用 `--gate` 或 `--channel local`。
+- 一次发布只走一条通道；通道选择、授权、ref 同步检查都在这一处完成。
+- 部署失败直接传播退出码，并且**不执行清理**，避免把失败发布对应的产物身份清掉。
+- 清理失败不掩盖发布结果，但会以非零退出并提示手动运行 `clean:task`。
+- 只想本地全量检查而不发布：`npm run verify:release`。
+
 ## 标准入口
 
 - `npm run dev`：一个 Vite、bridge 和本地 Worker。使用 `localhost:5173`，`/` 为落地页，`/dev/` 为工作台；固定端口，Origin 必须一致。
@@ -31,6 +59,15 @@ BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:actions [分支名]
 - 通道 B 可以用 `approve_production=NO` 安全预演：`gh workflow run deploy.yml --ref <branch> -f approve_production=NO`。工作流顺序是 checkout → setup-node → `npm ci` → 审批检查，所以 NO 预演会真实验证触发权限与 CI 依赖安装，然后在调用 Wrangler 之前退出 1，不接触任何 Cloudflare 资源。该 run 在 Actions 历史中显示为红色 failure，属预期，不能记作发布失败。首次运行会让 GitHub 自动创建 `production` environment。
 - `production` environment 被自动创建时不带任何 protection rules，因此通道 B 的唯一闸门是 `approve_production` 输入；需要仓库级人工审批必须由用户在仓库设置中配置 required reviewers，工作流 YAML 不会代为配置。
 - 本机 npm 可能比 CI 新（例如本机 11.19 有 install-scripts 门禁提示，CI Node 22 自带 npm 10.x 没有）。这类差异只影响本机 dry-run 输出，判断 CI 行为要看真实 run 日志，不要把本机警告当成 CI 失败。
+
+## 落地页图片编码缓存
+
+- 门禁第 1 步曾是 88–113s 的全量 WebP 重编码，占 176s 门禁的 **64%**；而 35 个产物与清单都已提交，重编码结果逐字节相同（实测 `git status` 为空）。
+- `scripts/image-cache.json` 记录 `paramsHash`（sharp 版本、宽度、质量、alphaQuality、effort）与每张图的 `sourceSha256` 及各产物 `sha256`。**三者全等才跳过编码**；任一不符只重编码该图。
+- 实测：冷缓存 88s → 热缓存 **0.49s**（18 命中 / 0 编码）；篡改清单里的源哈希只重编码该图（17 命中）；删除一个产物只重建该图且字节与提交版一致。
+- `--force` 或 `BLENDPROOF_IMAGE_FORCE=1` 忽略缓存。清单缺失或损坏自动退化为全量编码，**不会让门禁失败**。
+- 清单必须随产物一起提交，否则 CI 每次全新 checkout 仍要全量重编码。
+- 质量、尺寸、alpha 逐像素校验与体积预算只在真正编码时执行；命中缓存意味着产物字节未变，这些校验结论仍然成立。预算检查每次运行都做。
 
 ## 本次失败转化为规则
 

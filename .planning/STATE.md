@@ -3,7 +3,7 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: Released to production via authorized channel B; post-release verification fix landed
-Last activity: 2026-11-05 - 生产真实浏览器验收完成，发现并修复身份门“跳过”按钮被固定顶栏遮挡（含回归断言）；修复尚未部署
+Last activity: 2026-11-05 - 云端业务 E2E 在生产跑通并发现/修复审稿昵称不持久化；发布统一为 npm run ship，门禁 176s→42s；这批修复尚未部署
 
 Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 与 RUM 验收）
 
@@ -51,7 +51,7 @@ Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 
 ## Session Continuity
 
 Last session: 2026-11-03
-Stopped at: Production browser acceptance done (found+fixed the unreachable tarot-skip button); fix committed locally and pending a deploy authorization. Remaining: real BFCache, cloud business E2E, RUM, app bundle splitting.
+Stopped at: Cloud business E2E verified on production (login, in-browser conversion, publish, share, cross-session annotation write+D1 persistence); guest-name persistence bug found and fixed locally; release unified into `npm run ship` and the gate cut from 176s to 42s. Pending: deploy these fixes, then real BFCache, cleanup/expiry E2E, RUM, app bundle splitting.
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 
 ## 2026-11-02 落地页性能与发布收尾
@@ -118,3 +118,13 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - 真实 BFCache 仍未命中（`persisted` 从未为 true，页面整页重载），恢复分支只有模拟测试覆盖。
 - 本轮 4 处测量失误已更正并记录在验收报告：blob URL 被截断误报为网络失败、全局选择器跨面板误点、滚动隐藏 section 内的观察目标、无重复请求的基线索引取错位置。
 - 该修复是落地页内联 CSS 与测试改动，**尚未部署**；线上仍是 `6ce8a53` 构建（Version `7209784a`）。
+
+## 2026-11-05 云端 E2E、昵称缺陷与发布流程统一
+
+- 云端业务 E2E 在生产跑通：体验账号登录 → 浏览器内 `.blend`→GLB（111.5 KB → 42.3 KB，无需 bridge，原始工程不出本机）→ `projects/upload-intents/assets/finalize` 全链路 → 创建 24h 可批注分享 → 第二个匿名会话经 R2 取模型 → 落点写入批注 → `GET /api/shares/{token}/comments` 返回完整 D1 记录（含 camera 四元数与 position/normal）→ 重新进入 UI 可见。未向永久演示 `/s/suzanne` 写入任何数据。
+- 操作前提：操作指南浮层会遮挡视口，不关闭则任何落点点击都到不了 canvas；此前两次“点不中模型”是这个原因，不是产品缺陷。
+- 🔴 发现并修复：审稿昵称只在点“继续审稿”时落盘，而打字即解除门槛，导致刷新后昵称丢失（已发布批注仍显示该昵称）。改为输入即持久化、清空即移除、容忍存储不可用，并加静态回归断言。**尚未部署**。
+- 发布统一为 `npm run ship`（预检 → 推送 → 单通道部署 → 线上验收 → 收尾清理），CI 通道不重复跑门禁，部署失败不清理。`--dry-run` 无副作用。
+- 门禁 **176s → 42s**：图片编码改为内容寻址缓存（`scripts/image-cache.json` 已提交），88–113s → 0.49s；缓存失效经篡改源哈希、删除产物、`--force` 三种方式验证，重建字节与提交版一致。
+- 测量纪律：耗时对比必须排除 CPU 争用（首次冷跑 376s 是 3 个 Playwright 浏览器占用所致，关闭后同一编码 88s）。
+- 仍未完成：真实 BFCache、分享撤销与到期/cron 真实回收、限流边界、作者侧批注回读、RUM/Lighthouse、工作台主 JS 分包、4 个超行数预算文件拆解、`production` environment 无 required reviewers、通道 A 凭据 403。

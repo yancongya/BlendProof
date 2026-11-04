@@ -2,6 +2,7 @@ import { mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import { cacheEntryIsFresh, loadCache, paramsFingerprint, saveCache, sha256 } from './lib/image-cache.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const htmlPath = path.join(root, 'landing', 'index.html');
@@ -12,6 +13,38 @@ const cardQuality = 84;
 const splashQuality = 84;
 const cardOutputBudgets = new Map([[512, 700_000], [768, 1_300_000]]);
 const splashOutputBudget = 100_000;
+// Committed beside the sources so CI can skip re-encoding unchanged artwork.
+const cachePath = path.join(root, 'scripts', 'image-cache.json');
+const forceEncode = process.argv.includes('--force') || process.env.BLENDPROOF_IMAGE_FORCE === '1';
+const paramsHash = paramsFingerprint({
+  sharp: sharp.versions ?? null,
+  cardWidths, cardQuality, splashQuality,
+  webp: { alphaQuality: 100, effort: 6 },
+});
+const cache = forceEncode ? { params: null, entries: {} } : await loadCache(cachePath);
+const nextCache = { params: paramsHash, entries: {} };
+let cacheHits = 0;
+let encoded = 0;
+
+async function hashFile(filePath) {
+  try {
+    return sha256(await readFile(filePath));
+  } catch {
+    return null;
+  }
+}
+
+/** Rebuild an optimizer result straight from a verified cache entry. */
+function resultFromCache(entry) {
+  return {
+    kind: entry.kind,
+    source: entry.source,
+    sourceKind: entry.sourceKind,
+    sourceBytes: entry.sourceBytes,
+    outputs: entry.outputs.map(({ path: relative, bytes }) => ({ path: relative, bytes })),
+    cached: true,
+  };
+}
 
 async function existingFile(filePath) {
   try {
@@ -61,6 +94,20 @@ async function assertAlphaPixelsPreserved(sourcePath, outputPath, width, sourceM
 
 async function optimizeCard(basename) {
   const { filePath, label } = await findCardSource(basename);
+
+  const sourceDigest = sha256(await readFile(filePath));
+  const expectedOutputs = cardWidths.map((width) => path.join(cardOutputRoot, `${basename}-${width}.webp`));
+  const outputHashes = new Map();
+  for (const outputPath of expectedOutputs) {
+    outputHashes.set(path.relative(root, outputPath), await hashFile(outputPath));
+  }
+  const entry = cache.entries[basename];
+  if (cacheEntryIsFresh(entry, { paramsHash, sourceSha256: sourceDigest, outputHashes })) {
+    nextCache.entries[basename] = entry;
+    cacheHits += 1;
+    return resultFromCache(entry);
+  }
+
   const sourceMetadata = await sharp(filePath).metadata();
   if (!sourceMetadata.width || !sourceMetadata.height || sourceMetadata.width < Math.max(...cardWidths)) {
     throw new Error(`Card source must be at least ${Math.max(...cardWidths)}px wide: ${filePath}`);
@@ -87,13 +134,22 @@ async function optimizeCard(basename) {
     outputs.push({ path: path.relative(root, outputPath), bytes: await sourceBytes(outputPath) });
   }
 
-  return {
+  const result = {
     kind: 'card',
     source: path.relative(root, filePath),
     sourceKind: label,
     sourceBytes: await sourceBytes(filePath),
     outputs,
   };
+  nextCache.entries[basename] = {
+    kind: 'card', paramsHash, sourceSha256: sourceDigest,
+    source: result.source, sourceKind: label, sourceBytes: result.sourceBytes,
+    outputs: await Promise.all(outputs.map(async (output) => ({
+      path: output.path, bytes: output.bytes, sha256: await hashFile(path.join(root, output.path)),
+    }))),
+  };
+  encoded += 1;
+  return result;
 }
 
 async function optimizeSplash(html) {
@@ -113,8 +169,18 @@ async function optimizeSplash(html) {
   }
   if (!(await existingFile(sourcePath))) throw new Error(`Splash source does not exist: ${sourcePath}`);
 
-  const sourceMetadata = await sharp(sourcePath).metadata();
+  const splashKey = 'splash';
+  const sourceDigest = sha256(await readFile(sourcePath));
   const outputPath = path.join(outputRoot, 'blendproof-splash.webp');
+  const outputHashes = new Map([[path.relative(root, outputPath), await hashFile(outputPath)]]);
+  const entry = cache.entries[splashKey];
+  if (cacheEntryIsFresh(entry, { paramsHash, sourceSha256: sourceDigest, outputHashes })) {
+    nextCache.entries[splashKey] = entry;
+    cacheHits += 1;
+    return resultFromCache(entry);
+  }
+
+  const sourceMetadata = await sharp(sourcePath).metadata();
   await sharp(sourcePath)
     .webp({ quality: splashQuality, effort: 6 })
     .toFile(outputPath);
@@ -125,13 +191,20 @@ async function optimizeSplash(html) {
   }
   assertAlphaPreserved(sourceMetadata, outputMetadata, outputPath);
 
-  return {
+  const result = {
     kind: 'splash',
     source: path.relative(root, sourcePath),
     sourceKind: 'public splash source from data-optimization-source',
     sourceBytes: await sourceBytes(sourcePath),
     outputs: [{ path: path.relative(root, outputPath), bytes: await sourceBytes(outputPath) }],
   };
+  nextCache.entries[splashKey] = {
+    kind: 'splash', paramsHash, sourceSha256: sourceDigest,
+    source: result.source, sourceKind: result.sourceKind, sourceBytes: result.sourceBytes,
+    outputs: [{ path: result.outputs[0].path, bytes: result.outputs[0].bytes, sha256: outputHashes.get(result.outputs[0].path) ?? await hashFile(path.join(root, result.outputs[0].path)) }],
+  };
+  encoded += 1;
+  return result;
 }
 
 const html = (await readFile(htmlPath, 'utf8')).replace(/<!--[\s\S]*?-->/g, '');
@@ -169,9 +242,12 @@ const concurrency = 3;
 for (let index = 0; index < basenames.length; index += concurrency) {
   results.push(...await Promise.all(basenames.slice(index, index + concurrency).map(async (basename, offset) => {
     const started = Date.now();
-    console.log(`[images] ${index + offset + 1}/${basenames.length} ${basename}`);
     const result = await optimizeCard(basename);
-    console.log(`[images] ${basename} verified (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+    if (result.cached) {
+      console.log(`[images] ${index + offset + 1}/${basenames.length} ${basename} cache hit`);
+    } else {
+      console.log(`[images] ${index + offset + 1}/${basenames.length} ${basename} encoded (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+    }
     return result;
   })));
 }
@@ -195,6 +271,11 @@ for (const width of cardWidths) {
 if (splashOutput.bytes > splashOutputBudget) {
   throw new Error(`Splash output budget exceeded: ${splashOutput.bytes} > ${splashOutputBudget} B.`);
 }
+
+// Persist only after every dimension/alpha/budget validation passed, so a
+// rejected output can never be recorded as good and skipped next time.
+await saveCache(cachePath, nextCache);
+console.log(`[images] cache: ${cacheHits} hit / ${encoded} encoded (manifest ${path.relative(root, cachePath)})`);
 
 for (const result of results) {
   const outputs = result.outputs.map((output) => `${output.path} ${output.bytes} B`).join('; ');

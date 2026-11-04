@@ -173,3 +173,36 @@ CI 的 `hash-compare` 验收报 12/13，`/s/suzanne` 两次尝试均失败，run
 - 用全局选择器 `#quickstart .quickstart__step` 取到 6 个步骤（两个 `data-perspective` 面板各 3 个），点了 creator 面板的第 3 步却期待 reviewer 面板里的 `#qs-mini-viewer`，误判为“mini viewer 不加载”。
 - 滚动 `[data-stat="note"]` 去触发实时状态，但唯一的 `.live` 在 creator 视角高度为 0 的 section 7 内，IntersectionObserver 永不触发，误判为“实时状态卡住”。
 - 语言切换“无重复请求”的基线索引取在轮询之前，导致 `noRefetch` 误报 false；实际按 `/api` 总调用数判定为 0 次新增。
+
+## 2026-11-05 云端业务 E2E（第 3 项，生产，已授权）
+
+用户授权后执行。使用体验账号与临时数据；**未向永久的 `/s/suzanne` 演示写入任何批注**。
+
+| 环节 | 结果 |
+| --- | --- |
+| 体验账号登录 | `一键进入体验账号` → `/api/me` 返回 `guest@blendproof.itycon.cn` / 访客体验 / `role=user` |
+| 浏览器内 `.blend` → GLB | **成功，无需本机 bridge**：`simple-review-scene.blend` 111.5 KB → GLB 42.3 KB；Outliner 5 个对象；属性面板 对象 5 / 相机 1 / 材质 4；原始 `.blend` 未离开本机 |
+| 云端发布契约 | `POST /api/projects` → 项目 `22e69fecb218243e3ce7e0eaacbb85e2` → `POST upload-intents` → `PUT assets/manifest.json` → `PUT assets/model.glb` → `POST finalize` → `GET comments`，约 9 秒，0 控制台错误 |
+| 创建分享 | `POST /api/projects/{id}/shares` → token `d539310e4b63bfe180cbc99e22c414b6`，权限“可批注”，到期 11/06 01:27（24h），无密码，提供“撤销分享” |
+| 第二匿名会话读取 | `/api/me` 返回 `user:null`；`GET /api/shares/{token}/model.glb` 从 R2 取得模型；5 个对象齐全；权限显示“可批注” |
+| 写入批注 | 关闭操作指南后进入批注模式（`.viewport.annotation-mode`），**首次左键点击模型表面即落点**；`textarea[aria-label="批注内容"]` 填入后点“保存批注” → `POST /api/shares/{token}/comments`；UI 显示“批注已保存。审稿批注 1 … 产品主体 · E2E验收-审稿人B” |
+| 持久化（权威） | `GET /api/shares/{token}/comments` 返回完整记录：`id`、`objectName`、`position`、`normal`、`camera{projection,position,quaternion,target,fov}`、`body`、`authorName`、`authorType=guest`、`status=open`、`createdAt/updatedAt`、`replies`。重新进入后 UI 显示“审稿批注 1 … 10 分钟前” |
+
+关键操作前提：**操作指南浮层会盖住视口**，未关闭时任何落点点击都到不了 canvas（此前两次“点不中模型”均为该原因，非产品缺陷）。
+
+未完成：分享撤销、到期与 cron 真实回收、限流边界、作者侧回读该批注。测试数据（1 项目 + 1 分享 + 1 批注）留在生产，按 24h 分享 / 48h 项目上限自动清理。
+
+### 🔴 审稿昵称刷新即丢失（已修复，尚未部署）
+
+- 现象：接口已有批注记录，但刷新后回到“进入审稿 填写一个名称”，`localStorage` 无 `blendproof-guest-name:<token>`（实测仅有 `blendproof:has-seen-tour` 与 `bp-review-tokens`）。
+- 根因：`guestName` 由 localStorage 初始化，而渲染门槛是 `!guestName.trim()`，`onChange={setGuestName}` 一打字就解除门槛；写 localStorage 只发生在 `onSubmit`。没点“继续审稿”的审稿人因此永不落盘，但其已发布批注仍带着该昵称显示给作者。
+- 修复：改用 `onChange={updateGuestName}`，输入即写入、清空即 `removeItem`，并以 `try/catch` 容忍存储被禁用；`onSubmit` 写入 trim 后的值。新增静态回归断言，禁止退回 `onChange={setGuestName}`。
+- 状态：`npm run check` 通过、`test:release-pipeline` 36/36 通过；**未部署，需在生产复验**。
+
+## 2026-11-05 发布流程统一与门禁提速
+
+- 新增 `npm run ship`：预检 → 推送 → 单通道部署 → 线上验收 → 收尾清理，一条命令完成。选项 `--channel ci|local`、`--ref`、`--push`、`--ff-main`、`--gate`、`--no-clean`、`--dry-run`。工作区脏直接拒绝且**不替你提交**；CI 通道不在本地重复门禁；部署失败传播退出码且**不清理**，避免丢失失败发布的产物身份。
+- 图片编码改为内容寻址缓存（`scripts/image-cache.json`，随产物提交）：门禁 **176s → 42s**，图片步骤 **88–113s → 0.49s**（18 命中 / 0 编码）。
+- 缓存失效已验证：篡改清单中源哈希 → 只重编码该图（17 命中）；删除一个产物 → 只重建该图且 `git status` 为空（字节与提交版一致，证明编码确定性）；`--force` / `BLENDPROOF_IMAGE_FORCE=1` 忽略缓存；清单缺失或损坏退化为全量编码而非失败。
+- 清理段实测：`clean:task --apply` 移出 11,017,247 B（`dist` + `dist-worker` + `tsconfig.tsbuildinfo`），`.vite-temp` 因两个 Vite dev 服务在运行而跳过。
+- 测量纪律：首次冷跑记为 376s 是因为同时开着 3 个 Playwright 浏览器（CPU 仅 53%）；关闭后同一次编码为 88s。**耗时对比必须在同等负载下取数**，否则会把 CPU 争用当成回归。

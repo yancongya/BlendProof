@@ -41,10 +41,19 @@
 - 本地开发使用 `npm run dev`：Vite 固定 `localhost:5173`（端口占用即失败），Blender bridge 在 `8788`，本地 Worker 在 `8787`。Worker 的 `APP_ORIGIN` 同为 `http://localhost:5173`，不要混用 `127.0.0.1`。本地 `/` 是落地页，`/dev/` 是项目工作台。
 - `npm run build` 构建工作台与落地页；`npm run build:app` 只构建工作台并保留 `dist/landing/`；`npm run build:landing` 只构建落地页。
 - 落地页卡面必须先运行 `npm run optimize:landing-images`，使用 WebP、512/768w `srcset`、原生懒加载和异步解码；身份卡接近视口时才启动对应卡片图片解码，各卡独立就绪，Hero 3D 必须保持动态加载，不能阻塞首屏身份入口。
+- 该脚本按 `scripts/image-cache.json` 做内容寻址缓存：源文件哈希、编码参数指纹与每个产物哈希全等时跳过编码（实测 88s → 0.49s），任一不符只重编码该图。**清单必须与 `landing/assets/optimized/` 一起提交**，否则 CI 全新 checkout 仍会全量重编码；`--force` 或 `BLENDPROOF_IMAGE_FORCE=1` 可忽略缓存，清单缺失或损坏自动退化为全量编码而不失败。
 
 ## 检查与发布门禁
 
-变更后按需运行并在发布前完成完整门禁：
+发布只用一条命令，它串起预检、推送、部署、线上验收与收尾清理：
+
+```sh
+BLENDPROOF_PRODUCTION_APPROVED=YES npm run ship -- --channel ci --ref main --push --ff-main
+```
+
+`ship` 要求工作区干净（不替你提交），默认走 CI 通道且**不在本地重复跑门禁**（CI job 内部已跑），需要本地门禁时加 `--gate` 或用 `--channel local`；`--dry-run` 只打印计划。部署失败会传播退出码且不清理，避免丢失失败发布的产物身份。
+
+只想本地全量检查而不发布时运行完整门禁：
 
 ```sh
 npm run verify:release
