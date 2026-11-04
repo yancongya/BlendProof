@@ -94,3 +94,7 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - 检查：`test:release-pipeline` 由 16 项增至 22 项并全部通过（新增 Actions 授权/脏工作区/远端不同步/单次触发/CI 失败/等待审批/routes-only 端到端 13 项/文档登记），`npm run check` 与 `npm run check:worker` 通过。只改发布与验收脚本、测试和文档，未改运行时代码，因此不重跑 11 步门禁；`dist` 已清理，需要 built 测试时先重建。
 - 线上只读验收 13/13 通过（`routes-only`，Hero chunk `hero3d-C8J-kb0U.js`），报告在被忽略的 `output/releases/http-1793804374145.json`。这是对当前线上旧版本的路由验收，不能当作新代码已上线的证明。
 - 测试实现教训：被测脚本与 fixture HTTP 服务器同进程时不能用 `spawnSync`，它阻塞父进程事件循环导致服务器无法响应（实测 45 秒超时）；改用 `await promisify(execFile)`。
+- CI 通道已用 `approve_production=NO` 做过不可部署预演（run `41855041205`，ref `codex/fix-guide-after-cover`）：checkout、setup-node、`npm ci`（20 秒装 332 个包）全部成功，随后在审批闸门以 `##[error]Production deployment requires the explicit YES input.` 失败，未调用 Wrangler、未接触 Cloudflare。因此新锁文件在 ubuntu + Node 22 可正常安装（sharp/esbuild/workerd），CI npm 也没有本机 npm 11.19 的 install-scripts 门禁。该 run 在 Actions 历史中是红色 failure，属有意预演。
+- 预演副作用：GitHub 自动创建了 `production` environment，protection rules 为空（无 required reviewers），所以通道 B 的唯一闸门是 `approve_production` 输入；需要人工审批必须由用户在仓库设置配置。
+- `gh` token scopes 为 `gist, read:org, repo, workflow`，具备触发 `workflow_dispatch` 的权限。预演后线上未变：`/landing/app.js` 仍 200、67,858 B，`bp-retry` 0 命中。
+- 剩余唯一阻塞项是用户对生产发布的明确授权（已连续三次选择暂缓）。通道 A 另需先修复托管 `cloudflare.itycon.workers-deploy` 的账户 403 权限；通道 B 已验证可执行，只等授权与 ref 选择（是否先合并 `main`）。

@@ -28,6 +28,9 @@ BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:actions [分支名]
 - 通道 B 的 run 停在 required reviewers 时退出 3 并提示人工批准，不无限等待；CI 失败退出 4 并附失败日志尾部，不得写成发布成功。
 - 通道 B 需要 `gh` 已认证、仓库级或 `production` environment 级配置 `CLOUDFLARE_API_TOKEN` 与 `CLOUDFLARE_ACCOUNT_ID`。YAML 不配置审批规则；required reviewers 只能在仓库设置里加。
 - 发布前必须确认远端 ref 与本地 HEAD 一致：CI 只构建已推送的提交，本地未推送的修复不会上线。
+- 通道 B 可以用 `approve_production=NO` 安全预演：`gh workflow run deploy.yml --ref <branch> -f approve_production=NO`。工作流顺序是 checkout → setup-node → `npm ci` → 审批检查，所以 NO 预演会真实验证触发权限与 CI 依赖安装，然后在调用 Wrangler 之前退出 1，不接触任何 Cloudflare 资源。该 run 在 Actions 历史中显示为红色 failure，属预期，不能记作发布失败。首次运行会让 GitHub 自动创建 `production` environment。
+- `production` environment 被自动创建时不带任何 protection rules，因此通道 B 的唯一闸门是 `approve_production` 输入；需要仓库级人工审批必须由用户在仓库设置中配置 required reviewers，工作流 YAML 不会代为配置。
+- 本机 npm 可能比 CI 新（例如本机 11.19 有 install-scripts 门禁提示，CI Node 22 自带 npm 10.x 没有）。这类差异只影响本机 dry-run 输出，判断 CI 行为要看真实 run 日志，不要把本机警告当成 CI 失败。
 
 ## 本次失败转化为规则
 
