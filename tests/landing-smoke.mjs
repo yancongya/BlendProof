@@ -278,6 +278,12 @@ check('Hero 3D 延迟初始化具备 API fallback 与有限重试',
   landingMainSource.includes("typeof IntersectionObserver === 'function'") &&
   landingMainSource.includes("typeof MutationObserver === 'function'") &&
   landingMainSource.includes('attempts >= 2'))
+// 顶栏 .top-actions 是 fixed + z-index 10000，高于门户的 9999；跳过按钮若放在
+// 右上同一条带就会被完全遮挡，点击落到主题切换上（曾在生产 390/1280 复现）。
+const skipRule = html.match(/\.tarot-skip\s*\{[^}]*\}/)?.[0] ?? ''
+check('身份门跳过按钮避开固定顶栏占位，不被遮挡',
+  /position:\s*absolute/.test(skipRule) && /left:\s*20px/.test(skipRule) && !/right:\s*20px/.test(skipRule))
+
 check('身份卡加载错误提示可在窄屏换行',
   html.includes('max-width: min(90vw, 420px)') &&
   html.includes('white-space: normal') &&

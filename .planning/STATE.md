@@ -3,7 +3,7 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: Released to production via authorized channel B; post-release verification fix landed
-Last activity: 2026-11-04 - 合并 main 并经通道 B 授权发布生产（Version 7209784a），线上 13/13 验收通过；修复部署后验收的传播期假阴性
+Last activity: 2026-11-05 - 生产真实浏览器验收完成，发现并修复身份门“跳过”按钮被固定顶栏遮挡（含回归断言）；修复尚未部署
 
 Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 与 RUM 验收）
 
@@ -51,7 +51,7 @@ Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 
 ## Session Continuity
 
 Last session: 2026-11-03
-Stopped at: Production released from main @ 6ce8a53 (Version 7209784a-debe-463e-bd4d-c603ac214b0d); live routes 13/13 and new-code markers confirmed. Remaining: production browser interaction, real BFCache, cloud business E2E, RUM.
+Stopped at: Production browser acceptance done (found+fixed the unreachable tarot-skip button); fix committed locally and pending a deploy authorization. Remaining: real BFCache, cloud business E2E, RUM, app bundle splitting.
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 
 ## 2026-11-02 落地页性能与发布收尾
@@ -108,3 +108,13 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - 修复：`verify-production.mjs` 增加 `--settle-ms` 与有界退避 `--backoff-ms`（默认 `3000,8000,15000`，最多 4 次尝试），报告记录每次尝试；`deploy-production.sh` 部署后传 `--settle-ms 8000`。`test:release-pipeline` 由 22 增至 **25 项全通过**（新增瞬时失败恢复、持续失败按上限如实失败、无效参数拒绝）。改动只涉及发布/验收脚本、测试与文档，不进入 `dist`，无需重新部署。
 - 遗留风险：GitHub 自动创建的 `production` environment 无 protection rules（无 required reviewers），通道 B 的唯一闸门是 `approve_production` 输入；需要仓库级人工审批须由用户在设置中配置。
 - 仍未完成：生产真实浏览器交互验收、真实 BFCache（`persisted=true`）、云端上传/双浏览器批注/过期清理 E2E、RUM 与完整 Lighthouse。
+
+## 2026-11-05 生产真实浏览器验收与跳过按钮修复
+
+- 用独立会话 `blendproof-prod-20261105` 对 `https://blendproof.itycon.cn` 做只读浏览器验收，覆盖身份门首访/回访两条路径、390 与 1280 逐段全页滚动、creator/reviewer 两种视角、Hero 3D 三态、快速入门 mini viewer 及其失败→重试闭环、实时平台状态、语言/主题切换、`/s/suzanne` 口令解锁与 `/dev/` 关闭封面。未写入批注，未创建云端数据。
+- 发现并修复 1 个真实缺陷：`.tarot-skip` 被 `z-index:10000` 的固定 `.top-actions` 完全遮挡，390/1280 均复现，点击落到主题切换上。改为放到门户顶部干净带左侧（`left:20px`），四视口复验 5 点全命中、点击后正文展开且主题不再被误触；`tests/landing-smoke.mjs` 增加静态回归断言。
+- 用户最初报的“关闭封面后要操作视图才出指南”在生产确认已修复：点击关闭后 486 ms 出指南，全程未操作 3D 视图。
+- 实时状态在 reviewer 视角正常 `online`，健康显示 `运行中Worker · D1 · R2`，全程只有 2 次 `/api` 调用，语言切换 0 次新增请求——两项本轮修复均在生产成立。
+- 真实 BFCache 仍未命中（`persisted` 从未为 true，页面整页重载），恢复分支只有模拟测试覆盖。
+- 本轮 4 处测量失误已更正并记录在验收报告：blob URL 被截断误报为网络失败、全局选择器跨面板误点、滚动隐藏 section 内的观察目标、无重复请求的基线索引取错位置。
+- 该修复是落地页内联 CSS 与测试改动，**尚未部署**；线上仍是 `6ce8a53` 构建（Version `7209784a`）。

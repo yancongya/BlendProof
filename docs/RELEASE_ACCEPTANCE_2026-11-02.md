@@ -128,3 +128,48 @@ CI 的 `hash-compare` 验收报 12/13，`/s/suzanne` 两次尝试均失败，run
 - `tests/release-pipeline.test.mjs` 抽出 fixture 服务器助手，新增 3 项：传播期瞬时失败被有界退避恢复（断言 3 次尝试、`[false,false,true]`、`[503,503,200]`）、持续失败按上限耗尽并如实报 12/13、无效参数被拒绝。该套件由 22 项增至 **25 项，全部通过**。
 - 上述改动只涉及发布/验收脚本、测试与文档，不进入 `dist`，因此不需要重新部署；CI 已对同一 commit `6ce8a53` 跑过完整门禁，本机不重复整套门禁。
 - 附带发现：首次运行让 GitHub 自动创建 `production` environment，且 protection rules 为空（无 required reviewers），通道 B 的唯一闸门是 `approve_production` 输入。需要仓库级人工审批须由用户在仓库设置中配置。
+
+## 2026-11-05 生产真实浏览器验收（第 1 项）
+
+范围：`https://blendproof.itycon.cn`，独立 Playwright 会话 `blendproof-prod-20261105`，只读浏览与交互；未写入批注、未创建云端项目或分享。原始结果在 ignored `output/prod-audit-20261105/`。
+
+### 结论：发现并修复 1 个真实缺陷
+
+🔴 **身份门"跳过 ✕"按钮在所有视口都点不到**（已修复）
+
+- 取证：`#tarot-skip` 矩形内 5 个采样点的 `elementFromPoint` 全部返回 `BUTTON#theme-toggle` 或 `DIV.top-actions`，无一命中跳过按钮；真实 `page.mouse.click` 后 **主题 dark→light，身份门毫无反应**（`identityChosen` 仍 `false`、`main` 高度仍 0）。390 与 1280 均复现。
+- 根因：`.top-actions` 是 `position:fixed; top:14px; right:16px; z-index:10000`，高于 `.tarot-portal` 的 `z-index:9999`；`.tarot-skip` 为 `position:absolute; top:16px; right:20px; z-index:auto`，两者在右上角完全重叠。`skipBtn` 的点击处理器本身完好（写 `bp-identity-seen=1` 并置 `identityChosen=true`），属纯层叠遮挡。
+- 修法：把跳过按钮移到门户 `padding-top:44px` 那条干净带的**左侧**（`left:20px`），而不是抬 z-index——抬层级只会让两个可用控件叠在同一批像素上。
+- 复验：375/390/768/1280 四个视口，5 个采样点全部命中 `#tarot-skip`，层叠栈上方无其他元素，`overlappingInteractive` 为空；真实点击后 `identityChosen` false→true、正文展开（`main` 高度 0→11729/11522/9154/7800）、`bp-identity-seen=1`，主题保持 dark 未被误触，0 页面错误。
+- 回归断言：`tests/landing-smoke.mjs` 新增“身份门跳过按钮避开固定顶栏占位，不被遮挡”，静态校验该规则用 `left:20px` 且不再用 `right:20px`。落地页测试 32/32 + smoke 全部通过。
+
+### 生产验收通过项
+
+| 范围 | 结果 |
+| --- | --- |
+| 身份门两条路径 | 首访（清 storage）显示可点 CTA；回访（`bp-identity-seen=1` + `bp-perspective`）直接进正文且 CTA 置为 disabled——均为设计行为 |
+| 逐段全页滚动 | 390/1280 × creator/reviewer 四种组合：`scrollWidth == clientWidth`，无横向滚动；20 张图全部 complete、0 破图；0 控制台错误、0 HTTP ≥400 |
+| 视角分区 | creator 隐藏 section 7（含 `.live`），reviewer 隐藏 section 3/4/6；`pageHeight` creator 11547 / reviewer 5547 |
+| Hero 3D | 仅审稿视角初始化（`main.ts`: `root.dataset.view !== 'reviewer'` 直接 return）；移动端 390 审稿视角 **1 秒内**出现 356×278 canvas、3 个状态按钮可见 |
+| Hero 三态互斥 | `solid/review/resolved` 依次点击，每次只有一个 `aria-pressed=true` |
+| 身份重选按钮文案 | 随角色正确变化：creator `✦ 造物者`、reviewer `◈ 审视者`，`title=重新选择身份` |
+| 快速入门 mini viewer | 审稿面板第 3 步加载出 286×186 canvas，`aria-busy=false`，无错误层 |
+| **失败→重试闭环** | 首次加载前拦截 `default-monkey.glb`：出现 `data-kind=error`、`role=status` 文案“模型加载失败，请重试。”、可见“重试”按钮；解除拦截点重试后 canvas 恢复 286×186、错误层移除 |
+| 实时平台状态 | reviewer 视角 `.live` 可见（613×322）→ `state=online`，`health="运行中Worker · D1 · R2"`（证明健康字段修复生效），`capacity="5.0 GB已用 0 B"`、`projects="10 条活跃分享"` 为真实生产数据 |
+| 语言切换不重复请求 | 全程 `/api` 只有 2 次（health + stats 各一次）；中英切换后 note 与 health 文案同步变化，**0 次新增请求**，证明缓存重绘修复生效 |
+| 中英/主题切换 | `h1` 与 `html[lang]` 同步切换并可还原；主题 dark↔light 且 `localStorage.bp-theme` 同步 |
+| `/s/suzanne` | 口令门正常（`aria-label="访问密码"` + “打开审稿”），输入 `tycon` 解锁后 canvas 997×690，1 秒内加载完成、无“正在加载模型”残留，批注控件存在但未写入任何批注 |
+| **`/dev/` 关闭封面即出指南** | 关闭前 `welcome=true/guide=false`；点击 `.start-launcher-close`（`aria-label="关闭欢迎页"`）后 **486 ms** 内 `welcome=false/guide=true`、标题“打开 Blender 文件”，**全程未操作 3D 视图**——用户最初报的问题在生产已修复 |
+
+### 仍未达成的验收
+
+- **真实 BFCache 未命中**：注入 `pageshow/pagehide` 记录后导航到 `/dev/` 再 `goBack()`，`window.__bp` 未存活、`persisted` 始终非 true，页面是整页重载。恢复分支仍只有 32 项模拟生命周期测试覆盖，不能声称真实 BFCache 已验证。
+- 云端业务 E2E（真实 `.blend` 上传→云端发布、第二浏览器写入批注、分享过期与 cron 清理）本轮仍未执行，因为会写入生产数据。
+- RUM、完整 Lighthouse、多地区网络仍未采集。
+
+### 本轮测量失误（已更正，非产品问题）
+
+- 把 `blob:https://…/<uuid>` 从左侧截断成 `/<uuid>`，误报为“站点根路径请求失败”。实际 27 个 blob 读取全部 200，仅 1 个 `blob:` script 被 abort（worker/解码器 teardown），`performance` resource timing 为空属正常，0 控制台错误。
+- 用全局选择器 `#quickstart .quickstart__step` 取到 6 个步骤（两个 `data-perspective` 面板各 3 个），点了 creator 面板的第 3 步却期待 reviewer 面板里的 `#qs-mini-viewer`，误判为“mini viewer 不加载”。
+- 滚动 `[data-stat="note"]` 去触发实时状态，但唯一的 `.live` 在 creator 视角高度为 0 的 section 7 内，IntersectionObserver 永不触发，误判为“实时状态卡住”。
+- 语言切换“无重复请求”的基线索引取在轮询之前，导致 `noRefetch` 误报 false；实际按 `/api` 总调用数判定为 0 次新增。

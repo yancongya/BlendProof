@@ -2203,9 +2203,14 @@ grid-template-columns: minmax(0, 1fr);
     transform: scale(1.05) translateY(-24px);
   }
 
-  /* Skip button */
+  /* Skip button.
+   * Must stay in the portal's clean top padding band (0-44px) but on the LEFT:
+   * .top-actions is position:fixed at top-right with z-index 10000, above the
+   * portal's 9999, so a right-aligned skip button is fully covered and every
+   * click lands on the theme toggle instead. Raising z-index would only stack
+   * two live controls on the same pixels, so the button is offset instead. */
   .tarot-skip {
-    position: absolute; top: 16px; right: 20px;
+    position: absolute; top: 16px; left: 20px;
     font: 700 11px/1 ui-monospace, monospace;
     letter-spacing: .08em; text-transform: uppercase;
     color: #94a3b8; background: rgba(255,255,255,.05);
