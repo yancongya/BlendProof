@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import ts from 'typescript'
+import { fileURLToPath } from 'node:url'
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
 
@@ -122,4 +123,174 @@ test('app-only public 刷新在新目录可用，覆盖只读文件但不删除 
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
+})
+
+function releaseBin(t) {
+  const bin = mkdtempSync(join(tmpdir(), 'blendproof-actions-release-'))
+  t.after(() => rmSync(bin, { recursive: true, force: true }))
+  const calls = join(bin, 'calls.log')
+  writeFileSync(join(bin, 'git'), `#!/bin/sh
+printf 'git:%s\n' "$*" >> "$CALL_LOG"
+case "$1 $2" in
+  "rev-parse --abbrev-ref") printf '%s\n' "$FAKE_BRANCH" ;;
+  "rev-parse HEAD") printf '%s\n' "$FAKE_LOCAL" ;;
+  "status --porcelain") printf '%s' "$FAKE_DIRTY" ;;
+  "ls-remote origin") printf '%s\trefs/heads/%s\n' "$FAKE_REMOTE" "$FAKE_BRANCH" ;;
+esac
+`)
+  writeFileSync(join(bin, 'gh'), `#!/bin/sh
+printf 'gh:%s\n' "$*" >> "$CALL_LOG"
+case "$*" in
+  *"--log-failed"*) printf 'fake failed log\n' ;;
+  *"run list"*"--limit 1"*) printf '%s\n' "$FAKE_BEFORE" ;;
+  *"run list"*) printf '%s\n' "$FAKE_RUN_ID" ;;
+  *"run view"*"conclusion"*) printf '%s\n' "$FAKE_CONCLUSION" ;;
+  *"run view"*) printf '%s\n' "$FAKE_STATUS" ;;
+esac
+`)
+  writeFileSync(join(bin, 'npm'), `#!/bin/sh
+printf 'npm:%s\n' "$*" >> "$CALL_LOG"
+exit "$MOCK_NPM_EXIT"
+`)
+  for (const name of ['git', 'gh', 'npm']) chmodSync(join(bin, name), 0o755)
+  const sha = (c) => c.repeat(40)
+  return {
+    calls,
+    env: {
+      ...process.env, PATH: `${bin}:${process.env.PATH}`, CALL_LOG: calls, MOCK_NPM_EXIT: '0',
+      BLENDPROOF_ACTIONS_POLL_SECONDS: '0', FAKE_BEFORE: '111', FAKE_RUN_ID: '222',
+      FAKE_STATUS: 'completed', FAKE_CONCLUSION: 'completed:success',
+      FAKE_BRANCH: 'codex/release-test', FAKE_LOCAL: sha('a'), FAKE_REMOTE: sha('a'), FAKE_DIRTY: '',
+    },
+  }
+}
+
+function runActionsRelease(env, args = []) {
+  return spawnSync('bash', ['scripts/deploy-via-actions.sh', ...args], { cwd: process.cwd(), env, encoding: 'utf8' })
+}
+
+test('Actions 发布脚本未授权或授权值错误时不触发 CI', (t) => {
+  for (const approved of ['', 'NO', 'yes']) {
+    const { calls, env } = releaseBin(t)
+    const result = runActionsRelease({ ...env, BLENDPROOF_PRODUCTION_APPROVED: approved })
+    assert.equal(result.status, 2, approved)
+    assert.equal(existsSync(calls), false, 'unauthorized Actions release must not invoke git or gh')
+  }
+})
+
+test('Actions 发布脚本在工作区脏或远端不同步时拒绝触发', (t) => {
+  const dirty = releaseBin(t)
+  const dirtyRun = runActionsRelease({ ...dirty.env, BLENDPROOF_PRODUCTION_APPROVED: 'YES', FAKE_DIRTY: ' M README.md' })
+  assert.equal(dirtyRun.status, 2)
+  assert.equal(readFileSync(dirty.calls, 'utf8').includes('gh:'), false, 'dirty worktree must not trigger CI')
+
+  const stale = releaseBin(t)
+  const staleRun = runActionsRelease({ ...stale.env, BLENDPROOF_PRODUCTION_APPROVED: 'YES', FAKE_REMOTE: 'b'.repeat(40) })
+  assert.equal(staleRun.status, 2)
+  assert.match(staleRun.stderr, /不一致/)
+  assert.equal(readFileSync(stale.calls, 'utf8').includes('gh:'), false, 'unpushed HEAD must not trigger CI')
+
+  const missing = releaseBin(t)
+  const missingRun = runActionsRelease({ ...missing.env, BLENDPROOF_PRODUCTION_APPROVED: 'YES', FAKE_REMOTE: '' })
+  assert.equal(missingRun.status, 2)
+  assert.equal(readFileSync(missing.calls, 'utf8').includes('gh:'), false)
+})
+
+test('Actions 发布脚本授权且同步时只触发一次并做只读线上验收', (t) => {
+  const { calls, env } = releaseBin(t)
+  const result = runActionsRelease({ ...env, BLENDPROOF_PRODUCTION_APPROVED: 'YES' })
+  assert.equal(result.status, 0, result.stderr)
+  const log = readFileSync(calls, 'utf8')
+  const triggers = log.split('\n').filter((line) => line.startsWith('gh:workflow run'))
+  assert.deepEqual(triggers, ['gh:workflow run deploy.yml --ref codex/release-test -f approve_production=YES'])
+  assert.match(log, /npm:run verify:production -- --routes-only/)
+  assert.equal(log.includes('npm:run verify:release'), false, 'CI already runs the gate; the wrapper must not repeat it')
+})
+
+test('Actions 发布脚本在 CI 失败或等待审批时传播状态且不做验收', (t) => {
+  const failed = releaseBin(t)
+  const failedRun = runActionsRelease({ ...failed.env, BLENDPROOF_PRODUCTION_APPROVED: 'YES', FAKE_CONCLUSION: 'completed:failure' })
+  assert.equal(failedRun.status, 4)
+  assert.equal(readFileSync(failed.calls, 'utf8').includes('npm:run verify:production'), false)
+
+  const waiting = releaseBin(t)
+  const waitingRun = runActionsRelease({ ...waiting.env, BLENDPROOF_PRODUCTION_APPROVED: 'YES', FAKE_STATUS: 'waiting' })
+  assert.equal(waitingRun.status, 3)
+  assert.match(waitingRun.stderr, /required reviewers/)
+  assert.equal(readFileSync(waiting.calls, 'utf8').includes('npm:run verify:production'), false)
+})
+
+test('verify:production 的 routes-only 模式无需本地 dist 即可完成 13 项线上验收', async () => {
+  const script = fileURLToPath(new URL('../scripts/verify-production.mjs', import.meta.url))
+  const cwd = mkdtempSync(join(tmpdir(), 'blendproof-verify-routes-'))
+  const { createServer } = await import('node:http')
+  // spawnSync would block this process's event loop, so the in-process fixture
+  // server could never answer; run the script as an awaited child instead.
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  const runScript = async (args) => {
+    try {
+      const { stdout, stderr } = await promisify(execFile)('node', [script, ...args], { cwd, timeout: 90000, maxBuffer: 8 * 1024 * 1024 })
+      return { status: 0, stdout, stderr }
+    } catch (error) {
+      return { status: error.code ?? 1, stdout: error.stdout ?? '', stderr: error.stderr ?? String(error) }
+    }
+  }
+  const html = (res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end('<html>landing</html>') }
+  const js = (res, body) => { res.writeHead(200, { 'content-type': 'text/javascript' }); res.end(body) }
+  const notFound = (res) => { res.writeHead(404).end('nope') }
+  const routes = {
+    '/': html, '/landing/': html, '/dev': html, '/dev/': html, '/s/suzanne': html,
+    '/does-not-exist': notFound, '/landing/assets/missing-release-check.webp': notFound,
+    '/api/health': (res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ runtime: 'cloudflare-worker', database: { bound: true }, objectStorage: { bound: true } })) },
+    '/api/public/stats': (res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ capacityBytes: 5368709120, usedBytes: 1 })) },
+    '/landing/app.js': (res) => js(res, 'import("./assets/hero3d-live9f3.js")'),
+    '/landing/assets/blendproof-splash.webp': (res) => { res.writeHead(200, { 'content-type': 'image/webp' }); res.end('webp') },
+    '/landing/assets/hero3d-live9f3.js': (res) => js(res, 'three'),
+  }
+  const server = createServer((req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1')
+    if (url.pathname === '/landing' && url.search === '?utm_source=release') {
+      res.writeHead(308, { location: '/landing/?utm_source=release' }).end()
+      return
+    }
+    const handler = routes[url.pathname]
+    if (handler) handler(res)
+    else notFound(res)
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const origin = `http://127.0.0.1:${server.address().port}`
+  try {
+    // No dist in this cwd: hash-compare must refuse, routes-only must still pass.
+    const strict = await runScript(['--origin', origin])
+    assert.notEqual(strict.status, 0)
+    assert.match(strict.stderr, /Build the current release before verification/)
+
+    const routesRun = await runScript(['--routes-only', '--origin', origin])
+    assert.equal(routesRun.status, 0, routesRun.stderr)
+    assert.match(routesRun.stdout, /HTTP verification: 13\/13/)
+    assert.equal(routesRun.stdout.split('\n').filter((line) => line.startsWith('FAIL')).length, 0)
+    const report = JSON.parse(readFileSync(readdirSync(join(cwd, 'output/releases')).map((f) => join(cwd, 'output/releases', f))[0], 'utf8'))
+    assert.equal(report.mode, 'routes-only')
+    assert.equal(report.ok, true)
+    // Hashes are recorded for the live artifacts but never compared to a build.
+    assert.equal(report.results.every((r) => r.expectedHash === undefined), true)
+    assert.ok(report.results.find((r) => r.path.endsWith('hero3d-live9f3.js')).attempts[0].sha256.length === 64)
+
+    const unreachable = await runScript(['--routes-only', '--origin', 'http://127.0.0.1:65500'])
+    assert.notEqual(unreachable.status, 0)
+    assert.match(unreachable.stderr, /Cannot reach http:\/\/127.0.0.1:65500\/landing\/app\.js/)
+  } finally {
+    server.close()
+    rmSync(cwd, { recursive: true, force: true })
+  }
+})
+
+test('Actions 发布入口在 package.json 与协作文档中登记', () => {
+  const pkg = JSON.parse(read('package.json'))
+  assert.equal(pkg.scripts['deploy:actions'], 'bash scripts/deploy-via-actions.sh')
+  assert.match(read('AGENTS.md'), /deploy:actions/)
+  assert.match(read('docs/PERFORMANCE_RELEASE_WORKFLOW.md'), /deploy:actions/)
+  assert.match(read('README.md'), /deploy:actions/)
+  assert.match(read('README.zh.md'), /deploy:actions/)
 })

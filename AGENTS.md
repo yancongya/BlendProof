@@ -60,7 +60,9 @@ Worker 路由测试依赖 `dist/`，完整流水线必须先构建本次产物�
 
 GitHub Actions 只允许手动触发，运行时必须显式选择 `YES`，并配置 Cloudflare token 和 account ID；Actions 只调用同一部署脚本，不重复跑两次门禁。GitHub environment 的 required reviewers 仍需在仓库设置中单独配置。部署脚本会从门禁子进程环境中移除 Cloudflare 凭据，门禁失败时不会调用 Wrangler。
 
-部署成功后脚本自动调用 `npm run verify:production`，只读验证入口与本次产物 hash，原始报告写入被忽略的 `output/releases/`。HTTP 验证失败表示已部署但验收未通过，不自动回滚；先看保留的两次请求结果再处理。自托管可设置非秘密 `BLENDPROOF_PRODUCTION_ORIGIN`，独立本地验证用 `npm run verify:production -- --origin http://127.0.0.1:8800`。
+从操作机触发 Actions 发布用 `npm run deploy:actions`（可传分支名，默认当前分支）：同样要求 `BLENDPROOF_PRODUCTION_APPROVED=YES`，先确认工作区干净且 `origin/<ref>` 与本地 HEAD 一致，再触发 `workflow_dispatch` 并跟踪该 run。run 停在 required reviewers 时退出并提示人工批准；CI 失败时传播非零退出码，不得宣称发布成功。CI 成功后脚本自动运行 `npm run verify:production -- --routes-only`。CI 在另一平台构建，字节可能与本机不同，因此跨机验收只校验路由、308、404 与健康字段并记录线上产物 hash，不做 hash 相等断言；需要逐字节相等时走本机 `deploy:production` 通道。两条通道都不得绕过门禁，也不要同时触发。
+
+部署成功后脚本自动调用 `npm run verify:production`，只读验证入口与本次产物 hash，原始报告写入被忽略的 `output/releases/`。默认 `hash-compare` 模式需要本机 `dist`；`--routes-only` 供 CI/跨机发布后使用，改为从线上 `/landing/app.js` 发现 Hero chunk，只校验路由与健康字段并记录线上 hash。HTTP 验证失败表示已部署但验收未通过，不自动回滚；先看保留的两次请求结果再处理。自托管可设置非秘密 `BLENDPROOF_PRODUCTION_ORIGIN`，独立本地验证用 `npm run verify:production -- --origin http://127.0.0.1:8800`。
 
 不得用直接的 `npx wrangler deploy` 绕过发布门禁。真实 Cloudflare 资源、远程 D1 migration、DNS、Secret 和生产数据变更仍需用户明确授权；本地测试、浏览器实验室报告与生产 URL 验收必须分开记录。
 

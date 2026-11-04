@@ -34,6 +34,7 @@
     "verify:release-assets": "node scripts/verify-release-assets.mjs",
     "verify:production": "node scripts/verify-production.mjs",
     "deploy:production": "bash scripts/deploy-production.sh",
+    "deploy:actions": "bash scripts/deploy-via-actions.sh",
     "test:release-pipeline": "node --test tests/release-pipeline.test.mjs tests/clean-task.test.mjs",
     "clean:task": "node scripts/clean-task.mjs"
   },

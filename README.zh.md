@@ -203,7 +203,8 @@ npm run create:test-blend
 | `npm run worker:types` | 重新生成 `worker-configuration.d.ts` |
 | `npm run verify:release` | 运行完整本地发布门禁与产物边界检查 |
 | `npm run verify:production` | 只读检查线上入口、健康响应及资源 hash；部署脚本成功发布后自动调用 |
-| `npm run deploy:production` | 显式授权后运行完整门禁并部署 |
+| `npm run deploy:production` | 显式授权后在本机运行完整门禁并部署 |
+| `npm run deploy:actions` | 对已推送的 ref 触发 Actions 手动发布、跟踪 run，再做线上路由验收 |
 
 </details>
 
@@ -315,11 +316,13 @@ Worker 显式处理 `/api/*`，将 `/` 映射到落地页，将 `/landing` 重�
 
 R2 是默认适配器。自托管部署可以通过 `STORAGE_PROVIDER=s3` 接入 AWS SigV4 兼容的私有 bucket；配置项、最小权限、健康检查和适配器要求见 [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md)。
 
-`deploy:production` 是唯一的生产部署入口：先检查显式授权，再运行完整发布门禁，全部通过后才调用 Wrangler。只想单独预检时运行 `npm run verify:release`；不要紧接着再部署而重复跑门禁，除非你明确需要重复验证：
+生产发布有两条已授权入口，二者要求同一个显式授权变量。`deploy:production` 在本机构建并部署：先检查显式授权，再运行完整发布门禁，全部通过后才调用 Wrangler。只想单独预检时运行 `npm run verify:release`；不要紧接着再部署而重复跑门禁，除非你明确需要重复验证：
 
 ```sh
 BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:production
 ```
+
+`deploy:actions` 是 CI 入口：先确认工作区干净且 `origin/<ref>` 与本地 `HEAD` 一致，再对该 ref 触发手动工作流、跟踪该 run，成功后在本机运行 `verify:production -- --routes-only`。run 停在 required reviewers 时给出明确提示并退出，不会挂死；CI 失败会传播非零退出码，不宣称发布成功。CI 在另一平台构建，字节未必与本机一致，因此该模式只校验路由、重定向、404 和健康字段并记录线上 hash，不做 hash 相等断言；需要逐字节证明时改用本机通道。同一次发布不要同时触发两条通道。
 
 GitHub 部署工作流仅允许手动触发；启动时必须显式输入 `YES`，并配置 Cloudflare token 与 account ID，之后只调用同一部署脚本。脚本会从门禁子进程环境中移除 Cloudflare 凭据，门禁失败时不会调用 Wrangler。如需仓库级人工审批，须在 GitHub 为 `production` environment 配置 required reviewers；工作流 YAML 本身不会配置这些审批规则。缺少授权或凭据时 job 会失败。
 

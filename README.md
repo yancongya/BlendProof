@@ -203,7 +203,8 @@ This writes `test-assets/simple-review-scene.blend`. Import it, click "create lo
 | `npm run worker:types` | Regenerate `worker-configuration.d.ts` |
 | `npm run verify:release` | Run the complete local release gate, including package-boundary checks |
 | `npm run verify:production` | Read-only checks of live routes, health response and asset hashes; called after deployment |
-| `npm run deploy:production` | Run the release gate and deploy after explicit approval |
+| `npm run deploy:production` | Run the release gate and deploy from this machine after explicit approval |
+| `npm run deploy:actions` | Trigger the manual GitHub Actions release for a pushed ref, track the run, then verify live routes |
 
 </details>
 
@@ -317,11 +318,13 @@ The production Worker, D1 database, private R2 bucket, hourly cron, and custom d
 
 R2 is the default adapter. Self-hosted deployments can select an AWS SigV4-compatible private bucket with `STORAGE_PROVIDER=s3`; configuration, permissions, health response, and adapter requirements are documented in [`docs/SELF_HOSTED_STORAGE.md`](docs/SELF_HOSTED_STORAGE.md).
 
-`deploy:production` is the single authorized production entrypoint: it requires an explicit approval variable, runs the complete release gate, then invokes Wrangler. Run `npm run verify:release` separately when you only need a local preflight; do not run both commands back-to-back unless you intentionally want the gate repeated:
+Production has two authorized entrypoints and both require the same explicit approval variable. `deploy:production` builds and deploys from this machine: it runs the complete release gate, then invokes Wrangler. Run `npm run verify:release` separately when you only need a local preflight; do not run both commands back-to-back unless you intentionally want the gate repeated:
 
 ```sh
 BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:production
 ```
+
+`deploy:actions` is the CI entrypoint: it verifies the worktree is clean and `origin/<ref>` matches local `HEAD`, triggers the manual workflow for that ref, tracks the run, and then runs `verify:production -- --routes-only` from this machine. A run parked on required reviewers exits with a clear prompt instead of hanging, and a failed run propagates a non-zero status without claiming success. Because CI builds on another platform, its bytes need not match a local build, so that mode checks routes, redirects, 404s and health fields and records live hashes without asserting hash equality; use the local channel when byte-for-byte proof is required. Never trigger both channels for one release.
 
 The GitHub deployment workflow is manual-only and requires an explicit `YES` input plus both Cloudflare credentials before invoking the same script. The script removes those credentials from the release-gate subprocess and stops before Wrangler on any gate failure. Configure required reviewers for its `production` environment when repository-level approval is required; workflow YAML does not configure GitHub approval rules. Missing approval or credentials fails the job.
 

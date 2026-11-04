@@ -3,10 +3,31 @@
 ## 标准入口
 
 - `npm run dev`：一个 Vite、bridge 和本地 Worker。使用 `localhost:5173`，`/` 为落地页，`/dev/` 为工作台；固定端口，Origin 必须一致。
-- 修改中先做相关类型、单元或浏览器检查。需要发布时，直接执行已授权的 `BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:production`。
-- 部署脚本依次执行一次完整 11 步门禁、Wrangler 上传、`verify:production`。CI 只调用该入口；不要先完整预检一遍再立即部署。
+- 修改中先做相关类型、单元或浏览器检查。需要发布时选择下面两条通道之一，一次发布只用一条。
+- 两条通道都要求 `BLENDPROOF_PRODUCTION_APPROVED=YES`，都不绕过门禁，也不重复跑门禁。
 - 完整构建先于依赖 `dist/` 的测试；落地页使用 `test:landing:built` 检查本次产物，避免内部再次 build。需要独立重建落地页时才运行 `test:landing`。
 - `verify:production` 做只读 GET，比对入口、308 查询参数、404、健康响应以及 HTML/JS/WebP/Hero chunk 的 SHA-256。每项最多两次请求，两次结果均保留；结果写入 `output/releases/`，不能据此宣称浏览器或业务 E2E 通过。
+
+## 两条发布通道
+
+```sh
+# 通道 A：本机构建并部署（可做逐字节 hash 相等验收）
+BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:production
+
+# 通道 B：CI 构建并部署（本机凭据不可用或需要 CI 审计记录时）
+BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:actions [分支名]
+```
+
+| 通道 | 构建位置 | 顺序 | 验收强度 | 适用 |
+| --- | --- | --- | --- | --- |
+| `deploy:production` | 本机 | 授权检查 → 11 步门禁（子进程无凭据）→ `wrangler deploy --keep-vars` → `verify:production` | `hash-compare`：线上响应与本机 `dist` 逐字节相等 | 本机 Cloudflare 凭据可用，且需要最强产物身份证明 |
+| `deploy:actions` | GitHub Actions（ubuntu） | 授权检查 → 工作区干净且 `origin/<ref>` == 本地 HEAD → `workflow_dispatch` → 跟踪 run → `verify:production -- --routes-only` | `routes-only`：路由/308/404/健康字段 + 记录线上 hash，不断言相等 | 本机凭据受限，或要求发布在 CI 留审计记录 |
+
+- 通道 B 不重跑门禁：CI job 内的 `deploy:production` 已经跑过一次完整门禁，本机再跑等于同一版本两次门禁。
+- 跨平台构建字节可能不同，所以通道 B 不能声称 hash 相等；需要该证明就改用通道 A，或下载线上产物与 CI 归档产物比对。
+- 通道 B 的 run 停在 required reviewers 时退出 3 并提示人工批准，不无限等待；CI 失败退出 4 并附失败日志尾部，不得写成发布成功。
+- 通道 B 需要 `gh` 已认证、仓库级或 `production` environment 级配置 `CLOUDFLARE_API_TOKEN` 与 `CLOUDFLARE_ACCOUNT_ID`。YAML 不配置审批规则；required reviewers 只能在仓库设置里加。
+- 发布前必须确认远端 ref 与本地 HEAD 一致：CI 只构建已推送的提交，本地未推送的修复不会上线。
 
 ## 本次失败转化为规则
 

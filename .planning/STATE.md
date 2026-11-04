@@ -51,7 +51,7 @@ Progress: ████▉ 99%
 ## Session Continuity
 
 Last session: 2026-11-03
-Stopped at: Local acceptance complete; ef09b17 pushed to origin/codex/fix-guide-after-cover and web-perf Skill fa28c1b pushed/synchronized. Production is deferred by user and must not resume automatically after a credential change.
+Stopped at: CI release channel (deploy:actions) and cross-machine routes-only verification added, tested and pushed; production still deferred by user and must not resume automatically after a credential change.
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 
 ## 2026-11-02 落地页性能与发布收尾
@@ -83,3 +83,14 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - 已执行 dry-run 后 apply：移动 `dist`、`dist-worker`、`tsconfig.tsbuildinfo` 共 11,016,855 B（约 10.5 MiB）到可恢复废纸篓。操作 ID：`2026-11-03T12-18-41-973Z-0daecf0f`；本地恢复清单 `output/cleanup/<operation>.json` 保持 ignored。
 - 两个已有 Vite 开发服务未停止，`.vite-temp` 因运行中而跳过；依赖、`.vite` 热缓存、本地数据库/存储、性能报告和压缩后的发布图片全部保留。移动到废纸篓不等于释放物理空间，不自动清空。
 - 首次进程盘点因桌面工具继承项目 cwd 而保守跳过；随后明确识别仓库外 CUA/Xcode MCP 工具并保留逐候选打开文件检查，补充回归测试。生产是否恢复已再次询问，用户明确答复“仍暂缓生产，只完成本地清理和推送”。之后发布或使用 built 测试前需重新构建。
+
+## 2026-11-04 CI 发布通道与跨机验收
+
+- 线上仍是旧版本：`/landing/app.js` 为 67,858 B，`bp-retry`、`database?.bound`、`blendproof:language-change`、`qs-mini-viewer-status` 四个新代码标记在线上 bundle 中 0 命中；`ef09b17`、`6211123`、`5fbd2c9` 均未上线。`/api/health` 200，D1/R2 均 bound。
+- 用户第三次确认“仍暂缓生产，只完成本地清理和推送”，本轮未部署，也未修改 DNS/Secret/远程 migration。
+- 发布通道补齐为两条，且都要求同一显式授权：本机 `deploy:production`（可做逐字节 hash 相等验收）与新增 CI `npm run deploy:actions`（`scripts/deploy-via-actions.sh`）。后者校验工作区干净且 `origin/<ref>` == 本地 HEAD，只触发一次 `workflow_dispatch`，跟踪 run，required reviewers 等待时退出 3 而不挂死，CI 失败退出 4 且不做验收；成功后运行 `verify:production -- --routes-only`。CI 已跑过门禁，包装脚本不重复跑。
+- `verify:production` 新增 `--routes-only`：从线上 `/landing/app.js` 发现 Hero chunk，不需要本机 `dist`，校验路由/308/404/健康字段并记录线上 hash，但不断言与本机产物相等（CI 在另一平台构建，字节可能不同）。默认仍为 `hash-compare`。
+- 顺带修复两个真实缺陷：`dist` 完全缺失时 `hash-compare` 抛裸 ENOENT 而非可操作提示；`routes-only` 的发现请求未捕获网络异常。
+- 检查：`test:release-pipeline` 由 16 项增至 22 项并全部通过（新增 Actions 授权/脏工作区/远端不同步/单次触发/CI 失败/等待审批/routes-only 端到端 13 项/文档登记），`npm run check` 与 `npm run check:worker` 通过。只改发布与验收脚本、测试和文档，未改运行时代码，因此不重跑 11 步门禁；`dist` 已清理，需要 built 测试时先重建。
+- 线上只读验收 13/13 通过（`routes-only`，Hero chunk `hero3d-C8J-kb0U.js`），报告在被忽略的 `output/releases/http-1793804374145.json`。这是对当前线上旧版本的路由验收，不能当作新代码已上线的证明。
+- 测试实现教训：被测脚本与 fixture HTTP 服务器同进程时不能用 `spawnSync`，它阻塞父进程事件循环导致服务器无法响应（实测 45 秒超时）；改用 `await promisify(execFile)`。
