@@ -330,7 +330,9 @@ The GitHub deployment workflow is manual-only and requires an explicit `YES` inp
 
 This deployment script does not run remote D1 migrations, change secrets, or modify DNS. A remote migration is a separate production data change: review the pending migration and obtain explicit authorization for that change before running any `--remote` command.
 
-Do not bypass the gate with a direct `npx wrangler deploy`. Confirm `APP_ORIGIN` matches the live HTTPS origin exactly, with no trailing slash. Secrets (`UPLOAD_SIGNING_SECRET`, `SHARE_ACCESS_SECRET`, and the one-time `BOOTSTRAP_ADMIN_TOKEN`) are set through Wrangler secrets and never committed. After deployment, verify `/`, `/landing/`, `/dev/`, `/s/suzanne`, and a representative optimized landing asset with both HTTP checks and a real browser. Local tests and browser-lab reports must be reported separately from production acceptance.
+Do not bypass the gate with a direct `npx wrangler deploy`. Confirm `APP_ORIGIN` matches the live HTTPS origin exactly, with no trailing slash. Secrets (`UPLOAD_SIGNING_SECRET`, `SHARE_ACCESS_SECRET`, and the one-time `BOOTSTRAP_ADMIN_TOKEN`) are set through Wrangler secrets and never committed. Edge propagation is not instant, so `verify:production` accepts `--settle-ms` (wait before probing; the deploy script passes `8000`) and `--backoff-ms` (delays between attempts, default `3000,8000,15000`, i.e. up to 4 attempts). Every attempt is recorded; a persistent failure still exits non-zero. Do not report a transient propagation failure as a failed release, and do not report a successful upload as a passed acceptance.
+
+After deployment, verify `/`, `/landing/`, `/dev/`, `/s/suzanne`, and a representative optimized landing asset with both HTTP checks and a real browser. Local tests and browser-lab reports must be reported separately from production acceptance.
 
 The authorization gates, secret handling, migration sequence, two-browser acceptance checklist, and rollback runbook are in [`docs/PHASE_4D_DEPLOYMENT_RECOVERY.md`](docs/PHASE_4D_DEPLOYMENT_RECOVERY.md).
 

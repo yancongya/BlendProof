@@ -95,3 +95,36 @@
 - 自有 Skill：`fa28c1b` 已推送 `yancongya/web-perf-skill` 的 `main`；远端 HEAD 与本地一致，SkillDo 中央 revision 同步完成。三个更新文档逐字节一致，15 个注册工具路径均为指向中央副本的有效软链接。
 - 提交仅包含本任务 28 个明确文件；凭据、运行时存储、原始 `.blend`、浏览器/性能报告未加入提交。
 - 本小节是业务推送完成后的文档记录，不改变已验收的运行时代码，因此不重复完整门禁。生产按用户选择暂缓，恢复前需要用户重新明确要求，不能因凭据修复而自动部署。
+
+## 2026-11-04 生产发布（通道 B，已授权）
+
+用户在明确答复“授权 b 发布。合并 main”后执行，属已授权生产变更；未执行远程 D1 migration，未修改 Secret 或 DNS。
+
+### 合并与触发
+
+- `origin/main` fast-forward `7643520` → `6ce8a53`（6 个提交，无合并提交、非 force push）；工作流为 `workflow_dispatch` only，推送 `main` 不会自动部署。
+- 通道 B：`BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:actions -- main`，run `41856628675`，ref `main`，commit `6ce8a53`。
+- CI 内完整 11 步门禁通过后执行 `wrangler deploy --keep-vars`：`Uploaded blendproof (6.08 sec)`、`Deployed blendproof triggers (2.31 sec)`，自定义域 `blendproof.itycon.cn` 与 `schedule: 0 * * * *` 均生效。
+- Cloudflare Version ID：`7209784a-debe-463e-bd4d-c603ac214b0d`（取代首轮 `fe79e2be-9874-4efe-8962-693d6e765ddc`）。
+
+### CI 内验收 12/13 与假阴性定位
+
+CI 的 `hash-compare` 验收报 12/13，`/s/suzanne` 两次尝试均失败，run 因此显示 failure。定位为边缘传播期假阴性，不是产品故障：
+
+- 时间线：`Deployed triggers` 于 15:22:31，验收请求在 15:22:31–34 发出，仅约 3 秒；同批 `/landing/` 与 `/landing/app.js` 也各用了 2 次尝试。
+- 交叉证明：约 76 秒后 `/s/suzanne` 返回 200、519 B，与**已通过**的 `/dev/` 的 sha256 完全相同（`895255c5a58a5042ed2498bed172442dd0f091b6e9d6609f3dbb85954569528f`），即它与 `dist/index.html` 同样逐字节一致。
+- 结论：部署成功，CI 的失败信号来自验收时机，不代表线上故障；Actions 历史中这条红色 failure 应据此解读。
+
+### 本机复验（发布后）
+
+- `npm run verify:production -- --routes-only`：**13/13 PASS，全部 1 次尝试**；Hero chunk `hero3d-IvMFL4wx.js`（旧版为 `hero3d-C8J-kb0U.js`）。报告在被忽略的 `output/releases/http-1793805893414.json`。
+- 新代码确认上线：`/landing/app.js` 由 67,858 B 变为 **72,837 B**；标记命中 `bp-retry` 0→1、`qs-mini-viewer-status` 0→1、`blendproof:language-change` 0→2。这些标记在部署前的线上 bundle 中均为 0。
+- 仍未包含：生产环境的真实浏览器交互验收、真实 BFCache（`persisted=true`）、云端上传/双浏览器批注/过期清理 E2E、RUM 与完整 Lighthouse。本机浏览器验收针对同一源码的生产构建，不能直接冒充线上交互证据。
+
+### 由本次失败固化的修复
+
+- `scripts/verify-production.mjs` 新增 `--settle-ms`（探测前等待）与 `--backoff-ms`（尝试间隔，默认 `3000,8000,15000`，即最多 4 次尝试），无效参数直接拒绝；报告记录 `settleMs`、`backoffMs`、`attemptsAllowed` 与每次尝试结果。
+- `scripts/deploy-production.sh` 部署后改为 `npm run verify:production -- --settle-ms 8000`。
+- `tests/release-pipeline.test.mjs` 抽出 fixture 服务器助手，新增 3 项：传播期瞬时失败被有界退避恢复（断言 3 次尝试、`[false,false,true]`、`[503,503,200]`）、持续失败按上限耗尽并如实报 12/13、无效参数被拒绝。该套件由 22 项增至 **25 项，全部通过**。
+- 上述改动只涉及发布/验收脚本、测试与文档，不进入 `dist`，因此不需要重新部署；CI 已对同一 commit `6ce8a53` 跑过完整门禁，本机不重复整套门禁。
+- 附带发现：首次运行让 GitHub 自动创建 `production` environment，且 protection rules 为空（无 required reviewers），通道 B 的唯一闸门是 `approve_production` 输入。需要仓库级人工审批须由用户在仓库设置中配置。

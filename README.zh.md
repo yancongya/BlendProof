@@ -328,7 +328,9 @@ GitHub 部署工作流仅允许手动触发；启动时必须显式输入 `YES`�
 
 此部署脚本不会执行远程 D1 migration、修改 Secret 或变更 DNS。远程 migration 是独立的生产数据变更：先审查待执行 migration，并为该变更取得明确授权，再运行任何 `--remote` 命令。
 
-不要用直接的 `npx wrangler deploy` 绕过门禁。确认 `APP_ORIGIN` 与真实 HTTPS Origin 完全一致、没有尾斜杠。Secret（`UPLOAD_SIGNING_SECRET`、`SHARE_ACCESS_SECRET` 与一次性的 `BOOTSTRAP_ADMIN_TOKEN`）通过 Wrangler Secret 配置，绝不提交。部署后需要用 HTTP 检查和真实浏览器分别验证 `/`、`/landing/`、`/dev/`、`/s/suzanne` 与一个落地页优化资源；本地测试和浏览器实验室报告必须与生产验收分开记录。
+不要用直接的 `npx wrangler deploy` 绕过门禁。确认 `APP_ORIGIN` 与真实 HTTPS Origin 完全一致、没有尾斜杠。Secret（`UPLOAD_SIGNING_SECRET`、`SHARE_ACCESS_SECRET` 与一次性的 `BOOTSTRAP_ADMIN_TOKEN`）通过 Wrangler Secret 配置，绝不提交。边缘传播不是瞬时的，因此 `verify:production` 支持 `--settle-ms`（探测前先等待，部署脚本传 `8000`）与 `--backoff-ms`（尝试间隔，默认 `3000,8000,15000`，即最多 4 次尝试）。每次尝试都会被记录；持续失败仍以非零退出。不要把传播期的瞬时失败写成发布失败，也不要把上传成功写成验收通过。
+
+部署后需要用 HTTP 检查和真实浏览器分别验证 `/`、`/landing/`、`/dev/`、`/s/suzanne` 与一个落地页优化资源；本地测试和浏览器实验室报告必须与生产验收分开记录。
 
 授权闸门、Secret 处理、migration 顺序、双浏览器验收清单与回滚流程见 [`docs/PHASE_4D_DEPLOYMENT_RECOVERY.md`](docs/PHASE_4D_DEPLOYMENT_RECOVERY.md)。
 

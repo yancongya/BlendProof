@@ -2,6 +2,26 @@ import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from 
 import { resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 
+const numberArg = (flag, fallback, max) => {
+  const i = process.argv.indexOf(flag)
+  if (i < 0) return fallback
+  const value = Number(process.argv[i + 1])
+  if (!Number.isFinite(value) || value < 0 || value > max) throw new Error(`${flag} requires a number between 0 and ${max}`)
+  return value
+}
+// Edge propagation is not instant: probing immediately after `wrangler deploy`
+// produced a false 12/13 on a healthy release. Settle first, then retry with a
+// bounded backoff so a propagating edge is not reported as a failed release.
+const DEFAULT_BACKOFF_MS = [3000, 8000, 15000]
+const settleMs = numberArg('--settle-ms', 0, 120000)
+const backoffArg = process.argv.indexOf('--backoff-ms')
+const backoffMs = backoffArg < 0
+  ? DEFAULT_BACKOFF_MS
+  : String(process.argv[backoffArg + 1]).split(',').map((part) => {
+      const value = Number(part)
+      if (!Number.isFinite(value) || value < 0 || value > 120000) throw new Error('--backoff-ms requires comma-separated numbers between 0 and 120000')
+      return value
+    })
 const originArg = process.argv.indexOf('--origin')
 const origin = new URL(originArg < 0 ? (process.env.BLENDPROOF_PRODUCTION_ORIGIN ?? 'https://blendproof.itycon.cn') : process.argv[originArg + 1])
 if (origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('Supply an origin without credentials, path, query or fragment')
@@ -45,8 +65,9 @@ const cases = [
 async function verify(check) {
   const expectedHash = !routesOnly && check.file ? hash(readFileSync(resolve(dist, check.file))) : undefined
   const attempts = []
-  // One bounded retry covers propagation/network transients; retain both results.
-  for (let n = 0; n < 2; n++) {
+  // Bounded retries cover propagation/network transients; every result is retained.
+  for (let n = 0; n <= backoffMs.length; n++) {
+    if (n > 0) await new Promise((resolve) => setTimeout(resolve, backoffMs[n - 1]))
     const started = performance.now()
     try {
       const response = await fetch(new URL(check.path, origin), { redirect: 'manual', signal: AbortSignal.timeout(45000), headers: { 'Cache-Control': 'no-cache' } })
@@ -68,12 +89,16 @@ async function verify(check) {
   }
   return { path: check.path, expectedHash, ok: false, attempts }
 }
+if (settleMs > 0) await new Promise((resolve) => setTimeout(resolve, settleMs))
 const results = []
 for (let i = 0; i < cases.length; i += 4) results.push(...await Promise.all(cases.slice(i, i + 4).map(verify)))
 const report = {
   timestamp: new Date().toISOString(),
   origin: origin.origin,
   mode: routesOnly ? 'routes-only' : 'hash-compare',
+  settleMs,
+  backoffMs,
+  attemptsAllowed: backoffMs.length + 1,
   evidence: routesOnly
     ? 'Live HTTP routes, redirects, 404s, health fields and recorded artifact hashes; hashes are NOT compared against a local build, and this is not browser performance or business E2E'
     : 'HTTP responses and local build hashes; not browser performance or business E2E',

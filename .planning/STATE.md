@@ -2,10 +2,10 @@
 
 Phase: 4 of 4（云端替换）
 Plan: 04-01
-Status: Follow-up locally verified; production update deferred by user
-Last activity: 2026-11-03 - 新增每次任务收尾清理；约 10.5 MiB 闲置构建已移入可恢复废纸篓，保留现有开发服务；用户再次确认生产暂缓
+Status: Released to production via authorized channel B; post-release verification fix landed
+Last activity: 2026-11-04 - 合并 main 并经通道 B 授权发布生产（Version 7209784a），线上 13/13 验收通过；修复部署后验收的传播期假阴性
 
-Progress: ████▉ 99%
+Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 与 RUM 验收）
 
 ## Decisions
 
@@ -51,7 +51,7 @@ Progress: ████▉ 99%
 ## Session Continuity
 
 Last session: 2026-11-03
-Stopped at: CI release channel (deploy:actions) and cross-machine routes-only verification added, tested and pushed; production still deferred by user and must not resume automatically after a credential change.
+Stopped at: Production released from main @ 6ce8a53 (Version 7209784a-debe-463e-bd4d-c603ac214b0d); live routes 13/13 and new-code markers confirmed. Remaining: production browser interaction, real BFCache, cloud business E2E, RUM.
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 
 ## 2026-11-02 落地页性能与发布收尾
@@ -97,4 +97,14 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - CI 通道已用 `approve_production=NO` 做过不可部署预演（run `41855041205`，ref `codex/fix-guide-after-cover`）：checkout、setup-node、`npm ci`（20 秒装 332 个包）全部成功，随后在审批闸门以 `##[error]Production deployment requires the explicit YES input.` 失败，未调用 Wrangler、未接触 Cloudflare。因此新锁文件在 ubuntu + Node 22 可正常安装（sharp/esbuild/workerd），CI npm 也没有本机 npm 11.19 的 install-scripts 门禁。该 run 在 Actions 历史中是红色 failure，属有意预演。
 - 预演副作用：GitHub 自动创建了 `production` environment，protection rules 为空（无 required reviewers），所以通道 B 的唯一闸门是 `approve_production` 输入；需要人工审批必须由用户在仓库设置配置。
 - `gh` token scopes 为 `gist, read:org, repo, workflow`，具备触发 `workflow_dispatch` 的权限。预演后线上未变：`/landing/app.js` 仍 200、67,858 B，`bp-retry` 0 命中。
-- 剩余唯一阻塞项是用户对生产发布的明确授权（已连续三次选择暂缓）。通道 A 另需先修复托管 `cloudflare.itycon.workers-deploy` 的账户 403 权限；通道 B 已验证可执行，只等授权与 ref 选择（是否先合并 `main`）。
+- 剩余唯一阻塞项曾是用户对生产发布的明确授权（当时已连续三次选择暂缓）。通道 A 另需先修复托管 `cloudflare.itycon.workers-deploy` 的账户 403 权限；通道 B 已验证可执行。该阻塞已在 2026-11-04 由用户授权并选择通道 B + 合并 `main` 解除，见下节。
+
+## 2026-11-04 生产发布与验收修复
+
+- 用户明确授权“授权 b 发布。合并 main”。`origin/main` fast-forward `7643520` → `6ce8a53`（6 个提交，无合并提交、非 force）；工作流为 `workflow_dispatch` only，推送 `main` 不触发自动部署。
+- 通道 B 发布：run `41856628675`（ref `main`，commit `6ce8a53`）。CI 内完整 11 步门禁通过后 `wrangler deploy --keep-vars` 成功：`Uploaded blendproof (6.08 sec)`、`Deployed blendproof triggers (2.31 sec)`，自定义域与 `schedule: 0 * * * *` 生效。Cloudflare Version ID `7209784a-debe-463e-bd4d-c603ac214b0d`，取代首轮 `fe79e2be-9874-4efe-8962-693d6e765ddc`。未执行远程 migration，未改 Secret 或 DNS。
+- CI 内 `hash-compare` 验收报 12/13（`/s/suzanne` 两次尝试失败），run 显示 failure。定位为边缘传播期假阴性：验收在 `Deployed triggers` 后约 3 秒发起，同批 `/landing/`、`/landing/app.js` 也用满 2 次尝试；76 秒后 `/s/suzanne` 返回 200、519 B，与已通过的 `/dev/` sha256 完全相同（`895255c5…9528f`），即同样逐字节匹配 `dist/index.html`。部署本身成功。
+- 本机复验 `verify:production --routes-only`：**13/13 全部 1 次尝试通过**，Hero chunk `hero3d-IvMFL4wx.js`（旧 `hero3d-C8J-kb0U.js`）。新代码上线证据：`/landing/app.js` 67,858 → **72,837 B**；`bp-retry` 0→1、`qs-mini-viewer-status` 0→1、`blendproof:language-change` 0→2。
+- 修复：`verify-production.mjs` 增加 `--settle-ms` 与有界退避 `--backoff-ms`（默认 `3000,8000,15000`，最多 4 次尝试），报告记录每次尝试；`deploy-production.sh` 部署后传 `--settle-ms 8000`。`test:release-pipeline` 由 22 增至 **25 项全通过**（新增瞬时失败恢复、持续失败按上限如实失败、无效参数拒绝）。改动只涉及发布/验收脚本、测试与文档，不进入 `dist`，无需重新部署。
+- 遗留风险：GitHub 自动创建的 `production` environment 无 protection rules（无 required reviewers），通道 B 的唯一闸门是 `approve_production` 输入；需要仓库级人工审批须由用户在设置中配置。
+- 仍未完成：生产真实浏览器交互验收、真实 BFCache（`persisted=true`）、云端上传/双浏览器批注/过期清理 E2E、RUM 与完整 Lighthouse。

@@ -15,4 +15,6 @@ env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npm run verify:release
 npx wrangler deploy --keep-vars
 
 # A successful upload is followed by HTTP route and artifact verification.
-env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npm run verify:production
+# Settle before probing: the edge needs a few seconds after upload, and an
+# immediate probe reported a false failure on an otherwise healthy release.
+env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npm run verify:production -- --settle-ms 8000

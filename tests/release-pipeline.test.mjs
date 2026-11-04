@@ -60,7 +60,7 @@ test('部署脚本缺少授权时拒绝运行门禁与 Wrangler；已授权时�
     assert.equal(authorized.status, 0, authorized.stderr)
     assert.match(readFileSync(calls, 'utf8'), /npm:run verify:release:token=unset:account=unset/)
     assert.match(readFileSync(calls, 'utf8'), /npx:wrangler deploy --keep-vars:token=test-token:account=test-account/)
-    assert.match(readFileSync(calls, 'utf8'), /npm:run verify:production:token=unset:account=unset/)
+    assert.match(readFileSync(calls, 'utf8'), /npm:run verify:production -- --settle-ms 8000:token=unset:account=unset/)
 
     writeFileSync(calls, '')
     const gateFailure = spawnSync('bash', ['scripts/deploy-production.sh'], {
@@ -220,33 +220,30 @@ test('Actions 发布脚本在 CI 失败或等待审批时传播状态且不做�
   assert.equal(readFileSync(waiting.calls, 'utf8').includes('npm:run verify:production'), false)
 })
 
-test('verify:production 的 routes-only 模式无需本地 dist 即可完成 13 项线上验收', async () => {
-  const script = fileURLToPath(new URL('../scripts/verify-production.mjs', import.meta.url))
-  const cwd = mkdtempSync(join(tmpdir(), 'blendproof-verify-routes-'))
+// A fixture that mimics the live route contract. Tests must await child
+// processes: spawnSync would block this event loop, so an in-process server
+// could never answer (that showed up as a 45s timeout, not a product bug).
+async function startLiveFixture(t, { failTimes = 0 } = {}) {
   const { createServer } = await import('node:http')
-  // spawnSync would block this process's event loop, so the in-process fixture
-  // server could never answer; run the script as an awaited child instead.
-  const { execFile } = await import('node:child_process')
-  const { promisify } = await import('node:util')
-  const runScript = async (args) => {
-    try {
-      const { stdout, stderr } = await promisify(execFile)('node', [script, ...args], { cwd, timeout: 90000, maxBuffer: 8 * 1024 * 1024 })
-      return { status: 0, stdout, stderr }
-    } catch (error) {
-      return { status: error.code ?? 1, stdout: error.stdout ?? '', stderr: error.stderr ?? String(error) }
-    }
-  }
   const html = (res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end('<html>landing</html>') }
   const js = (res, body) => { res.writeHead(200, { 'content-type': 'text/javascript' }); res.end(body) }
+  const json = (res, data) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(data)) }
   const notFound = (res) => { res.writeHead(404).end('nope') }
+  let flakyHits = 0
   const routes = {
-    '/': html, '/landing/': html, '/dev': html, '/dev/': html, '/s/suzanne': html,
+    '/': html, '/landing/': html, '/dev': html, '/dev/': html,
     '/does-not-exist': notFound, '/landing/assets/missing-release-check.webp': notFound,
-    '/api/health': (res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ runtime: 'cloudflare-worker', database: { bound: true }, objectStorage: { bound: true } })) },
-    '/api/public/stats': (res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ capacityBytes: 5368709120, usedBytes: 1 })) },
+    '/api/health': (res) => json(res, { runtime: 'cloudflare-worker', database: { bound: true }, objectStorage: { bound: true } }),
+    '/api/public/stats': (res) => json(res, { capacityBytes: 5368709120, usedBytes: 1 }),
     '/landing/app.js': (res) => js(res, 'import("./assets/hero3d-live9f3.js")'),
     '/landing/assets/blendproof-splash.webp': (res) => { res.writeHead(200, { 'content-type': 'image/webp' }); res.end('webp') },
     '/landing/assets/hero3d-live9f3.js': (res) => js(res, 'three'),
+    // Stands in for edge propagation: transient failures, then a healthy route.
+    '/s/suzanne': (res) => {
+      flakyHits += 1
+      if (flakyHits <= failTimes) { res.writeHead(503, { 'content-type': 'text/plain' }); res.end('propagating'); return }
+      html(res)
+    },
   }
   const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1')
@@ -259,30 +256,89 @@ test('verify:production 的 routes-only 模式无需本地 dist 即可完成 13 
     else notFound(res)
   })
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const origin = `http://127.0.0.1:${server.address().port}`
+  t.after(() => server.close())
+  return { origin: `http://127.0.0.1:${server.address().port}`, hits: () => flakyHits }
+}
+
+async function runVerify(cwd, args) {
+  const script = fileURLToPath(new URL('../scripts/verify-production.mjs', import.meta.url))
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
   try {
-    // No dist in this cwd: hash-compare must refuse, routes-only must still pass.
-    const strict = await runScript(['--origin', origin])
-    assert.notEqual(strict.status, 0)
-    assert.match(strict.stderr, /Build the current release before verification/)
+    const { stdout, stderr } = await promisify(execFile)('node', [script, ...args], { cwd, timeout: 90000, maxBuffer: 8 * 1024 * 1024 })
+    return { status: 0, stdout, stderr }
+  } catch (error) {
+    return { status: error.code ?? 1, stdout: error.stdout ?? '', stderr: error.stderr ?? String(error) }
+  }
+}
 
-    const routesRun = await runScript(['--routes-only', '--origin', origin])
-    assert.equal(routesRun.status, 0, routesRun.stderr)
-    assert.match(routesRun.stdout, /HTTP verification: 13\/13/)
-    assert.equal(routesRun.stdout.split('\n').filter((line) => line.startsWith('FAIL')).length, 0)
-    const report = JSON.parse(readFileSync(readdirSync(join(cwd, 'output/releases')).map((f) => join(cwd, 'output/releases', f))[0], 'utf8'))
-    assert.equal(report.mode, 'routes-only')
-    assert.equal(report.ok, true)
-    // Hashes are recorded for the live artifacts but never compared to a build.
-    assert.equal(report.results.every((r) => r.expectedHash === undefined), true)
-    assert.ok(report.results.find((r) => r.path.endsWith('hero3d-live9f3.js')).attempts[0].sha256.length === 64)
+test('verify:production 的 routes-only 模式无需本地 dist 即可完成 13 项线上验收', async (t) => {
+  const cwd = mkdtempSync(join(tmpdir(), 'blendproof-verify-routes-'))
+  t.after(() => rmSync(cwd, { recursive: true, force: true }))
+  const { origin } = await startLiveFixture(t)
 
-    const unreachable = await runScript(['--routes-only', '--origin', 'http://127.0.0.1:65500'])
-    assert.notEqual(unreachable.status, 0)
-    assert.match(unreachable.stderr, /Cannot reach http:\/\/127.0.0.1:65500\/landing\/app\.js/)
-  } finally {
-    server.close()
-    rmSync(cwd, { recursive: true, force: true })
+  // No dist in this cwd: hash-compare must refuse, routes-only must still pass.
+  const strict = await runVerify(cwd, ['--origin', origin])
+  assert.notEqual(strict.status, 0)
+  assert.match(strict.stderr, /Build the current release before verification/)
+
+  const routesRun = await runVerify(cwd, ['--routes-only', '--origin', origin])
+  assert.equal(routesRun.status, 0, routesRun.stderr)
+  assert.match(routesRun.stdout, /HTTP verification: 13\/13/)
+  assert.equal(routesRun.stdout.split('\n').filter((line) => line.startsWith('FAIL')).length, 0)
+
+  const reportFile = readdirSync(join(cwd, 'output/releases')).map((f) => join(cwd, 'output/releases', f))[0]
+  const report = JSON.parse(readFileSync(reportFile, 'utf8'))
+  assert.equal(report.mode, 'routes-only')
+  assert.equal(report.ok, true)
+  // Hashes are recorded for live artifacts but never compared to a build.
+  assert.equal(report.results.every((r) => r.expectedHash === undefined), true)
+  assert.equal(report.results.find((r) => r.path.endsWith('hero3d-live9f3.js')).attempts[0].sha256.length, 64)
+
+  const unreachable = await runVerify(cwd, ['--routes-only', '--origin', 'http://127.0.0.1:65500'])
+  assert.notEqual(unreachable.status, 0)
+  assert.match(unreachable.stderr, /Cannot reach http:\/\/127.0.0.1:65500\/landing\/app\.js/)
+})
+
+test('边缘传播期的瞬时失败由有界退避恢复，不把健康发布判为失败', async (t) => {
+  const cwd = mkdtempSync(join(tmpdir(), 'blendproof-verify-flaky-'))
+  t.after(() => rmSync(cwd, { recursive: true, force: true }))
+  const { origin, hits } = await startLiveFixture(t, { failTimes: 2 })
+
+  const result = await runVerify(cwd, ['--routes-only', '--origin', origin, '--backoff-ms', '10,20,30'])
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /HTTP verification: 13\/13/)
+  assert.match(result.stdout, /PASS \/s\/suzanne \(3 attempt/)
+  assert.equal(hits(), 3, 'recovery must stop retrying once the route is healthy')
+
+  const report = JSON.parse(readFileSync(readdirSync(join(cwd, 'output/releases')).map((f) => join(cwd, 'output/releases', f))[0], 'utf8'))
+  const suzanne = report.results.find((r) => r.path === '/s/suzanne')
+  assert.equal(suzanne.ok, true)
+  assert.deepEqual(suzanne.attempts.map((a) => a.ok), [false, false, true])
+  assert.deepEqual(suzanne.attempts.map((a) => a.status), [503, 503, 200])
+  assert.deepEqual(report.backoffMs, [10, 20, 30])
+  assert.equal(report.attemptsAllowed, 4)
+})
+
+test('持续失败按上限耗尽尝试并如实失败，不无限重试', async (t) => {
+  const cwd = mkdtempSync(join(tmpdir(), 'blendproof-verify-persistent-'))
+  t.after(() => rmSync(cwd, { recursive: true, force: true }))
+  const { origin, hits } = await startLiveFixture(t, { failTimes: 99 })
+
+  const result = await runVerify(cwd, ['--routes-only', '--origin', origin, '--backoff-ms', '5,5'])
+  assert.notEqual(result.status, 0)
+  assert.match(result.stdout, /FAIL \/s\/suzanne \(3 attempt/)
+  assert.match(result.stdout, /HTTP verification: 12\/13/)
+  assert.equal(hits(), 3, 'attempts must equal backoff entries + 1, then stop')
+})
+
+test('拒绝无效的退避与等待参数', async (t) => {
+  const cwd = mkdtempSync(join(tmpdir(), 'blendproof-verify-args-'))
+  t.after(() => rmSync(cwd, { recursive: true, force: true }))
+  for (const args of [['--settle-ms', 'abc'], ['--settle-ms', '-1'], ['--backoff-ms', '1,x'], ['--backoff-ms', '999999']]) {
+    const result = await runVerify(cwd, ['--routes-only', '--origin', 'http://127.0.0.1:65500', ...args])
+    assert.notEqual(result.status, 0, args.join(' '))
+    assert.match(result.stderr, /requires/, args.join(' '))
   }
 })
 
