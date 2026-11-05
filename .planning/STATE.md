@@ -3,7 +3,7 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: Released to production via authorized channel B; post-release verification fix landed
-Last activity: 2026-11-05 - 工作台主包完成路由级+vendor 分包（首屏 gzip 430.5→379.7 KB，两条路由网络层证明互不拖载），移除 4 个零引用依赖；待发布
+Last activity: 2026-11-05 - 分包已用 `npm run ship` 发布到生产（Version 734edfb0，端到端 123s），线上首屏 gzip 430.5→379.7 KB，两条路由网络层证明互不拖载且 0 控制台错误
 
 Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 与 RUM 验收）
 
@@ -51,7 +51,7 @@ Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 
 ## Session Continuity
 
 Last session: 2026-11-03
-Stopped at: workspace bundle split (route-level lazy + vendor chunks) implemented, gate-verified and browser-verified on a local build; pending ship. Remaining: real BFCache, share revoke + expiry/cron E2E, rate-limit edges, author-side comment read-back, RUM, file-size debt, production environment reviewers, channel A credential 403, Suspense fallback visual check.
+Stopped at: bundle split shipped to production (Version 734edfb0) via `npm run ship` in 123s; live first-paint 1,480,703->1,317,242 B (gzip 430,514->379,722) and both routes proven not to cross-load. Remaining: real BFCache, share revoke + expiry/cron E2E, rate-limit edges, author-side comment read-back, RUM, file-size debt, production environment reviewers, channel A credential 403, Suspense fallback visual check.
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 
 ## 2026-11-02 落地页性能与发布收尾
@@ -146,3 +146,11 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - 依赖清理：全仓库 129 文件扫描确认 `@react-three/postprocessing`、`@tanstack/react-virtual`、`gsap`、`postprocessing` 零引用，已移除；`node_modules` 604M→593M。worker/server 使用的 `@noble/hashes`、`aws4fetch`、`jose`、`express`、`cors`、`multer` 保留。新增两项回归断言（路由分包、依赖卫生），`test:release-pipeline` 38/38。
 - 本地真实构建浏览器验收（wrangler dev :8800 服务 dist）：网络层证明 `/s/suzanne` 未加载 `WorkspacePage`、`/dev/` 未加载 `SharePage`；分享口令门与模型、欢迎封面关闭即出指南、上传工作台面板均正常。
 - 本地分享页的 401/403 已用 curl 对照定性为与分包无关（生产同样返回；curl 缺浏览器上下文时对 `access` 一律 403），真实浏览器在生产解锁成功。`.route-loading` 回退壳因本地加载过快未被观测，记为未验证。
+
+## 2026-11-05 分包上线与第三次发布
+
+- `npm run ship -- --channel ci --ref main --push` 端到端 **123s**：自行检测本地领先并推送 main（3s）→ run `41944329982` → CI 门禁（图片步骤 0s，18 命中）→ wrangler 部署 → CI 内 hash 验收 13/13 → 本机 routes-only 13/13 → 清理移出 11,013,937 B。Version ID `734edfb0-0c8f-4c66-ae28-54c02d59d20f`。
+- 线上首屏静态 **5 个 chunk、1,317,242 B（gzip 379,722）**，较改前单包 1,480,703 B（gzip 430,514）降 11.0%/11.8%；旧单包 `index-CIP3aB30.js` 已 404；线上入口 chunk 与本机构建同名同大小。
+- 生产浏览器验收 6 项断言全过：`/s/suzanne` 未加载 `WorkspacePage`、`/dev/` 未加载 `SharePage`；分享口令门与模型、关闭封面即出指南、上传工作台均正常；两条路由 **0 控制台错误**。`.route-loading` 回退壳仍未被观测到，记为未验证。
+- 修正自身实现缺陷：缓存清单原按并发完成顺序写入，内容未变也每次产生 diff（实测 80 增 80 删的纯 churn）。改为序列化前按键排序并加幂等断言；语义比对确认与已提交版本仅顺序不同、18 条目内容零差异、产物字节未变。
+- 测量教训：`Python-urllib` UA 被 Cloudflare 拦截返回 403（17 字节拦截页），而 curl 默认 UA、浏览器 UA、Node fetch 同一资源均 200；线上 4xx 必须先换 UA/客户端复测再定性，`verify:production` 用 Node fetch 不受影响。

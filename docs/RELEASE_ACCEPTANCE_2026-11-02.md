@@ -272,3 +272,30 @@ CI 的 `hash-compare` 验收报 12/13，`/s/suzanne` 两次尝试均失败，run
   - `/dev/` 实际加载 `index + 4 vendor + WorkspacePage + demoProject + vendor-icons`，**未加载 `SharePage`**；欢迎封面 → 关闭 → 指南"打开 Blender 文件" + canvas 正常；File → 打开上传工作台面板可用（含 `.blend` 文件输入）。
 - 本地分享页出现 1 个 401 与 1 个 403 控制台错误，已定性为与分包无关：不带任何浏览器与 bundle 的 curl 对照显示 `GET /api/shares/suzanne` 在本地与生产**均为 401**（未认证的正常响应），`POST /api/shares/suzanne/access` 在本地与生产对空口令/错误口令/正确口令 `tycon` **均返回 403**（curl 缺少浏览器上下文）；真实浏览器在生产解锁成功。演示分享在前端有内置猴头兜底，故模型仍正常渲染。
 - 未观测到 `.route-loading` 回退壳（本地加载过快），因此"回退壳视觉正确"这一项属未验证，不是通过。
+
+### 第三次生产发布：分包上线（`ship` 端到端 123s）
+
+- 命令：`BLENDPROOF_PRODUCTION_APPROVED=YES npm run ship -- --channel ci --ref main --push`。`ship` 自行检测到本地 `c701789` 领先 `origin/main`（`9374d65`）→ 推送 main（3s）→ 触发 run `41944329982` → CI 成功 → 本机 `routes-only` 13/13 → 收尾清理移出 11,013,937 B。**端到端 123s**（推送 3s + 发布与验收 113s）。
+- Cloudflare Version ID `734edfb0-0c8f-4c66-ae28-54c02d59d20f`；CI 图片步骤 **0s（18 命中 / 0 编码）**，CI 内 hash 验收 **13/13**。
+- 线上首屏静态：**5 个 chunk、1,317,242 B raw / 379,722 B gzip**（改前单包 1,480,703 / 430,514，降 11.0% / 11.8%）；旧单包 `/assets/index-CIP3aB30.js` 现已 **404**。线上 `index-BTWEGPnJ.js` 与本机构建**同名同大小**（23,898 B），说明 CI 与本机产物一致。
+
+### 分包的生产浏览器验收（会话 `blendproof-split-prod`）
+
+6 项断言全部通过：
+
+| 断言 | 结果 |
+| --- | --- |
+| `/s/suzanne` 加载 `SharePage` 且**未加载** `WorkspacePage` | ✅ 实际请求：index + 4 vendor + SharePage + demoProject + vendor-icons |
+| `/dev/` 加载 `WorkspacePage` 且**未加载** `SharePage` | ✅ 实际请求：index + 4 vendor + WorkspacePage + demoProject + vendor-icons |
+| 分享页口令门与模型 | ✅ canvas 997×690，加载完成 |
+| `/dev/` 关闭欢迎封面即出指南 | ✅ `guide=true`、标题“打开 Blender 文件”、canvas 997×690 |
+| 上传工作台可用 | ✅ 面板打开、`.blend` 文件输入存在（高 403px） |
+| 两条路由控制台错误 | ✅ **0 个**（反证本地那 401/403 属本地空库与 curl 缺少浏览器上下文，与分包无关） |
+
+`.route-loading` 回退壳在生产同样未被观测到（加载过快），仍记为**未验证**，不算通过。
+
+### 测量工具教训：UA 拦截会被误读成生产故障
+
+线上探测 `/assets/index-BTWEGPnJ.js` 时 `Python-urllib/3.14` UA 返回 **403（17 字节拦截页）**，而同一资源在 curl 默认 UA、浏览器 UA、Node `fetch` 下均为 **200 / 23,898 B**。这是 Cloudflare 按 UA 的反爬，不是资源不可用。
+
+规则：线上资源探测遇到 4xx，先换 UA/换客户端复测，并与 `verify:production` 的结果对照，再判断是否产品故障；不要把测量工具自身被拦截写成线上缺陷。`verify:production` 使用 Node `fetch`，不受该 UA 规则影响。
