@@ -65,6 +65,7 @@ BLENDPROOF_PRODUCTION_APPROVED=YES npm run deploy:actions [分支名]
 - 门禁第 1 步曾是 88–113s 的全量 WebP 重编码，占 176s 门禁的 **64%**；而 35 个产物与清单都已提交，重编码结果逐字节相同（实测 `git status` 为空）。
 - `scripts/image-cache.json` 记录 `paramsHash`（sharp 版本、宽度、质量、alphaQuality、effort）与每张图的 `sourceSha256` 及各产物 `sha256`。**三者全等才跳过编码**；任一不符只重编码该图。
 - 实测：冷缓存 88s → 热缓存 **0.49s**（18 命中 / 0 编码）；篡改清单里的源哈希只重编码该图（17 命中）；删除一个产物只重建该图且字节与提交版一致。
+- CI 同样受益（清单已提交）：门禁图片步骤 **0s（18 命中 / 0 编码）**，11 步合计 **43s**，整个 Actions run **96s**（此前约 5 分钟）；`npm run ship` 端到端约 **111s**。
 - `--force` 或 `BLENDPROOF_IMAGE_FORCE=1` 忽略缓存。清单缺失或损坏自动退化为全量编码，**不会让门禁失败**。
 - 清单必须随产物一起提交，否则 CI 每次全新 checkout 仍要全量重编码。
 - 质量、尺寸、alpha 逐像素校验与体积预算只在真正编码时执行；命中缓存意味着产物字节未变，这些校验结论仍然成立。预算检查每次运行都做。

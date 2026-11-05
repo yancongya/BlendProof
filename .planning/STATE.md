@@ -3,7 +3,7 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: Released to production via authorized channel B; post-release verification fix landed
-Last activity: 2026-11-05 - 云端业务 E2E 在生产跑通并发现/修复审稿昵称不持久化；发布统一为 npm run ship，门禁 176s→42s；这批修复尚未部署
+Last activity: 2026-11-05 - `npm run ship` 一条命令发布 99be63a 到生产（Version 87d15afd，CI run 96s，双通道 13/13）；昵称持久化修复已线上浏览器验收通过
 
 Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 与 RUM 验收）
 
@@ -51,7 +51,7 @@ Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 
 ## Session Continuity
 
 Last session: 2026-11-03
-Stopped at: Cloud business E2E verified on production (login, in-browser conversion, publish, share, cross-session annotation write+D1 persistence); guest-name persistence bug found and fixed locally; release unified into `npm run ship` and the gate cut from 176s to 42s. Pending: deploy these fixes, then real BFCache, cleanup/expiry E2E, RUM, app bundle splitting.
+Stopped at: 99be63a shipped to production via `npm run ship` (Version 87d15afd, CI run 96s, 13/13 on both channels) and the guest-name persistence fix verified live in a real browser. Remaining: real BFCache, share revoke + expiry/cron E2E, rate-limit edges, author-side comment read-back, RUM, app bundle splitting, file-size debt, production environment reviewers, channel A credential 403.
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 
 ## 2026-11-02 落地页性能与发布收尾
@@ -128,3 +128,12 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - 门禁 **176s → 42s**：图片编码改为内容寻址缓存（`scripts/image-cache.json` 已提交），88–113s → 0.49s；缓存失效经篡改源哈希、删除产物、`--force` 三种方式验证，重建字节与提交版一致。
 - 测量纪律：耗时对比必须排除 CPU 争用（首次冷跑 376s 是 3 个 Playwright 浏览器占用所致，关闭后同一编码 88s）。
 - 仍未完成：真实 BFCache、分享撤销与到期/cron 真实回收、限流边界、作者侧批注回读、RUM/Lighthouse、工作台主 JS 分包、4 个超行数预算文件拆解、`production` environment 无 required reviewers、通道 A 凭据 403。
+
+## 2026-11-05 第二次发布与昵称修复线上验收
+
+- `BLENDPROOF_PRODUCTION_APPROVED=YES npm run ship -- --channel ci --ref main` 一条命令完成：预检 → CI 发布 → 双通道验收 → 收尾清理。run `41938857850`，Version ID `87d15afd-cab8-43d8-856f-7a8e81d4f8c5`。未执行远程 migration，未改 Secret 或 DNS。
+- 提速已在 CI 兑现：图片步骤 **0s（18 命中 / 0 编码）**，CI 门禁 11 步合计 **43s**（原 176s），整个 run **96s**（原约 5 分钟），`ship` 端到端约 **111s**。
+- 验收：CI 内 hash-compare 13/13；本机 routes-only 13/13 且全部 1 次尝试。工作台 bundle 由 `index-CIP3aB30.js` 变为 `index-CqFEc7IS.js`，证明新构建已上线。
+- 昵称修复生产浏览器验收（清空存储后重来）：只打字不点“继续审稿”即写入 localStorage；重载后门槛不再出现、canvas 正常、既有批注仍可见；0 页面错误；三项断言全过。
+- 收尾清理在 CI 通道下无可移动项属预期（本机未构建）；`.vite-temp` 因 Vite dev 在运行而跳过，未停止用户服务。
+- 仍未完成：真实 BFCache、分享撤销与到期/cron 回收、限流边界、作者侧批注回读、RUM/Lighthouse、工作台主 JS 分包、4 个超行数文件拆解、`production` environment 无 required reviewers、通道 A 凭据 403。
