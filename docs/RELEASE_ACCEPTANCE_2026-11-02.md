@@ -206,3 +206,24 @@ CI 的 `hash-compare` 验收报 12/13，`/s/suzanne` 两次尝试均失败，run
 - 缓存失效已验证：篡改清单中源哈希 → 只重编码该图（17 命中）；删除一个产物 → 只重建该图且 `git status` 为空（字节与提交版一致，证明编码确定性）；`--force` / `BLENDPROOF_IMAGE_FORCE=1` 忽略缓存；清单缺失或损坏退化为全量编码而非失败。
 - 清理段实测：`clean:task --apply` 移出 11,017,247 B（`dist` + `dist-worker` + `tsconfig.tsbuildinfo`），`.vite-temp` 因两个 Vite dev 服务在运行而跳过。
 - 测量纪律：首次冷跑记为 376s 是因为同时开着 3 个 Playwright 浏览器（CPU 仅 53%）；关闭后同一次编码为 88s。**耗时对比必须在同等负载下取数**，否则会把 CPU 争用当成回归。
+
+## 2026-11-05 第二次生产发布（`ship` 一条命令）
+
+- 命令：`BLENDPROOF_PRODUCTION_APPROVED=YES npm run ship -- --channel ci --ref main`；ref=`main`，commit=`99be63a`，工作区干净、远端已同步，因此未触发推送。
+- run `41938857850`，Cloudflare Version ID `87d15afd-cab8-43d8-856f-7a8e81d4f8c5`。未执行远程 migration，未改 Secret 或 DNS。
+- `ship` 分阶段耗时：**CI 发布与线上验收 109s**；收尾清理无可移动项（门禁在 CI 内跑，本机没有产物），`.vite-temp` 因两个 Vite dev 服务在运行而跳过。整条命令约 111s。
+- CI 内门禁实测：图片步骤 **0s（18 命中 / 0 编码）**，11 步合计 **43s**；`Deploy production` 步骤 64s（含 wrangler 上传与 `--settle-ms 8000` 验收）；整个 run **96s**（00:06:41 → 00:08:17）。上一次发布（run `41874377803`）约 5 分钟。
+- 验收：CI 内 `hash-compare` **13/13**；本机 `routes-only` **13/13，全部 1 次尝试**。
+- 产物更新证据：`/dev/` 工作台 bundle 由 `/assets/index-CIP3aB30.js` 变为 `/assets/index-CqFEc7IS.js`。
+
+### 审稿昵称持久化修复的生产浏览器验收
+
+独立会话 `blendproof-verify-20261105`，先清空 localStorage/sessionStorage 再重新进入分享 `d539310e4b63bfe180cbc99e22c414b6`：
+
+| 步骤 | 结果 |
+| --- | --- |
+| 初始 | 门槛出现（“进入审稿 填写一个名称…”）、`hasCanvas=false`、localStorage 无该键 |
+| **只打字，不点“继续审稿”** | `localStorage['blendproof-guest-name:<token>'] = "E2E验收-昵称持久化"`；门槛消失；canvas 出现 |
+| 重载后 | 键仍存在；**门槛未重现**；canvas 正常；此前发布的批注仍可见（审稿批注 1） |
+
+三项断言 `PASS_persistedWithoutSubmit`、`PASS_gateNotReappeared`、`PASS_annotationStillVisible` 全部为 true，0 页面错误。修复前同一操作路径下 localStorage 无该键、重载即回到门槛。
