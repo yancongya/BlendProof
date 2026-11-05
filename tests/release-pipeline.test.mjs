@@ -1,11 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, chmodSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, chmodSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import ts from 'typescript'
-import { cacheEntryIsFresh, paramsFingerprint } from '../scripts/lib/image-cache.mjs'
+import { cacheEntryIsFresh, paramsFingerprint, serializeCache } from '../scripts/lib/image-cache.mjs'
 import { fileURLToPath } from 'node:url'
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
@@ -522,4 +522,48 @@ test('分享页审稿昵称输入即持久化，不只依赖提交按钮', () =>
   assert.match(handler, /removeItem/, '清空昵称必须移除键，否则重载会复活旧名字')
   assert.match(handler, /catch/, '存储被禁用时不能让整个分享页崩溃')
   assert.match(src, /blendproof-guest-name:\$\{token\}/)
+})
+
+test('两条路由按需分包，入口不静态拖载另一条路由', () => {
+  const main = read('src/main.tsx')
+  assert.match(main, /lazy\(\(\) =>\s*import\('\.\/pages\/WorkspacePage'\)/)
+  assert.match(main, /lazy\(\(\) =>\s*import\('\.\/pages\/SharePage'\)/)
+  assert.match(main, /<Suspense fallback=\{<RouteFallback \/>\}>/)
+  // A static page import would pull both routes back into the entry chunk.
+  assert.doesNotMatch(main, /^import \{[^}]*SharePage[^}]*\} from/m)
+  assert.doesNotMatch(main, /^import \{[^}]*\bApp\b[^}]*\} from/m)
+  // The fallback shell must stay dependency-free so it never drags three.js in.
+  assert.doesNotMatch(main, /from ['"]three/)
+  assert.match(read('src/styles.css'), /\.route-loading\s*\{/)
+  assert.match(read('src/i18n/en.ts'), /'正在载入 BlendProof…'/)
+})
+
+test('package.json 不含全仓库未引用的 dependencies', () => {
+  const pkg = JSON.parse(read('package.json'))
+  const dirs = ['src', 'worker', 'server', 'landing', 'tests', 'scripts']
+  const files = []
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const full = `${dir}/${name}`
+      if (statSync(full).isDirectory()) walk(full)
+      else if (/\.(ts|tsx|mts|js|mjs|cjs)$/.test(name)) files.push(full)
+    }
+  }
+  for (const dir of dirs) if (existsSync(dir)) walk(dir)
+  assert.ok(files.length > 80, `expected a real source scan, got ${files.length} files`)
+  const source = files.map((f) => read(f.replace(/^\.\//, ''))).join('\n')
+  const unused = Object.keys(pkg.dependencies).filter((dep) => {
+    const escaped = dep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return !new RegExp(`['"\`]${escaped}(['"\`]|/)`).test(source)
+  })
+  assert.deepEqual(unused, [], `未被任何源文件引用的依赖应移除：${unused.join(', ')}`)
+})
+
+test('图片缓存清单序列化与并发完成顺序无关（幂等）', () => {
+  const entry = (n) => ({ kind: 'card', paramsHash: 'p', sourceSha256: 's' + n, source: n, sourceKind: 'k', sourceBytes: n, outputs: [{ path: n, bytes: n, sha256: 'o' + n }] })
+  const a = serializeCache({ params: 'p', entries: { beta: entry(2), alpha: entry(1), gamma: entry(3) } })
+  const b = serializeCache({ params: 'p', entries: { gamma: entry(3), alpha: entry(1), beta: entry(2) } })
+  assert.equal(a, b, '同样的内容必须产出同样的字节，否则每次运行都会产生无意义 diff')
+  assert.deepEqual(JSON.parse(a).entries && Object.keys(JSON.parse(a).entries), ['alpha', 'beta', 'gamma'])
+  assert.equal(a.endsWith('\n'), true)
 })

@@ -227,3 +227,48 @@ CI 的 `hash-compare` 验收报 12/13，`/s/suzanne` 两次尝试均失败，run
 | 重载后 | 键仍存在；**门槛未重现**；canvas 正常；此前发布的批注仍可见（审稿批注 1） |
 
 三项断言 `PASS_persistedWithoutSubmit`、`PASS_gateNotReappeared`、`PASS_annotationStillVisible` 全部为 true，0 页面错误。修复前同一操作路径下 localStorage 无该键、重载即回到门槛。
+
+## 2026-11-05 工作台主包分包（第 5 项）
+
+### 改前
+
+`main.tsx` 静态导入两个页面（`import { App, SharePage } from './App'`）再按 `pathname` 二选一渲染，因此审稿人打开 `/s/<token>` 也会下载上传工作台、管理台与启动页代码。全部打进单个 `index-*.js`：**1,480,703 B raw / 430,514 B gzip**，且 `vite.config.ts` 无任何 `manualChunks`。
+
+### 改后
+
+路由级 `React.lazy` + `Suspense`（`.route-loading` 无依赖回退壳，不引 three）+ vendor 分包（three / react / r3f / icons / 其余）：
+
+| chunk | raw | gzip |
+| --- | --- | --- |
+| `vendor-three` | 808,470 | 209,428 |
+| `vendor-react` | 192,532 | 60,197 |
+| `vendor-r3f` | 167,942 | 54,201 |
+| `vendor`（其余） | 124,400 | 45,867 |
+| `demoProject`（演示数据，按需） | 94,240 | 29,896 |
+| `WorkspacePage`（仅 `/dev/`） | 46,714 | 15,080 |
+| `index`（入口壳） | 23,898 | 10,139 |
+| `vendor-icons` | 11,357 | 4,297 |
+| `SharePage`（仅 `/s/`） | 6,816 | 2,970 |
+
+- **首屏静态负载 1,480,703 → 1,317,242 B（gzip 430,514 → 379,722），降 11.0% / 11.8%**；路由专属代码（`/dev/` 的 WorkspacePage+demoProject+icons ≈ 152 KB）按需加载。
+- vendor 独立成块后，改业务代码不再让浏览器重新下载 808 KB 的 three。
+- 两条路由都要 three（产品本质是 3D 审稿台），所以 three 作为入口静态依赖不是浪费，且能从 HTML 直接 modulepreload 并行下载。
+
+### 对照实验：为什么保留 vendor 分包
+
+只做路由懒加载、不加 `manualChunks` 时：入口静态只剩 **217,316 B（gzip 70,702）**，但 1,205,150 B 的共享 vendor 变成**动态导入**——必须先下载并解析入口才发起第二次请求，形成瀑布，TTI 更差。因此采用"路由分包 + vendor 分包"组合。
+
+判定依据是入口 chunk 的真实 `import` 语句与 `index.html` 的 `modulepreload` 列表，不是构建输出的文件清单。第一版粗粒度 `manualChunks` 曾让入口出现 `import"./vendor-three-*.js"`，等于抵消懒加载；对照实验后才确定当前方案。
+
+### 依赖清理
+
+全仓库 129 个源文件扫描确认 `@react-three/postprocessing`、`@tanstack/react-virtual`、`gsap`、`postprocessing` **零引用**（bundle 内命中数也为 0），已从 `dependencies` 移除；`node_modules` 604M → **593M**。`@noble/hashes`/`aws4fetch`/`jose` 由 `worker/` 使用，`express`/`cors`/`multer` 由 `server/` 使用，均保留。新增回归断言禁止再引入全仓库未引用的 dependency。
+
+### 验证
+
+- 门禁 11 步通过（55s）；`test:release-pipeline` **38/38**（新增路由分包与依赖卫生两项）；落地页 32/32 与 smoke 全通过；`check`/`check:worker` 通过。
+- 本地真实构建（wrangler dev :8800，服务 `dist`）浏览器验收，**在网络层证明分包生效**：
+  - `/s/suzanne` 实际加载 `index + 4 vendor + SharePage + demoProject + vendor-icons`，**未加载 `WorkspacePage`**；口令门正常、模型 canvas 997×690 加载完成。
+  - `/dev/` 实际加载 `index + 4 vendor + WorkspacePage + demoProject + vendor-icons`，**未加载 `SharePage`**；欢迎封面 → 关闭 → 指南"打开 Blender 文件" + canvas 正常；File → 打开上传工作台面板可用（含 `.blend` 文件输入）。
+- 本地分享页出现 1 个 401 与 1 个 403 控制台错误，已定性为与分包无关：不带任何浏览器与 bundle 的 curl 对照显示 `GET /api/shares/suzanne` 在本地与生产**均为 401**（未认证的正常响应），`POST /api/shares/suzanne/access` 在本地与生产对空口令/错误口令/正确口令 `tycon` **均返回 403**（curl 缺少浏览器上下文）；真实浏览器在生产解锁成功。演示分享在前端有内置猴头兜底，故模型仍正常渲染。
+- 未观测到 `.route-loading` 回退壳（本地加载过快），因此"回退壳视觉正确"这一项属未验证，不是通过。

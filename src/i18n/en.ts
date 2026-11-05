@@ -12,6 +12,7 @@
 export const EN: Record<string, string> = {
   // ---- Brand / generic ----
   'BlendProof': 'BlendProof',
+  '正在载入 BlendProof…': 'Loading BlendProof…',
   '返回 BlendProof 启动页': 'Back to BlendProof launcher',
   '苏珊娜': 'Suzanne',
   'Suzanne 演示': 'Suzanne demo',

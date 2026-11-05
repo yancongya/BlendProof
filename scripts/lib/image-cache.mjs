@@ -38,9 +38,21 @@ export async function loadCache(cachePath) {
   return { params: null, entries: {} };
 }
 
+/**
+ * Serialize deterministically. Entries are produced by concurrent batches, so
+ * completion order varies run to run; without sorting, an unchanged cache would
+ * still rewrite the manifest and pollute every commit with key-order churn.
+ */
+export function serializeCache(cache) {
+  const keys = Object.keys(cache.entries ?? {}).sort();
+  const entries = {};
+  for (const key of keys) entries[key] = cache.entries[key];
+  return JSON.stringify({ params: cache.params ?? null, entries }, null, 2) + '\n';
+}
+
 export async function saveCache(cachePath, cache) {
   const tmp = `${cachePath}.tmp`;
-  await writeFile(tmp, JSON.stringify(cache, null, 2) + '\n');
+  await writeFile(tmp, serializeCache(cache));
   await rename(tmp, cachePath);
 }
 

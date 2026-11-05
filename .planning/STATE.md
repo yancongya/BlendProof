@@ -3,7 +3,7 @@
 Phase: 4 of 4（云端替换）
 Plan: 04-01
 Status: Released to production via authorized channel B; post-release verification fix landed
-Last activity: 2026-11-05 - `npm run ship` 一条命令发布 99be63a 到生产（Version 87d15afd，CI run 96s，双通道 13/13）；昵称持久化修复已线上浏览器验收通过
+Last activity: 2026-11-05 - 工作台主包完成路由级+vendor 分包（首屏 gzip 430.5→379.7 KB，两条路由网络层证明互不拖载），移除 4 个零引用依赖；待发布
 
 Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 与 RUM 验收）
 
@@ -51,7 +51,7 @@ Progress: █████ 100%（阶段 4 已上线；剩余为长期业务 E2E 
 ## Session Continuity
 
 Last session: 2026-11-03
-Stopped at: 99be63a shipped to production via `npm run ship` (Version 87d15afd, CI run 96s, 13/13 on both channels) and the guest-name persistence fix verified live in a real browser. Remaining: real BFCache, share revoke + expiry/cron E2E, rate-limit edges, author-side comment read-back, RUM, app bundle splitting, file-size debt, production environment reviewers, channel A credential 403.
+Stopped at: workspace bundle split (route-level lazy + vendor chunks) implemented, gate-verified and browser-verified on a local build; pending ship. Remaining: real BFCache, share revoke + expiry/cron E2E, rate-limit edges, author-side comment read-back, RUM, file-size debt, production environment reviewers, channel A credential 403, Suspense fallback visual check.
 Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 
 ## 2026-11-02 落地页性能与发布收尾
@@ -137,3 +137,12 @@ Resume file: `.planning/phases/04-cloud/04-01-PLAN.md`
 - 昵称修复生产浏览器验收（清空存储后重来）：只打字不点“继续审稿”即写入 localStorage；重载后门槛不再出现、canvas 正常、既有批注仍可见；0 页面错误；三项断言全过。
 - 收尾清理在 CI 通道下无可移动项属预期（本机未构建）；`.vite-temp` 因 Vite dev 在运行而跳过，未停止用户服务。
 - 仍未完成：真实 BFCache、分享撤销与到期/cron 回收、限流边界、作者侧批注回读、RUM/Lighthouse、工作台主 JS 分包、4 个超行数文件拆解、`production` environment 无 required reviewers、通道 A 凭据 403。
+
+## 2026-11-05 工作台主包分包
+
+- 根因：`main.tsx` 静态导入两个页面再按 pathname 渲染，`/s/<token>` 也要下载整个工作台；且 `vite.config.ts` 无 `manualChunks`，全部打进单个 1,480,703 B（gzip 430,514 B）的 `index-*.js`。
+- 改为路由级 `React.lazy` + `Suspense`（`.route-loading` 无依赖回退壳）+ vendor 分包（three/react/r3f/icons/其余）。首屏静态 **1,317,242 B（gzip 379,722）**，降 11.0%/11.8%；`/dev/` 专属约 152 KB 按需加载；vendor 独立后业务改动不再让浏览器重下 808 KB 的 three。
+- 对照实验：只路由分包时入口静态仅 217,316 B，但 1,205,150 B 共享 vendor 变动态导入形成瀑布，TTI 更差，故保留 vendor 分包。判定依据是入口 chunk 的 import 语句与 `index.html` modulepreload 列表；第一版粗粒度 manualChunks 曾把 three 变成入口静态依赖而抵消懒加载。
+- 依赖清理：全仓库 129 文件扫描确认 `@react-three/postprocessing`、`@tanstack/react-virtual`、`gsap`、`postprocessing` 零引用，已移除；`node_modules` 604M→593M。worker/server 使用的 `@noble/hashes`、`aws4fetch`、`jose`、`express`、`cors`、`multer` 保留。新增两项回归断言（路由分包、依赖卫生），`test:release-pipeline` 38/38。
+- 本地真实构建浏览器验收（wrangler dev :8800 服务 dist）：网络层证明 `/s/suzanne` 未加载 `WorkspacePage`、`/dev/` 未加载 `SharePage`；分享口令门与模型、欢迎封面关闭即出指南、上传工作台面板均正常。
+- 本地分享页的 401/403 已用 curl 对照定性为与分包无关（生产同样返回；curl 缺浏览器上下文时对 `access` 一律 403），真实浏览器在生产解锁成功。`.route-loading` 回退壳因本地加载过快未被观测，记为未验证。

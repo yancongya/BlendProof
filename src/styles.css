@@ -820,3 +820,36 @@ button {
     display: none;
   }
 }
+
+/* Route-level Suspense fallback: shown while a lazily split page chunk loads.
+ * Deliberately dependency-free so the shell itself stays in the entry chunk. */
+.route-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 100vh;
+  padding: 24px;
+  background: #1d1d1d;
+  color: #b4b4b4;
+  font: 400 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: .01em;
+}
+.route-loading__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #4a4a4a;
+  border-top-color: #e87d0d;
+  border-radius: 50%;
+  animation: route-loading-spin .8s linear infinite;
+}
+@keyframes route-loading-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-loading__spinner { animation: none; }
+}
+html[data-theme="light"] .route-loading {
+  background: #f5f3ef;
+  color: #5c5751;
+}

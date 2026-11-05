@@ -1,43 +1,23 @@
 {
   "params": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
   "entries": {
-    "artificer-v3-drone": {
+    "artificer-frame": {
       "kind": "card",
       "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
-      "sourceSha256": "01f4b5417da754c05699467c15cfc096b5c8ebeab5b8e8b461f941f45a387f13",
-      "source": "landing/assets/cards/artificer-v3-drone.png",
+      "sourceSha256": "32623c3a6a6e0cd4c7ffff7e8409772c73a21e4e66f7017383e0fc9f895ccd4b",
+      "source": "landing/assets/cards/artificer-frame.png",
       "sourceKind": "landing/assets/cards fallback",
-      "sourceBytes": 587499,
+      "sourceBytes": 1524052,
       "outputs": [
         {
-          "path": "landing/assets/optimized/cards/artificer-v3-drone-512.webp",
-          "bytes": 8750,
-          "sha256": "e898045f019c8eddfbfa16624fa1f37a1ec7014df9713573222212fd87c1e39b"
+          "path": "landing/assets/optimized/cards/artificer-frame-512.webp",
+          "bytes": 35090,
+          "sha256": "145eddd9c33f1c1a889c722393c2946a788cd62981379db93343585942f814d8"
         },
         {
-          "path": "landing/assets/optimized/cards/artificer-v3-drone-768.webp",
-          "bytes": 16452,
-          "sha256": "7b3f5d0ecde0f20f1294acafbacd4df8948234708b0a182bfe80d5a189487257"
-        }
-      ]
-    },
-    "artificer-v3-character": {
-      "kind": "card",
-      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
-      "sourceSha256": "99aaa21a94f7e805844097b7ac683a15e5c6c6f46eea2bdcf8d445607c31ca96",
-      "source": "landing/assets/cards/artificer-v3-character.png",
-      "sourceKind": "landing/assets/cards fallback",
-      "sourceBytes": 2046063,
-      "outputs": [
-        {
-          "path": "landing/assets/optimized/cards/artificer-v3-character-512.webp",
-          "bytes": 76484,
-          "sha256": "21eee9d755b15dc69b00fa3a0a0fc87c32516b86496a85cb2e3209bf1901e87f"
-        },
-        {
-          "path": "landing/assets/optimized/cards/artificer-v3-character-768.webp",
-          "bytes": 139796,
-          "sha256": "7129c85e28f6b3b28d6886b792bd393286c13ee56ae07eddbeb11bca43b5225e"
+          "path": "landing/assets/optimized/cards/artificer-frame-768.webp",
+          "bytes": 69984,
+          "sha256": "bc55b6b8e147ab66ff077ba45a02652ec800d0e754482b80b66d173004e01f42"
         }
       ]
     },
@@ -61,23 +41,43 @@
         }
       ]
     },
-    "artificer-v7-cube-hand": {
+    "artificer-v3-character": {
       "kind": "card",
       "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
-      "sourceSha256": "bc0cbd4d06386b11b8abeca534538eca2fe71636604cafce2b522fb37e9bdb4e",
-      "source": "landing/assets/cards/artificer-v7-cube-hand.png",
+      "sourceSha256": "99aaa21a94f7e805844097b7ac683a15e5c6c6f46eea2bdcf8d445607c31ca96",
+      "source": "landing/assets/cards/artificer-v3-character.png",
       "sourceKind": "landing/assets/cards fallback",
-      "sourceBytes": 317962,
+      "sourceBytes": 2046063,
       "outputs": [
         {
-          "path": "landing/assets/optimized/cards/artificer-v7-cube-hand-512.webp",
-          "bytes": 24446,
-          "sha256": "0567a1ebc5c7fe560bafa32f77a0db58b7faba4dab9183181badb8d198d1ee68"
+          "path": "landing/assets/optimized/cards/artificer-v3-character-512.webp",
+          "bytes": 76484,
+          "sha256": "21eee9d755b15dc69b00fa3a0a0fc87c32516b86496a85cb2e3209bf1901e87f"
         },
         {
-          "path": "landing/assets/optimized/cards/artificer-v7-cube-hand-768.webp",
-          "bytes": 45550,
-          "sha256": "d7f8653abc2f2c56b64d364ddacb56b350e822e28387d5a20021c1cbd1c75b6b"
+          "path": "landing/assets/optimized/cards/artificer-v3-character-768.webp",
+          "bytes": 139796,
+          "sha256": "7129c85e28f6b3b28d6886b792bd393286c13ee56ae07eddbeb11bca43b5225e"
+        }
+      ]
+    },
+    "artificer-v3-drone": {
+      "kind": "card",
+      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
+      "sourceSha256": "01f4b5417da754c05699467c15cfc096b5c8ebeab5b8e8b461f941f45a387f13",
+      "source": "landing/assets/cards/artificer-v3-drone.png",
+      "sourceKind": "landing/assets/cards fallback",
+      "sourceBytes": 587499,
+      "outputs": [
+        {
+          "path": "landing/assets/optimized/cards/artificer-v3-drone-512.webp",
+          "bytes": 8750,
+          "sha256": "e898045f019c8eddfbfa16624fa1f37a1ec7014df9713573222212fd87c1e39b"
+        },
+        {
+          "path": "landing/assets/optimized/cards/artificer-v3-drone-768.webp",
+          "bytes": 16452,
+          "sha256": "7b3f5d0ecde0f20f1294acafbacd4df8948234708b0a182bfe80d5a189487257"
         }
       ]
     },
@@ -141,23 +141,43 @@
         }
       ]
     },
-    "artificer-frame": {
+    "artificer-v7-cube-hand": {
       "kind": "card",
       "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
-      "sourceSha256": "32623c3a6a6e0cd4c7ffff7e8409772c73a21e4e66f7017383e0fc9f895ccd4b",
-      "source": "landing/assets/cards/artificer-frame.png",
+      "sourceSha256": "bc0cbd4d06386b11b8abeca534538eca2fe71636604cafce2b522fb37e9bdb4e",
+      "source": "landing/assets/cards/artificer-v7-cube-hand.png",
       "sourceKind": "landing/assets/cards fallback",
-      "sourceBytes": 1524052,
+      "sourceBytes": 317962,
       "outputs": [
         {
-          "path": "landing/assets/optimized/cards/artificer-frame-512.webp",
-          "bytes": 35090,
-          "sha256": "145eddd9c33f1c1a889c722393c2946a788cd62981379db93343585942f814d8"
+          "path": "landing/assets/optimized/cards/artificer-v7-cube-hand-512.webp",
+          "bytes": 24446,
+          "sha256": "0567a1ebc5c7fe560bafa32f77a0db58b7faba4dab9183181badb8d198d1ee68"
         },
         {
-          "path": "landing/assets/optimized/cards/artificer-frame-768.webp",
-          "bytes": 69984,
-          "sha256": "bc55b6b8e147ab66ff077ba45a02652ec800d0e754482b80b66d173004e01f42"
+          "path": "landing/assets/optimized/cards/artificer-v7-cube-hand-768.webp",
+          "bytes": 45550,
+          "sha256": "d7f8653abc2f2c56b64d364ddacb56b350e822e28387d5a20021c1cbd1c75b6b"
+        }
+      ]
+    },
+    "observer-frame-v1": {
+      "kind": "card",
+      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
+      "sourceSha256": "81137cf9e6d2d440be4205279b385600a0e29fd2e824b13434f41c84924d26a2",
+      "source": "landing/assets/cards/observer-frame-v1.png",
+      "sourceKind": "landing/assets/cards fallback",
+      "sourceBytes": 1488671,
+      "outputs": [
+        {
+          "path": "landing/assets/optimized/cards/observer-frame-v1-512.webp",
+          "bytes": 35428,
+          "sha256": "a787ab6bc85ce2b32ebf77d7c02ac2854deea0e3723fc94cc719ac3e19c70408"
+        },
+        {
+          "path": "landing/assets/optimized/cards/observer-frame-v1-768.webp",
+          "bytes": 70258,
+          "sha256": "b5a55f497735464e5a2e3c279c263e09b4e5357700ca55e58ebcbd1bacceca76"
         }
       ]
     },
@@ -178,6 +198,66 @@
           "path": "landing/assets/optimized/cards/observer-v3-background-768.webp",
           "bytes": 110304,
           "sha256": "9becb4deeb822bd639f70658b31760eabc7c673e06bf7c7b035f1a1ce17f5df4"
+        }
+      ]
+    },
+    "observer-v3-stage": {
+      "kind": "card",
+      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
+      "sourceSha256": "52c602f17a64522e2078076e357ac9cababac8b2db389dc706fbc6eb1d032fec",
+      "source": "landing/assets/cards/observer-v3-stage.png",
+      "sourceKind": "landing/assets/cards fallback",
+      "sourceBytes": 1687501,
+      "outputs": [
+        {
+          "path": "landing/assets/optimized/cards/observer-v3-stage-512.webp",
+          "bytes": 59550,
+          "sha256": "9eb6209f2d24a779fca8d22aaf872af3b4e7d48907a314958980aa325da42494"
+        },
+        {
+          "path": "landing/assets/optimized/cards/observer-v3-stage-768.webp",
+          "bytes": 119228,
+          "sha256": "fcb85a2dc0660a1ca03f1cc1456dc4fb07972bae800904f045e37be25c5807b2"
+        }
+      ]
+    },
+    "observer-v4-lower-hand": {
+      "kind": "card",
+      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
+      "sourceSha256": "1031a5fda0c6bf2b86d6488f532bc42dc1abcdf98af4e77adb5be9dd90817df3",
+      "source": "landing/assets/cards/observer-v4-lower-hand.png",
+      "sourceKind": "landing/assets/cards fallback",
+      "sourceBytes": 430031,
+      "outputs": [
+        {
+          "path": "landing/assets/optimized/cards/observer-v4-lower-hand-512.webp",
+          "bytes": 20802,
+          "sha256": "0b37b7104841e40eb4900efb4415e390779d8ea26fe6d11181b7f398752c70d6"
+        },
+        {
+          "path": "landing/assets/optimized/cards/observer-v4-lower-hand-768.webp",
+          "bytes": 39278,
+          "sha256": "ebc2c01d2944680a897ffe3a9279f5b7f0454130259583fbfca28f2f193faf8b"
+        }
+      ]
+    },
+    "observer-v4-rig": {
+      "kind": "card",
+      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
+      "sourceSha256": "981c961b28cdfccd121629a7020423f6097959a9cf6da9a7f6013fda6e37348f",
+      "source": "landing/assets/cards/observer-v4-rig.png",
+      "sourceKind": "landing/assets/cards fallback",
+      "sourceBytes": 314476,
+      "outputs": [
+        {
+          "path": "landing/assets/optimized/cards/observer-v4-rig-512.webp",
+          "bytes": 39860,
+          "sha256": "ee0b40751ab69c884d6a97abbdd1d803229b09634c3c3f77d3f5f11dd266d76a"
+        },
+        {
+          "path": "landing/assets/optimized/cards/observer-v4-rig-768.webp",
+          "bytes": 74970,
+          "sha256": "1a87d370d72bdc4cdd04d7da5d4dea287d7beca19edcce4f8fcc3419af54ea18"
         }
       ]
     },
@@ -221,46 +301,6 @@
         }
       ]
     },
-    "observer-v3-stage": {
-      "kind": "card",
-      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
-      "sourceSha256": "52c602f17a64522e2078076e357ac9cababac8b2db389dc706fbc6eb1d032fec",
-      "source": "landing/assets/cards/observer-v3-stage.png",
-      "sourceKind": "landing/assets/cards fallback",
-      "sourceBytes": 1687501,
-      "outputs": [
-        {
-          "path": "landing/assets/optimized/cards/observer-v3-stage-512.webp",
-          "bytes": 59550,
-          "sha256": "9eb6209f2d24a779fca8d22aaf872af3b4e7d48907a314958980aa325da42494"
-        },
-        {
-          "path": "landing/assets/optimized/cards/observer-v3-stage-768.webp",
-          "bytes": 119228,
-          "sha256": "fcb85a2dc0660a1ca03f1cc1456dc4fb07972bae800904f045e37be25c5807b2"
-        }
-      ]
-    },
-    "observer-v4-viewfinder": {
-      "kind": "card",
-      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
-      "sourceSha256": "4a0a73c1fa9924a8ecb332fe9b3e8bb76cce2f14bcee36b6534df1c683356264",
-      "source": "landing/assets/cards/observer-v4-viewfinder.png",
-      "sourceKind": "landing/assets/cards fallback",
-      "sourceBytes": 139394,
-      "outputs": [
-        {
-          "path": "landing/assets/optimized/cards/observer-v4-viewfinder-512.webp",
-          "bytes": 11910,
-          "sha256": "4dc6ea7640a0256f606a322244e720a4f0f8e8942cf4373461723783e93c53a6"
-        },
-        {
-          "path": "landing/assets/optimized/cards/observer-v4-viewfinder-768.webp",
-          "bytes": 21344,
-          "sha256": "8126f6a355edf2d8e3cc54517005611ad4ef8966e007b781edcd2d7a894dbdce"
-        }
-      ]
-    },
     "observer-v4-upper-hand": {
       "kind": "card",
       "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
@@ -281,63 +321,23 @@
         }
       ]
     },
-    "observer-v4-rig": {
+    "observer-v4-viewfinder": {
       "kind": "card",
       "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
-      "sourceSha256": "981c961b28cdfccd121629a7020423f6097959a9cf6da9a7f6013fda6e37348f",
-      "source": "landing/assets/cards/observer-v4-rig.png",
+      "sourceSha256": "4a0a73c1fa9924a8ecb332fe9b3e8bb76cce2f14bcee36b6534df1c683356264",
+      "source": "landing/assets/cards/observer-v4-viewfinder.png",
       "sourceKind": "landing/assets/cards fallback",
-      "sourceBytes": 314476,
+      "sourceBytes": 139394,
       "outputs": [
         {
-          "path": "landing/assets/optimized/cards/observer-v4-rig-512.webp",
-          "bytes": 39860,
-          "sha256": "ee0b40751ab69c884d6a97abbdd1d803229b09634c3c3f77d3f5f11dd266d76a"
+          "path": "landing/assets/optimized/cards/observer-v4-viewfinder-512.webp",
+          "bytes": 11910,
+          "sha256": "4dc6ea7640a0256f606a322244e720a4f0f8e8942cf4373461723783e93c53a6"
         },
         {
-          "path": "landing/assets/optimized/cards/observer-v4-rig-768.webp",
-          "bytes": 74970,
-          "sha256": "1a87d370d72bdc4cdd04d7da5d4dea287d7beca19edcce4f8fcc3419af54ea18"
-        }
-      ]
-    },
-    "observer-v4-lower-hand": {
-      "kind": "card",
-      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
-      "sourceSha256": "1031a5fda0c6bf2b86d6488f532bc42dc1abcdf98af4e77adb5be9dd90817df3",
-      "source": "landing/assets/cards/observer-v4-lower-hand.png",
-      "sourceKind": "landing/assets/cards fallback",
-      "sourceBytes": 430031,
-      "outputs": [
-        {
-          "path": "landing/assets/optimized/cards/observer-v4-lower-hand-512.webp",
-          "bytes": 20802,
-          "sha256": "0b37b7104841e40eb4900efb4415e390779d8ea26fe6d11181b7f398752c70d6"
-        },
-        {
-          "path": "landing/assets/optimized/cards/observer-v4-lower-hand-768.webp",
-          "bytes": 39278,
-          "sha256": "ebc2c01d2944680a897ffe3a9279f5b7f0454130259583fbfca28f2f193faf8b"
-        }
-      ]
-    },
-    "observer-frame-v1": {
-      "kind": "card",
-      "paramsHash": "33e95fc1ab6753a3e08d700ca4ed9b446bab3c26faddc243b8f8a43a8a7ca79b",
-      "sourceSha256": "81137cf9e6d2d440be4205279b385600a0e29fd2e824b13434f41c84924d26a2",
-      "source": "landing/assets/cards/observer-frame-v1.png",
-      "sourceKind": "landing/assets/cards fallback",
-      "sourceBytes": 1488671,
-      "outputs": [
-        {
-          "path": "landing/assets/optimized/cards/observer-frame-v1-512.webp",
-          "bytes": 35428,
-          "sha256": "a787ab6bc85ce2b32ebf77d7c02ac2854deea0e3723fc94cc719ac3e19c70408"
-        },
-        {
-          "path": "landing/assets/optimized/cards/observer-frame-v1-768.webp",
-          "bytes": 70258,
-          "sha256": "b5a55f497735464e5a2e3c279c263e09b4e5357700ca55e58ebcbd1bacceca76"
+          "path": "landing/assets/optimized/cards/observer-v4-viewfinder-768.webp",
+          "bytes": 21344,
+          "sha256": "8126f6a355edf2d8e3cc54517005611ad4ef8966e007b781edcd2d7a894dbdce"
         }
       ]
     },

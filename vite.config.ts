@@ -53,6 +53,21 @@ function refreshPublicOnAppBuild(): Plugin {
 export default defineConfig({
   plugins: [landingAtRootDuringDev(), react(), refreshPublicOnAppBuild()],
   build: {
+    rollupOptions: {
+      output: {
+        // Split stable vendor code from app code so an app edit no longer
+        // invalidates the three.js/react downloads, and the browser can fetch
+        // the chunks in parallel instead of one 1.48 MB file.
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined
+          if (/[\\/]node_modules[\\/](three|three-stdlib)[\\/]/.test(id)) return 'vendor-three'
+          if (/[\\/]node_modules[\\/]@react-three[\\/]/.test(id)) return 'vendor-r3f'
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'vendor-react'
+          if (/[\\/]node_modules[\\/]lucide-react[\\/]/.test(id)) return 'vendor-icons'
+          return 'vendor'
+        },
+      },
+    },
     // `build:app` runs beside the landing build in the same dist/ directory.
     // It opts into preservation so an app-only rebuild cannot remove /landing/.
     emptyOutDir: !preserveDist,
